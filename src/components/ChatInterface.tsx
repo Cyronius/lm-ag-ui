@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Send, Bot, User } from 'lucide-react';
@@ -11,15 +10,12 @@ interface Message {
   timestamp: Date;
 }
 
-const ChatInterface = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: "👋 Hello! I'm your AI Training Assistant. I can help you with training questions, create custom content, schedule demos, and assist with account setup. What would you like to do today?",
-      sender: 'bot',
-      timestamp: new Date()
-    }
-  ]);
+interface ChatInterfaceProps {
+  onBack?: () => void;
+}
+
+const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -116,10 +112,10 @@ const ChatInterface = () => {
     }
   };
 
-  const showSuggestions = messages.length <= 1;
+  const showSuggestions = messages.length === 0;
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 h-[600px] flex flex-col">
+    <div className="h-[600px] flex flex-col">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {messages.map((message) => (
@@ -171,7 +167,7 @@ const ChatInterface = () => {
       </div>
 
       {/* Input Area */}
-      <div className="p-6 border-t border-gray-200">
+      <div className="p-6">
         {showSuggestions && (
           <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
         )}
