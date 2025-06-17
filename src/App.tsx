@@ -1,24 +1,15 @@
 import React from 'react';
-import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
+import { CssBaseline, ThemeProvider } from '@mui/material';
 import ChatInterface from './components/ChatInterface';
-
-const theme = createTheme({
-    palette: {
-        primary: {
-            main: '#1976d2',
-        },
-        secondary: {
-            main: '#dc004e',
-        },
-    },
-});
+import './App.css';
+import theme from './theme';
 
 const App = () => {
     console.log('App component rendered');
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline />
-            <div className="app-container">
+            <div>
                 <header className="app-header">
                     <span className="badge">✨ AI-Powered Training Assistant</span>
                     <h1 className="main-title">Your AI Training Assistant</h1>

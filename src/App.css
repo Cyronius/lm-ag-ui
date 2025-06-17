@@ -1,0 +1,39 @@
+/* Styles specific to the App component */
+
+.app-header {
+    text-align: center;
+    margin-top: 32px;
+    margin-bottom: 48px;
+}
+
+.badge {
+    display: inline-block;
+    background: #e3eafd;
+    color: #1976d2;
+    font-weight: 500;
+    font-size: 1rem;
+    padding: 6px 18px;
+    border-radius: 16px;
+    margin-bottom: 18px;
+    box-shadow: 0 2px 8px rgba(25, 118, 210, 0.06);
+}
+
+.main-title {
+    font-size: 2.8rem;
+    font-weight: 700;
+    margin: 0 0 12px 0;
+    color: #222;
+    letter-spacing: -1px;
+}
+
+.subtitle {
+    font-size: 1.15rem;
+    color: #4a5568;
+    margin: 0 0 0 0;
+}
+
+@media (max-width: 700px) {
+    .main-title {
+        font-size: 2rem;
+    }
+}

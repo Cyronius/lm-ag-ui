@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button, TextField, Typography, CircularProgress } from '@mui/material';
 import { Send, Bot, User } from 'lucide-react';
 import ChatSuggestions from './ChatSuggestions';
+import './ChatInterface.css';
 
 interface Message {
   id: string;
@@ -115,7 +116,7 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
 
   return (
     <div className="chat-interface">
-      <div className="chat-messages">
+      <div>
         {messages.map((message) => (
           <div key={message.id} className={`message ${message.sender}`}>
             {message.sender === 'bot' && (
@@ -124,7 +125,7 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
               </div>
             )}
             <div className={`message-content ${message.sender}`}>
-              <Typography variant="body2" className="message-text">
+              <Typography variant="body2">
                 {message.content}
               </Typography>
               <Typography variant="caption" className="message-timestamp">
@@ -145,7 +146,7 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
         )}
         <div ref={messagesEndRef} />
       </div>
-      <div className="chat-bottom-bar">
+      <div>
         {showSuggestions && (
           <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
         )}
@@ -167,7 +168,7 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
             color="primary"
             className="send-button"
           >
-            <Send className="send-icon" />
+            <Send />
           </Button>
         </div>
       </div>
