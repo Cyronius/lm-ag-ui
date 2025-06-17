@@ -9,7 +9,7 @@ import { Message } from '../types';
 interface ChatMessagesProps {
     messages: Message[];
     isTyping: boolean;
-    messagesEndRef: React.RefObject<HTMLDivElement>;
+    messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function ChatMessages({ messages, isTyping, messagesEndRef }: ChatMessagesProps) {
