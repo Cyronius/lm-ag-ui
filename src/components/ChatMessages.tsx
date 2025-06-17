@@ -2,6 +2,7 @@ import React from 'react';
 import { Typography, CircularProgress } from '@mui/material';
 import { Bot, User } from 'lucide-react';
 import './ChatInterface.css';
+import './ChatMessages.css';
 import { Message } from '../types';
 
 
