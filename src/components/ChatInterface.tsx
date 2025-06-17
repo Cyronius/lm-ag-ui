@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button, TextField, Paper, Typography, CircularProgress } from '@mui/material';
 import { Send, Bot, User } from 'lucide-react';
 import ChatSuggestions from './ChatSuggestions';
 
@@ -90,7 +90,6 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
       return "I'm here to help with any training questions! I can assist with:\n\n📚 **Instructional Design** - Adult learning principles, engagement strategies\n🎯 **Training Strategy** - Needs analysis, learning paths, blended learning\n📊 **Assessment** - Quiz design, competency evaluation, progress tracking\n🔄 **Implementation** - Change management, rollout strategies\n\nWhat specific training challenge are you facing?";
     }
     
-    // Default responses for unclear input
     const responses = [
       "I'd love to help you with that! Could you tell me a bit more about what you're looking for? I can assist with training questions, content creation, demo scheduling, or account setup.",
       "That's interesting! To give you the most helpful response, could you provide a few more details about your specific needs or goals?",
@@ -115,79 +114,66 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
   const showSuggestions = messages.length === 0;
 
   return (
-    <div className="h-[600px] flex flex-col">
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+    <div className="chat-interface">
+      <Paper elevation={3} className="chat-messages">
         {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+          <div key={message.id} className={`message ${message.sender}`}>
             {message.sender === 'bot' && (
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <Bot className="w-4 h-4 text-blue-600" />
+              <div className="bot-icon">
+                <Bot className="icon" />
               </div>
             )}
             
-            <div className={`max-w-[80%] rounded-2xl p-4 ${
-              message.sender === 'user' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-100 text-gray-900'
-            }`}>
-              <p className="text-sm whitespace-pre-line">{message.content}</p>
-              <span className="text-xs opacity-70 mt-2 block">
+            <div className={`message-content ${message.sender}`}>
+              <Typography variant="body2" className="message-text">
+                {message.content}
+              </Typography>
+              <Typography variant="caption" className="message-timestamp">
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
+              </Typography>
             </div>
             
             {message.sender === 'user' && (
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4 text-white" />
+              <div className="user-icon">
+                <User className="icon" />
               </div>
             )}
           </div>
         ))}
         
         {isTyping && (
-          <div className="flex gap-3 justify-start">
-            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-              <Bot className="w-4 h-4 text-blue-600" />
-            </div>
-            <div className="bg-gray-100 rounded-2xl p-4">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              </div>
-            </div>
+          <div className="typing-indicator">
+            <CircularProgress size={24} />
           </div>
         )}
         
         <div ref={messagesEndRef} />
-      </div>
+      </Paper>
 
-      {/* Input Area */}
-      <div className="p-6">
+      <div className="input-area">
         {showSuggestions && (
           <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
         )}
         
-        <div className="flex gap-3">
-          <input
-            ref={inputRef}
-            type="text"
+        <div className="input-container">
+          <TextField
+            inputRef={inputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Ask me anything about training, content creation, or schedule a demo..."
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            variant="outlined"
+            fullWidth
+            className="input-field"
           />
           <Button
             onClick={() => handleSendMessage()}
             disabled={!inputValue.trim() || isTyping}
-            className="bg-blue-600 hover:bg-blue-700 rounded-full px-6"
+            variant="contained"
+            color="primary"
+            className="send-button"
           >
-            <Send className="w-4 h-4" />
+            <Send className="send-icon" />
           </Button>
         </div>
       </div>
