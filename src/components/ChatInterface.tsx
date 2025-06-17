@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, TextField, Paper, Typography, CircularProgress } from '@mui/material';
+import { Button, TextField, Typography, CircularProgress } from '@mui/material';
 import { Send, Bot, User } from 'lucide-react';
 import ChatSuggestions from './ChatSuggestions';
 
@@ -115,7 +115,7 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
 
   return (
     <div className="chat-interface">
-      <Paper elevation={3} className="chat-messages">
+      <div className="chat-messages">
         {messages.map((message) => (
           <div key={message.id} className={`message ${message.sender}`}>
             {message.sender === 'bot' && (
@@ -123,7 +123,6 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
                 <Bot className="icon" />
               </div>
             )}
-            
             <div className={`message-content ${message.sender}`}>
               <Typography variant="body2" className="message-text">
                 {message.content}
@@ -132,7 +131,6 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Typography>
             </div>
-            
             {message.sender === 'user' && (
               <div className="user-icon">
                 <User className="icon" />
@@ -140,21 +138,17 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
             )}
           </div>
         ))}
-        
         {isTyping && (
           <div className="typing-indicator">
             <CircularProgress size={24} />
           </div>
         )}
-        
         <div ref={messagesEndRef} />
-      </Paper>
-
-      <div className="input-area">
+      </div>
+      <div className="chat-bottom-bar">
         {showSuggestions && (
           <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
         )}
-        
         <div className="input-container">
           <TextField
             inputRef={inputRef}
