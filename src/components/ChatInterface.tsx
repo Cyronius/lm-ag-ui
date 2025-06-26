@@ -4,20 +4,22 @@ import { Send } from 'lucide-react';
 import ChatSuggestions from './ChatSuggestions';
 import ChatMessages from './ChatMessages';
 import './ChatInterface.css';
-import { Message } from '../types';
+// import { Message } from '../types';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../theme';
 import { CHAT_SERVER_URL } from '../settings';
+import { ChatEvent, Content } from '../types';
+
 
 interface ChatInterfaceProps {
     onBack?: () => void;
 }
 
 const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
-    const [messages, setMessages] = useState<Message[]>([]);
+    const [messages, setMessages] = useState<Content[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isTyping, setIsTyping] = useState(false);
-    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [session, setSession] = useState<object | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -29,50 +31,75 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
         scrollToBottom();
     }, [messages]);
 
+    // Helper to create a new session
+    const createNewSession = async () => {
+        try {
+            const response = await fetch(`${CHAT_SERVER_URL}/apps/smarketing/users/user/sessions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await response.json();            
+            const session = {
+                sessionId: data.id,
+                userId: data.userId,
+                appName: data.appName,
+            }
+            setSession(session);
+            return session;
+
+        } catch (err) {
+            setMessages(prev => [...prev, message('Error creating chat session.')]);
+        }
+        return null;
+    };
+
+
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
         if (!textToSend.trim()) return;
 
-        const userMessage: Message = {
-            id: Date.now().toString(),
-            content: textToSend,
-            sender: 'user',
-            timestamp: new Date()
-        };
+        const userMessage = message(textToSend, 'user');
 
         setMessages(prev => [...prev, userMessage]);
         setInputValue('');
         setIsTyping(true);
 
+        // Ensure sessionId exists
+        let currentSession = session;
+        if (!currentSession) {
+            currentSession = await createNewSession();
+            if (!currentSession) {
+                setIsTyping(false);
+                return;
+            }
+        }
+
         try {
-            const response = await fetch(`${CHAT_SERVER_URL}/smarketing_chat`, {
+            // run_sse for streaming responses
+            const response = await fetch(`${CHAT_SERVER_URL}/run`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    message: textToSend,
-                    session_id: sessionId,
+                    new_message: {
+                        role: 'user',
+                        parts: [{
+                            text: textToSend
+                        }]
+                    },
+                    ...currentSession
                 }),
             });
             const data = await response.json();
-            if (data.session_id) {
-                setSessionId(data.session_id);
-            }
-            const botMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                content: data.response || 'No response from server.',
-                sender: 'bot',
-                timestamp: new Date()
-            };
-            setMessages(prev => [...prev, botMessage]);
+            // data is now an array of events
+            // Find the last event with a model role and a text part
+            let botResponses = getBotResponseMessages(data);            
+            setMessages(prev => [...prev, ...botResponses]);
         } catch (err) {
-            setMessages(prev => [...prev, {
-                id: (Date.now() + 2).toString(),
-                content: 'Error connecting to chat server.',
-                sender: 'bot',
-                timestamp: new Date()
-            }]);
+            setMessages(prev => [...prev, message('Error connecting to chat server.')]);
         } finally {
             setIsTyping(false);
         }
@@ -90,7 +117,9 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
         }
     };
 
-    const showSuggestions = messages.length === 0;
+    // TODO: future: this should condition on having a session ID
+    //const showSuggestions = messages.length === 0;
+    const showSuggestions = true
 
     return (
         <ThemeProvider theme={theme}>
@@ -129,4 +158,32 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
     );
 };
 
+// Helper function to create a message object for the given text and optional role
+function message(content: string, role='bot'): Content {    
+    return {
+        parts: [{ text: content }],
+        role: 'bot',
+    };
+}
+
 export default ChatInterface;
+function getBotResponseMessages(data: Array<ChatEvent>): Content[] {
+    const filteredContent: Content[] = [];
+    for (const event of data) {
+        if (event.content && event.content.role === 'model' && event.content.parts) {
+            for (const part of event.content.parts) {
+                // TODO:
+                // ignore part.functionCall and part.functionResponse
+                // in fact, right now text parts are all I care about                
+                if (part.text) {
+                    filteredContent.push(message(part.text));                    
+                }
+            }
+        }
+    }
+    if (filteredContent.length === 0) {
+        filteredContent.push(message('No response from server.'));
+    }
+    return filteredContent;
+}
+

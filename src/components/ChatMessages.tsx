@@ -3,11 +3,12 @@ import { Typography, CircularProgress } from '@mui/material';
 import { Bot, User } from 'lucide-react';
 import './ChatInterface.css';
 import './ChatMessages.css';
-import { Message } from '../types';
-
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { ChatEvent, Content } from '../types';
 
 interface ChatMessagesProps {
-    messages: Message[];
+    messages: Content[];
     isTyping: boolean;
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -15,22 +16,26 @@ interface ChatMessagesProps {
 export default function ChatMessages({ messages, isTyping, messagesEndRef }: ChatMessagesProps) {
     return <>
         {
-            messages.map((message) => (
-                <div key={message.id} className={`message ${message.sender}`}>
-                    {message.sender === 'bot' && (
+            messages.map((message, i) => (
+                <div key={i} className={`message ${message.role}`}>
+                    {message.role === 'bot' && (
                         <div className="bot-icon">
                             <Bot className="icon" />
                         </div>
                     )}
-                    <div className={`message-content ${message.sender}`}>
-                        <Typography variant="body2">
-                            {message.content}
-                        </Typography>
-                        <Typography variant="caption" className="message-timestamp">
-                            {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </Typography>
+                    <div className={`message-content ${message.role}`}>
+                        {message.parts?.map((part,j) =>
+                            <Typography key={j} variant="body2" component="div">
+                                {/* Markdown expects a string or array of strings, not an array of objects or numbers */}
+                                {part.text &&
+                                    <Markdown remarkPlugins={[remarkGfm]}>
+                                        {part.text}
+                                    </Markdown>
+                                }
+                            </Typography>
+                        )}                        
                     </div>
-                    {message.sender === 'user' && (
+                    {message.role === 'user' && (
                         <div className="user-icon">
                             <User className="icon" />
                         </div>
