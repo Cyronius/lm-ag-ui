@@ -6,10 +6,10 @@ import path from "path";
 export default defineConfig(({ mode }) => ({
     root: './',
     publicDir: './public',
+    base: '',
     server: {
         host: "::",
         port: 8080,
-
     },
     plugins: [
         react(),        
