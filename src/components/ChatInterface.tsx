@@ -181,8 +181,27 @@ function getBotResponseMessages(data: Array<ChatEvent>): Content[] {
             }
         }
     }
+
+    // if no text, let's just dump what the model did. Maybe it was a function call or something else.
     if (filteredContent.length === 0) {
-        filteredContent.push(message('No response from server.'));
+        // Output one line for each part in all model events
+        let lines: string[] = [];
+        for (const event of data) {
+            // TODO: adk bug incorrectly marks function calls as role='user' !
+            // https://github.com/google/adk-python/issues/1748
+            if (event.content && /*event.content.role === 'model' &&*/ event.content.parts) {
+                for (const part of event.content.parts) {
+                    const obj = JSON.stringify(part, null, 4);
+                    lines.push(obj)
+                }
+            }
+        }
+        if (lines.length === 0) {
+            lines.push("I received a response from the server, but it wasn't textual.");
+        }
+        for (const line of lines) {
+            filteredContent.push(message(line));
+        }
     }
     return filteredContent;
 }
