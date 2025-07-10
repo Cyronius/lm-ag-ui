@@ -8,11 +8,7 @@ import { CHAT_SERVER_URL } from '../settings';
 import { ChatEvent, Content } from '../types';
 
 
-interface ChatInterfaceProps {
-    onBack?: () => void;
-}
-
-const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
+export default function ChatInterface()  {
     const [messages, setMessages] = useState<Content[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isTyping, setIsTyping] = useState(false);
@@ -165,7 +161,6 @@ function message(content: string, role='bot'): Content {
     };
 }
 
-export default ChatInterface;
 function getBotResponseMessages(data: Array<ChatEvent>): Content[] {
     const filteredContent: Content[] = [];
     for (const event of data) {
