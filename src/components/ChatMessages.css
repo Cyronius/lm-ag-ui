@@ -23,6 +23,8 @@
     color: #222;
     align-self: flex-start;
     border-bottom-left-radius: 8px;
+    display: flex;        
+    align-items: center;
 }
 
 .message-content {
@@ -39,8 +41,13 @@
 
 .bot-icon, .user-icon {
     display: flex;
-    align-items: center;
-    margin: 0 10px;
+    align-items: center;    
+    margin-top: auto;
+    margin-bottom: auto;
+    margin-left: 10px;
+    margin-right: 20px;
+    width: 2.5em;
+    aspect-ratio: 1;
 }
 
 .typing-indicator {

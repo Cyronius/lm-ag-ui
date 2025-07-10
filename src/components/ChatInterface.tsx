@@ -78,12 +78,15 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
 
         try {
             // run_sse for streaming responses
+            // /run_agui for ag-ui responses + streaming
             const response = await fetch(`${CHAT_SERVER_URL}/run`, {
+            //const response = await fetch(`${CHAT_SERVER_URL}/run_agui`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
+                    ag_ui: true, // Enable ag-ui mode
                     new_message: {
                         role: 'user',
                         parts: [{

@@ -19,8 +19,8 @@ export default function ChatMessages({ messages, isTyping, messagesEndRef }: Cha
             messages.map((message, i) => (
                 <div key={i} className={`message ${message.role}`}>
                     {message.role === 'bot' && (
-                        <div className="bot-icon">
-                            <Bot className="icon" />
+                        <div className="bot-icon">                            
+                            <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
                         </div>
                     )}
                     <div className={`message-content ${message.role}`}>
