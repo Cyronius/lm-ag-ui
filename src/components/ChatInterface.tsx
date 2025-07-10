@@ -4,9 +4,6 @@ import { Send } from 'lucide-react';
 import ChatSuggestions from './ChatSuggestions';
 import ChatMessages from './ChatMessages';
 import './ChatInterface.css';
-// import { Message } from '../types';
-import { ThemeProvider } from '@mui/material/styles';
-import theme from '../theme';
 import { CHAT_SERVER_URL } from '../settings';
 import { ChatEvent, Content } from '../types';
 
@@ -125,39 +122,38 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
     const showSuggestions = true
 
     return (
-        <ThemeProvider theme={theme}>
-            <div className="chat-interface">
-                <ChatMessages messages={messages} isTyping={isTyping} messagesEndRef={messagesEndRef}  />
+        
+        <div className="chat-interface">
+            <ChatMessages messages={messages} isTyping={isTyping} messagesEndRef={messagesEndRef}  />
 
-                <div className="suggestions-container">
-                    {showSuggestions && (
-                        <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
-                    )}
-                </div>
-
-                <div className="input-container">
-                    <TextField
-                        inputRef={inputRef}
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyUp={handleKeyPress}
-                        placeholder="Ask me anything about training!"
-                        variant="outlined"
-                        fullWidth
-                        className="input-field"
-                    />
-                    <Button
-                        onClick={() => handleSendMessage()}
-                        disabled={!inputValue.trim() || isTyping}
-                        variant="contained"
-                        color="primary"
-                        className="send-button"
-                    >
-                        <Send />
-                    </Button>
-                </div>
+            <div className="suggestions-container">
+                {showSuggestions && (
+                    <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
+                )}
             </div>
-        </ThemeProvider>
+
+            <div className="input-container">
+                <TextField
+                    inputRef={inputRef}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyUp={handleKeyPress}
+                    placeholder="Ask me anything about training!"
+                    variant="outlined"
+                    fullWidth
+                    className="input-field"
+                />
+                <Button
+                    onClick={() => handleSendMessage()}
+                    disabled={!inputValue.trim() || isTyping}
+                    variant="contained"
+                    color="primary"
+                    className="send-button"
+                >
+                    <Send />
+                </Button>
+            </div>
+        </div>        
     );
 };
 
