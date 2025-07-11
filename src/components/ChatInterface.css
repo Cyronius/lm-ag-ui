@@ -53,3 +53,7 @@ button.send-button {
         padding: 6px 6px;
     }
 }
+
+.suggestions-container {
+    margin-top: 1em;
+}

@@ -9,6 +9,9 @@
         "test": "echo \"No test runner configured\" && exit 0"
     },
     "dependencies": {
+        "@copilotkit/react-core": "^1.9.1",
+        "@copilotkit/react-ui": "^1.9.1",
+        "@copilotkit/runtime": "^1.9.1",
         "@emotion/react": "^11.0.0",
         "@emotion/styled": "^11.0.0",
         "@mui/material": "^5.0.0",
