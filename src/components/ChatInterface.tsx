@@ -1,6 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { CopilotKit, useCopilotChat } from "@copilotkit/react-core";
-import { Role, TextMessage } from "@copilotkit/runtime-client-gql";
 import { Button, TextField } from '@mui/material';
 import { Send } from 'lucide-react';
 import ChatSuggestions from './ChatSuggestions';
@@ -9,26 +7,9 @@ import './ChatInterface.css';
 import { CHAT_SERVER_URL } from '../settings';
 import { ChatEvent, Content } from '../types';
 
-export default function ChatInterfaceWrapped() {
-    return (
-        <CopilotKit runtimeUrl={`${CHAT_SERVER_URL}/run_sse`} >
-            <ChatInterface/>
-        </CopilotKit>
-    )
-}
 
-function ChatInterface() {
-    const {
-        visibleMessages,    // An array of messages that are currently visible in the chat.
-        appendMessage,      // A function to append a message to the chat.
-        setMessages,        // A function to set the messages in the chat.
-        deleteMessage,      // A function to delete a message from the chat.
-        reloadMessages,     // A function to reload the messages from the API.
-        stopGeneration,     // A function to stop the generation of the next message.
-        reset,              // A function to reset the chat.
-        isLoading,          // A boolean indicating if the chat is loading.
-    } = useCopilotChat();
-
+export default function ChatInterface()  {
+    const [messages, setMessages] = useState<Content[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [session, setSession] = useState<object | null>(null);
@@ -41,17 +22,83 @@ function ChatInterface() {
 
     useEffect(() => {
         scrollToBottom();
-    }, [visibleMessages]);
+    }, [messages]);
 
-    
+    // Helper to create a new session
+    const createNewSession = async () => {
+        try {
+            const response = await fetch(`${CHAT_SERVER_URL}/apps/smarketing/users/user/sessions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await response.json();            
+            const session = {
+                sessionId: data.id,
+                userId: data.userId,
+                appName: data.appName,
+            }
+            setSession(session);
+            return session;
 
-    const handleSendMessage = async (messageText: string) => {
-        appendMessage(
-            new TextMessage({
-                content: messageText,
-                role: Role.User,
-            })
-        )
+        } catch (err) {
+            setMessages(prev => [...prev, message('Error creating chat session.')]);
+        }
+        return null;
+    };
+
+
+    const handleSendMessage = async (messageText?: string) => {
+        const textToSend = messageText || inputValue;
+        if (!textToSend.trim()) return;
+
+        const userMessage = message(textToSend, 'user');
+
+        setMessages(prev => [...prev, userMessage]);
+        setInputValue('');
+        setIsTyping(true);
+
+        // Ensure sessionId exists
+        let currentSession = session;
+        if (!currentSession) {
+            currentSession = await createNewSession();
+            if (!currentSession) {
+                setIsTyping(false);
+                return;
+            }
+        }
+
+        try {
+            // run_sse for streaming responses
+            // /run_agui for ag-ui responses + streaming
+            const response = await fetch(`${CHAT_SERVER_URL}/run`, {
+            //const response = await fetch(`${CHAT_SERVER_URL}/run_agui`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ag_ui: true, // Enable ag-ui mode
+                    new_message: {
+                        role: 'user',
+                        parts: [{
+                            text: textToSend
+                        }]
+                    },
+                    ...currentSession
+                }),
+            });
+            const data = await response.json();
+            // data is now an array of events
+            // Find the last event with a model role and a text part
+            let botResponses = getBotResponseMessages(data);            
+            setMessages(prev => [...prev, ...botResponses]);
+        } catch (err) {
+            setMessages(prev => [...prev, message('Error connecting to chat server.')]);
+        } finally {
+            setIsTyping(false);
+        }
     };
 
     const handleSuggestionClick = (suggestion: string) => {
@@ -62,7 +109,7 @@ function ChatInterface() {
     const handleKeyPress = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSendMessage(inputValue);
+            handleSendMessage();
         }
     };
 
@@ -73,7 +120,13 @@ function ChatInterface() {
     return (
         
         <div className="chat-interface">
-            <ChatMessages messagesEndRef={messagesEndRef}  />
+            <ChatMessages messages={messages} isTyping={isTyping} messagesEndRef={messagesEndRef}  />
+
+            <div className="suggestions-container">
+                {showSuggestions && (
+                    <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
+                )}
+            </div>
 
             <div className="input-container">
                 <TextField
@@ -87,7 +140,7 @@ function ChatInterface() {
                     className="input-field"
                 />
                 <Button
-                    onClick={() => handleSendMessage(inputValue)}
+                    onClick={() => handleSendMessage()}
                     disabled={!inputValue.trim() || isTyping}
                     variant="contained"
                     color="primary"
@@ -96,14 +149,6 @@ function ChatInterface() {
                     <Send />
                 </Button>
             </div>
-
-            
-            <div className="suggestions-container">
-                {showSuggestions && (
-                    <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
-                )}
-            </div>
-
         </div>        
     );
 };
