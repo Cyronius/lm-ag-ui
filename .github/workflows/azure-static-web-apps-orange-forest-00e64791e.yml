@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Clean up old env files
-        run: rm -f .env .env.production
+        run: rm -f .env
       - name: Copy .env.dev to .env
         run: cp .env.dev .env
       - name: Build with Vite
