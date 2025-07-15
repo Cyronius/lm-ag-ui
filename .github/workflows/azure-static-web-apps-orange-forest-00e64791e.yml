@@ -25,6 +25,8 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm ci
+      - name: Copy .env.dev to .env
+        run: cp .env.dev .env
       - name: Build with Vite
         run: npm run build
       - name: Build And Deploy
