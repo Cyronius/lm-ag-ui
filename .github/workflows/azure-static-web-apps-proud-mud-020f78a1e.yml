@@ -27,7 +27,7 @@ jobs:
         run: npm ci
       # Ensure both .env and .env.production are removed to avoid conflicts
       - name: Clean up old env files
-        run: rm -f .env; [ -f .env.dev] && rm .env.dev;
+        run: rm -f .env;
       - name: Copy .env.production to .env
         run: cp .env.production .env
       - name: Show VITE_PYTHON_SERVER_URL
