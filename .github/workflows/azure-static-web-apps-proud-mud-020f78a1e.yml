@@ -29,6 +29,8 @@ jobs:
         run: rm -f .env
       - name: Copy .env.production to .env
         run: cp .env.production .env
+      - name: Show VITE_PYTHON_SERVER_URL
+        run: cat .env && grep VITE_PYTHON_SERVER_URL .env
       - name: Build with Vite
         run: npm run build
       - name: Build And Deploy
