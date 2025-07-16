@@ -27,7 +27,7 @@ jobs:
         run: npm ci
       # Ensure both .env and .env.production are removed to avoid conflicts
       - name: Clean up old env files
-        run: rm -f .env; [ -f .env.production ] && rm .env.production
+        run: rm -f .env; [ -f .env.production ] && rm .env.production;
       # Copy .env.dev to .env for test environment
       - name: Copy .env.dev to .env
         run: cp .env.dev .env
