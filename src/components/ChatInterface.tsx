@@ -24,29 +24,7 @@ export default function ChatInterface()  {
         scrollToBottom();
     }, [messages]);
 
-    // Helper to create a new session
-    const createNewSession = async () => {
-        try {
-            const response = await fetch(`${CHAT_SERVER_URL}/apps/smarketing/users/user/sessions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            });
-            const data = await response.json();            
-            const session = {
-                sessionId: data.id,
-                userId: data.userId,
-                appName: data.appName,
-            }
-            setSession(session);
-            return session;
 
-        } catch (err) {
-            setMessages(prev => [...prev, message('Error creating chat session.')]);
-        }
-        return null;
-    };
 
 
     const handleSendMessage = async (messageText?: string) => {
@@ -62,17 +40,19 @@ export default function ChatInterface()  {
         // Ensure sessionId exists
         let currentSession = session;
         if (!currentSession) {
-            currentSession = await createNewSession();
-            if (!currentSession) {
-                setIsTyping(false);
-                return;
-            }
+            // TODO: disabled
+            // currentSession = await createNewSession();
+            // if (!currentSession) {
+            //     setIsTyping(false);
+            //     return;
+            // }
+            currentSession = {}
         }
 
         try {
             // run_sse for streaming responses
             // /run_agui for ag-ui responses + streaming
-            const response = await fetch(`${CHAT_SERVER_URL}/run`, {
+            const response = await fetch(`${CHAT_SERVER_URL}/smarketing`, {
             //const response = await fetch(`${CHAT_SERVER_URL}/run_agui`, {
                 method: 'POST',
                 headers: {
