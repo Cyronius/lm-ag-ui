@@ -24,6 +24,7 @@ export default function ChatInterface() {
     const [isStreaming, setIsStreaming] = useState(false);
     const [currentMessage, setCurrentMessage] = useState('');
     const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
+    const currentMessageIdRef = useRef<string | null>(null);
     const [artifacts, setArtifacts] = useState<Map<string, ArtifactData>>(new Map());
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -47,16 +48,19 @@ export default function ChatInterface() {
             setIsStreaming(true);
             setCurrentMessage('');
             setCurrentMessageId(null);
+            currentMessageIdRef.current = null;
         },
 
         onTextMessageContentEvent: ({ event }: { event: TextMessageContentEvent }) => {
-            console.log(`event message id: ${event.messageId} contents: ${event.delta}`)
-            if (event.messageId !== currentMessageId) {
+            if (event.messageId !== currentMessageIdRef.current) {
+                console.log(`NEW event message id: ${event.messageId} contents: ${event.delta}`)
                 // New message started
                 setCurrentMessageId(event.messageId);
+                currentMessageIdRef.current = event.messageId;
                 setCurrentMessage(event.delta);
             } else {
                 // Continue current message
+                console.log(`CONTINUE event message id: ${event.messageId} contents: ${event.delta}`)
                 setCurrentMessage(prev => prev + event.delta);
             }
         },
@@ -65,7 +69,7 @@ export default function ChatInterface() {
             if (currentMessage.trim()) {
                 // Add the completed message
                 const completedMessage: Message = {
-                    id: currentMessageId || `msg_${Date.now()}`,
+                    id: currentMessageIdRef.current || `msg_${Date.now()}`,
                     role: 'assistant',
                     content: currentMessage
                 };
@@ -75,6 +79,7 @@ export default function ChatInterface() {
             setIsStreaming(false);
             setCurrentMessage('');
             setCurrentMessageId(null);
+            currentMessageIdRef.current = null;
             endRun();
         },
 
@@ -133,6 +138,7 @@ export default function ChatInterface() {
             };
             setMessages(prev => [...prev, errorMessage]);
             endRun();
+            throw error;
         }
     };
 
