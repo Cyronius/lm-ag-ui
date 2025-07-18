@@ -5,35 +5,33 @@ import './ChatInterface.css';
 import './ChatMessages.css';
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { ChatEvent, Content } from '../types';
+import { Message } from '@ag-ui/core';
 
 interface ChatMessagesProps {
-    messages: Content[];
+    messages: Message[];
     isTyping: boolean;
+    currentMessage: string;
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
-export default function ChatMessages({ messages, isTyping, messagesEndRef }: ChatMessagesProps) {
+export default function ChatMessages({ messages, isTyping, currentMessage, messagesEndRef }: ChatMessagesProps) {
     return <>
         {
             messages.map((message, i) => (
-                <div key={i} className={`message ${message.role}`}>
-                    {message.role === 'bot' && (
+                <div key={message.id || i} className={`message ${message.role}`}>
+                    {message.role === 'assistant' && (
                         <div className="bot-icon">                            
                             <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
                         </div>
                     )}
                     <div className={`message-content ${message.role}`}>
-                        {message.parts?.map((part,j) =>
-                            <Typography key={j} variant="body2" component="div">
-                                {/* Markdown expects a string or array of strings, not an array of objects or numbers */}
-                                {part.text &&
-                                    <Markdown remarkPlugins={[remarkGfm]}>
-                                        {part.text}
-                                    </Markdown>
-                                }
-                            </Typography>
-                        )}                        
+                        <Typography variant="body2" component="div">
+                            {message.content && (
+                                <Markdown remarkPlugins={[remarkGfm]}>
+                                    {message.content}
+                                </Markdown>
+                            )}
+                        </Typography>
                     </div>
                     {message.role === 'user' && (
                         <div className="user-icon">
@@ -45,8 +43,23 @@ export default function ChatMessages({ messages, isTyping, messagesEndRef }: Cha
         }
         {
             isTyping && (
-                <div className="typing-indicator">
-                    <CircularProgress size={24} />
+                <div className="message assistant">
+                    <div className="bot-icon">                            
+                        <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
+                    </div>
+                    <div className="message-content assistant">
+                        <Typography variant="body2" component="div">
+                            {currentMessage ? (
+                                <Markdown remarkPlugins={[remarkGfm]}>
+                                    {currentMessage}
+                                </Markdown>
+                            ) : (
+                                <div className="typing-indicator">
+                                    <CircularProgress size={24} />
+                                </div>
+                            )}
+                        </Typography>
+                    </div>
                 </div>
             )
         }

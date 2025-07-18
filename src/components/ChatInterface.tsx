@@ -3,18 +3,35 @@ import { Button, TextField } from '@mui/material';
 import { Send } from 'lucide-react';
 import ChatSuggestions from './ChatSuggestions';
 import ChatMessages from './ChatMessages';
+import { ArtifactRenderer } from './artifacts';
 import './ChatInterface.css';
-import { CHAT_SERVER_URL } from '../settings';
-import { ChatEvent, Content } from '../types';
+import {
+    Message,
+    TextMessageContentEvent,
+    RunStartedEvent,
+    RunFinishedEvent,
+    RunErrorEvent
+} from '@ag-ui/core';
+import { ArtifactData, AgentSubscriber } from '../types/index';
+import { AgentService } from '../services/AgentService';
+import { useSessionManager } from '../hooks/useSessionManager';
+import { useToolExecution } from '../hooks/useToolExecution';
+import { allTools } from '../tools/frontendTools';
 
-
-export default function ChatInterface()  {
-    const [messages, setMessages] = useState<Content[]>([]);
+export default function ChatInterface() {
+    const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
-    const [isTyping, setIsTyping] = useState(false);
-    const [session, setSession] = useState<object | null>(null);
+    const [isStreaming, setIsStreaming] = useState(false);
+    const [currentMessage, setCurrentMessage] = useState('');
+    const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
+    const [artifacts, setArtifacts] = useState<Map<string, ArtifactData>>(new Map());
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const agentService = useRef(new AgentService());
+
+    const { sessionState, startNewRun, endRun } = useSessionManager();
+    const { toolSubscriber } = useToolExecution(setMessages, setArtifacts);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -22,62 +39,100 @@ export default function ChatInterface()  {
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages]);
+    }, [messages, currentMessage]);
 
+    // Create the AG-UI subscriber
+    const agentSubscriber: AgentSubscriber = {
+        onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
+            setIsStreaming(true);
+            setCurrentMessage('');
+            setCurrentMessageId(null);
+        },
 
+        onTextMessageContentEvent: ({ event }: { event: TextMessageContentEvent }) => {
+            console.log(`event message id: ${event.messageId} contents: ${event.delta}`)
+            if (event.messageId !== currentMessageId) {
+                // New message started
+                setCurrentMessageId(event.messageId);
+                setCurrentMessage(event.delta);
+            } else {
+                // Continue current message
+                setCurrentMessage(prev => prev + event.delta);
+            }
+        },
 
+        onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {
+            if (currentMessage.trim()) {
+                // Add the completed message
+                const completedMessage: Message = {
+                    id: currentMessageId || `msg_${Date.now()}`,
+                    role: 'assistant',
+                    content: currentMessage
+                };
+                setMessages(prev => [...prev, completedMessage]);
+            }
+
+            setIsStreaming(false);
+            setCurrentMessage('');
+            setCurrentMessageId(null);
+            endRun();
+        },
+
+        onRunErrorEvent: ({ event }: { event: RunErrorEvent }) => {
+            setIsStreaming(false);
+            setCurrentMessage('');
+            setCurrentMessageId(null);
+
+            const errorMessage: Message = {
+                id: `error_${Date.now()}`,
+                role: 'assistant',
+                content: `Error: ${event.message}`
+            };
+            setMessages(prev => [...prev, errorMessage]);
+            endRun();
+        },
+
+        // Include tool execution handlers
+        ...toolSubscriber
+    };
 
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
-        if (!textToSend.trim()) return;
+        if (!textToSend.trim() || isStreaming) return;
 
-        const userMessage = message(textToSend, 'user');
-
+        // Add user message
+        const userMessage: Message = {
+            id: `user_${Date.now()}`,
+            role: 'user',
+            content: textToSend
+        };
         setMessages(prev => [...prev, userMessage]);
         setInputValue('');
-        setIsTyping(true);
 
-        // Ensure sessionId exists
-        let currentSession = session;
-        if (!currentSession) {
-            // TODO: disabled
-            // currentSession = await createNewSession();
-            // if (!currentSession) {
-            //     setIsTyping(false);
-            //     return;
-            // }
-            currentSession = {}
-        }
+        // Start new run
+        const runState = startNewRun();
+
+        // Prepare messages for agent (include conversation history)
+        const conversationMessages = [...messages, userMessage];
 
         try {
-            // run_sse for streaming responses
-            // /run_agui for ag-ui responses + streaming
-            const response = await fetch(`${CHAT_SERVER_URL}/smarketing`, {
-            //const response = await fetch(`${CHAT_SERVER_URL}/run_agui`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    ag_ui: true, // Enable ag-ui mode
-                    new_message: {
-                        role: 'user',
-                        parts: [{
-                            text: textToSend
-                        }]
-                    },
-                    ...currentSession
-                }),
-            });
-            const data = await response.json();
-            // data is now an array of events
-            // Find the last event with a model role and a text part
-            let botResponses = getBotResponseMessages(data);            
-            setMessages(prev => [...prev, ...botResponses]);
-        } catch (err) {
-            setMessages(prev => [...prev, message('Error connecting to chat server.')]);
-        } finally {
-            setIsTyping(false);
+            await agentService.current.runAgent(
+                conversationMessages,
+                allTools,
+                agentSubscriber,
+                runState
+            );
+        } catch (error) {
+            console.error('Agent execution failed:', error);
+            setIsStreaming(false);
+
+            const errorMessage: Message = {
+                id: `error_${Date.now()}`,
+                role: 'assistant',
+                content: 'Sorry, I encountered an error. Please try again.'
+            };
+            setMessages(prev => [...prev, errorMessage]);
+            endRun();
         }
     };
 
@@ -93,14 +148,18 @@ export default function ChatInterface()  {
         }
     };
 
-    // TODO: future: this should condition on having a session ID
-    //const showSuggestions = messages.length === 0;
-    const showSuggestions = true
+    const showSuggestions = messages.length === 0 && !isStreaming;
 
     return (
-        
         <div className="chat-interface">
-            <ChatMessages messages={messages} isTyping={isTyping} messagesEndRef={messagesEndRef}  />
+            <ChatMessages
+                messages={messages}
+                isTyping={isStreaming}
+                currentMessage={currentMessage}
+                messagesEndRef={messagesEndRef}
+            />
+
+            <ArtifactRenderer artifacts={artifacts} />
 
             <div className="suggestions-container">
                 {showSuggestions && (
@@ -118,10 +177,11 @@ export default function ChatInterface()  {
                     variant="outlined"
                     fullWidth
                     className="input-field"
+                    disabled={isStreaming}
                 />
                 <Button
                     onClick={() => handleSendMessage()}
-                    disabled={!inputValue.trim() || isTyping}
+                    disabled={!inputValue.trim() || isStreaming}
                     variant="contained"
                     color="primary"
                     className="send-button"
@@ -129,54 +189,6 @@ export default function ChatInterface()  {
                     <Send />
                 </Button>
             </div>
-        </div>        
+        </div>
     );
 };
-
-// Helper function to create a message object for the given text and optional role
-function message(content: string, role='bot'): Content {    
-    return {
-        parts: [{ text: content }],
-        role: 'bot',
-    };
-}
-
-function getBotResponseMessages(data: Array<ChatEvent>): Content[] {
-    const filteredContent: Content[] = [];
-    for (const event of data) {
-        if (event.content && event.content.role === 'model' && event.content.parts) {
-            for (const part of event.content.parts) {
-                // TODO:
-                // ignore part.functionCall and part.functionResponse
-                // in fact, right now text parts are all I care about                
-                if (part.text) {
-                    filteredContent.push(message(part.text));                    
-                }
-            }
-        }
-    }
-
-    // if no text, let's just dump what the model did. Maybe it was a function call or something else.
-    if (filteredContent.length === 0) {
-        // Output one line for each part in all model events
-        let lines: string[] = [];
-        for (const event of data) {
-            // TODO: adk bug incorrectly marks function calls as role='user' !
-            // https://github.com/google/adk-python/issues/1748
-            if (event.content && /*event.content.role === 'model' &&*/ event.content.parts) {
-                for (const part of event.content.parts) {
-                    const obj = JSON.stringify(part, null, 4);
-                    lines.push(obj)
-                }
-            }
-        }
-        if (lines.length === 0) {
-            lines.push("I received a response from the server, but it wasn't textual.");
-        }
-        for (const line of lines) {
-            filteredContent.push(message(line));
-        }
-    }
-    return filteredContent;
-}
-
