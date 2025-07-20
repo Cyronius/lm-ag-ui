@@ -15,7 +15,7 @@ import {
 import { ArtifactData, AgentSubscriber } from '../types/index';
 import { AgentService } from '../services/AgentService';
 import { useSessionManager } from '../hooks/useSessionManager';
-import { useAgentWithToolsSubscriber } from '../hooks/useAgentWithToolsSubscriber';
+import { useAgent } from '../hooks/useAgent';
 import { allTools } from '../tools/frontendTools';
 
 export default function ChatInterface() {
@@ -37,7 +37,7 @@ export default function ChatInterface() {
         agentSubscriber,
         isStreaming: agentIsStreaming,
         currentMessage: agentCurrentMessage
-    } = useAgentWithToolsSubscriber({
+    } = useAgent({
         onMessageComplete: (completedMessage) => setMessages(prev => [...prev, completedMessage]),
         onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
         setArtifacts,

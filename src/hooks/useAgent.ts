@@ -17,14 +17,14 @@ import {
 } from '../types/index';
 import { v4 as uuidv4 } from 'uuid';
 
-interface UseAgentWithToolsSubscriberOptions {
+interface useAgent {
     onMessageComplete: (message: Message) => void;
     onErrorMessage: (message: Message) => void;
     setArtifacts: React.Dispatch<React.SetStateAction<Map<string, ArtifactData>>>;
     endRun: () => void;
 }
 
-export function useAgentWithToolsSubscriber({ onMessageComplete, onErrorMessage, setArtifacts, endRun }: UseAgentWithToolsSubscriberOptions) {
+export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endRun }: useAgent) {
     // Agent streaming state
     const [isStreaming, setIsStreaming] = useState(false);
     const [currentMessage, setCurrentMessage] = useState('');
