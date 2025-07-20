@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import {
     Message,
     TextMessageContentEvent,
@@ -27,9 +27,10 @@ interface useAgent {
 export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endRun }: useAgent) {
     // Agent streaming state
     const [isStreaming, setIsStreaming] = useState(false);
-    const [currentMessage, setCurrentMessage] = useState('');
-    const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
-    const currentMessageIdRef = useRef<string | null>(null);
+    const [currentMessageState, setCurrentMessageState] = useState('');
+    const [currentMessageIdState, setCurrentMessageIdState] = useState<string | null>(null);
+    let currentMessage = currentMessageState;
+    let currentMessageId = currentMessageIdState;
 
     // Tool execution state
     const [toolCallBuffers, setToolCallBuffers] = useState<Map<string, ToolCallBuffer>>(new Map());
@@ -130,6 +131,15 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
 
     // Combined AgentSubscriber
     const agentSubscriberRef = useRef<AgentSubscriber | null>(null);
+    const [shouldClearStreaming, setShouldClearStreaming] = useState(false);
+    useEffect(() => {
+        if (shouldClearStreaming) {
+            setCurrentMessageState('');
+            setCurrentMessageIdState(null);
+            setShouldClearStreaming(false);
+        }
+    }, [shouldClearStreaming]);
+
     if (!agentSubscriberRef.current) {
         agentSubscriberRef.current = {
             onEvent: ({ event }: { event: any }): void => {
@@ -137,38 +147,36 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
             },
             onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
                 setIsStreaming(true);
-                setCurrentMessage('');
-                setCurrentMessageId(null);
-                currentMessageIdRef.current = null;
+                setCurrentMessageState('');
+                setCurrentMessageIdState(null);
             },
             onTextMessageContentEvent: ({ event }: { event: TextMessageContentEvent }) => {
-                if (event.messageId !== currentMessageIdRef.current) {
-                    setCurrentMessageId(event.messageId);
-                    currentMessageIdRef.current = event.messageId;
-                    setCurrentMessage(event.delta);
+                if (event.messageId !== currentMessageId) {
+                    currentMessageId = event.messageId;
+                    setCurrentMessageIdState(event.messageId);
+                    currentMessage = event.delta;
+                    setCurrentMessageState(event.delta);
                 } else {
-                    setCurrentMessage(prev => prev + event.delta);
+                    currentMessage += event.delta;
+                    setCurrentMessageState(currentMessage);
                 }
             },
             onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {
                 if (currentMessage.trim()) {
                     const completedMessage: Message = {
-                        id: currentMessageIdRef.current || `msg_${Date.now()}`,
+                        id: currentMessageId || `msg_${Date.now()}`,
                         role: 'assistant',
                         content: currentMessage
                     };
                     onMessageComplete(completedMessage);
                 }
                 setIsStreaming(false);
-                setCurrentMessage('');
-                setCurrentMessageId(null);
-                currentMessageIdRef.current = null;
+                setShouldClearStreaming(true); // Delay clearing until after render
                 endRun();
             },
             onRunErrorEvent: ({ event }: { event: RunErrorEvent }) => {
                 setIsStreaming(false);
-                setCurrentMessage('');
-                setCurrentMessageId(null);
+                setShouldClearStreaming(true); // Delay clearing until after render
                 const errorMessage: Message = {
                     id: `error_${Date.now()}`,
                     role: 'assistant',
@@ -185,16 +193,15 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
 
     const resetStreaming = useCallback(() => {
         setIsStreaming(false);
-        setCurrentMessage('');
-        setCurrentMessageId(null);
-        currentMessageIdRef.current = null;
+        setCurrentMessageState('');
+        setCurrentMessageIdState(null);
     }, []);
 
     return {
         agentSubscriber: agentSubscriberRef.current,
         isStreaming,
-        currentMessage,
-        currentMessageId,
+        currentMessage: currentMessageState,
+        currentMessageId: currentMessageIdState,
         toolCallBuffers,
         frontendToolHandlers,
         resetStreaming
