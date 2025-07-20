@@ -15,7 +15,7 @@ import {
 import { ArtifactData, AgentSubscriber } from '../types/index';
 import { AgentService } from '../services/AgentService';
 import { useSessionManager } from '../hooks/useSessionManager';
-import { useToolExecution } from '../hooks/useToolExecution';
+import { useAgentWithToolsSubscriber } from '../hooks/useAgentWithToolsSubscriber';
 import { allTools } from '../tools/frontendTools';
 
 export default function ChatInterface() {
@@ -32,7 +32,17 @@ export default function ChatInterface() {
     const agentService = useRef(new AgentService());
 
     const { sessionState, startNewRun, endRun } = useSessionManager();
-    const { toolSubscriber } = useToolExecution(setMessages, setArtifacts);
+    // Use the new combined hook for Agent and Tool Subscribers
+    const {
+        agentSubscriber,
+        isStreaming: agentIsStreaming,
+        currentMessage: agentCurrentMessage
+    } = useAgentWithToolsSubscriber({
+        onMessageComplete: (completedMessage) => setMessages(prev => [...prev, completedMessage]),
+        onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
+        setArtifacts,
+        endRun
+    });
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -42,72 +52,11 @@ export default function ChatInterface() {
         scrollToBottom();
     }, [messages, currentMessage]);
 
-    // Create the AG-UI subscriber
-    const agentSubscriber: AgentSubscriber = {
-        onEvent: ({ event }): void => {
-            console.log('RECEIVED EVENT', event)
-        },
-        onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
-            setIsStreaming(true);
-            setCurrentMessage('');
-            setCurrentMessageId(null);
-            currentMessageIdRef.current = null;
-        },
-
-        onTextMessageContentEvent: ({ event }: { event: TextMessageContentEvent }) => {
-            if (event.messageId !== currentMessageIdRef.current) {
-                // New message started
-                setCurrentMessageId(event.messageId);
-                currentMessageIdRef.current = event.messageId;
-                setCurrentMessage(event.delta);
-            } else {
-                // Continue current message
-                setCurrentMessage(prev => prev + event.delta);
-            }
-        },
-
-        onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {
-            console.log('on run finished', currentMessage)
-
-            if (currentMessage.trim()) {
-                // Add the completed message
-                const completedMessage: Message = {
-                    id: currentMessageIdRef.current || `msg_${Date.now()}`,
-                    role: 'assistant',
-                    content: currentMessage
-                };
-                console.log('current message', currentMessage, 'completed', completedMessage)
-                setMessages(prev => [...prev, completedMessage]);
-            }
-
-            setIsStreaming(false);
-            setCurrentMessage('');
-            setCurrentMessageId(null);
-            currentMessageIdRef.current = null;
-            endRun();
-        },
-
-        onRunErrorEvent: ({ event }: { event: RunErrorEvent }) => {
-            setIsStreaming(false);
-            setCurrentMessage('');
-            setCurrentMessageId(null);
-
-            const errorMessage: Message = {
-                id: `error_${Date.now()}`,
-                role: 'assistant',
-                content: `Error: ${event.message}`
-            };
-            setMessages(prev => [...prev, errorMessage]);
-            endRun();
-        },
-
-        // Include tool execution handlers
-        ...toolSubscriber
-    };
+    // ...existing code...
 
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
-        if (!textToSend.trim() || isStreaming) return;
+        if (!textToSend.trim() || agentIsStreaming) return;
 
         // Add user message
         const userMessage: Message = {
@@ -133,15 +82,7 @@ export default function ChatInterface() {
             );
         } catch (error) {
             console.error('Agent execution failed:', error);
-            setIsStreaming(false);
-
-            const errorMessage: Message = {
-                id: `error_${Date.now()}`,
-                role: 'assistant',
-                content: 'Sorry, I encountered an error. Please try again.'
-            };
-            setMessages(prev => [...prev, errorMessage]);
-            endRun();
+            // Error handling is now managed by the hook
             throw error;
         }
     };
@@ -158,14 +99,14 @@ export default function ChatInterface() {
         }
     };
 
-    const showSuggestions = messages.length === 0 && !isStreaming;
+    const showSuggestions = messages.length === 0 && !agentIsStreaming;
 
     return (
         <div className="chat-interface">
             <ChatMessages
                 messages={messages}
-                isTyping={isStreaming}
-                currentMessage={currentMessage}
+                isTyping={agentIsStreaming}
+                currentMessage={agentCurrentMessage}
                 messagesEndRef={messagesEndRef}
             />
 
@@ -187,11 +128,11 @@ export default function ChatInterface() {
                     variant="outlined"
                     fullWidth
                     className="input-field"
-                    disabled={isStreaming}
+                    disabled={agentIsStreaming}
                 />
                 <Button
                     onClick={() => handleSendMessage()}
-                    disabled={!inputValue.trim() || isStreaming}
+                    disabled={!inputValue.trim() || agentIsStreaming}
                     variant="contained"
                     color="primary"
                     className="send-button"
