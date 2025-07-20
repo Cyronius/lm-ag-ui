@@ -44,6 +44,9 @@ export default function ChatInterface() {
 
     // Create the AG-UI subscriber
     const agentSubscriber: AgentSubscriber = {
+        onEvent: ({ event }): void => {
+            console.log('RECEIVED EVENT', event)
+        },
         onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
             setIsStreaming(true);
             setCurrentMessage('');
@@ -53,19 +56,19 @@ export default function ChatInterface() {
 
         onTextMessageContentEvent: ({ event }: { event: TextMessageContentEvent }) => {
             if (event.messageId !== currentMessageIdRef.current) {
-                console.log(`NEW event message id: ${event.messageId} contents: ${event.delta}`)
                 // New message started
                 setCurrentMessageId(event.messageId);
                 currentMessageIdRef.current = event.messageId;
                 setCurrentMessage(event.delta);
             } else {
                 // Continue current message
-                console.log(`CONTINUE event message id: ${event.messageId} contents: ${event.delta}`)
                 setCurrentMessage(prev => prev + event.delta);
             }
         },
 
         onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {
+            console.log('on run finished', currentMessage)
+
             if (currentMessage.trim()) {
                 // Add the completed message
                 const completedMessage: Message = {
@@ -73,6 +76,7 @@ export default function ChatInterface() {
                     role: 'assistant',
                     content: currentMessage
                 };
+                console.log('current message', currentMessage, 'completed', completedMessage)
                 setMessages(prev => [...prev, completedMessage]);
             }
 

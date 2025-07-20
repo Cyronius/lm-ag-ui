@@ -56,42 +56,44 @@ export const frontendTools: StandardTool[] = [
 
 // Example backend tools (these would be handled by the backend)
 export const backendTools: StandardTool[] = [
-  {
-    name: "searchDatabase",
-    description: "Search the company database for information",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { 
-          type: "string", 
-          description: "Search query" 
-        }
-      },
-      required: ["query"]
-    }
-  },
-  {
-    name: "sendEmail",
-    description: "Send an email to a recipient",
-    parameters: {
-      type: "object",
-      properties: {
-        to: { 
-          type: "string", 
-          description: "Email recipient" 
-        },
-        subject: { 
-          type: "string", 
-          description: "Email subject" 
-        },
-        body: { 
-          type: "string", 
-          description: "Email body" 
-        }
-      },
-      required: ["to", "subject", "body"]
-    }
-  }
+// TODO: I think we just want the backend to handle backend tools, right?
+// does the frontend really need to know about them?
+//   {
+//     name: "searchDatabase",
+//     description: "Search the company database for information",
+//     parameters: {
+//       type: "object",
+//       properties: {
+//         query: { 
+//           type: "string", 
+//           description: "Search query" 
+//         }
+//       },
+//       required: ["query"]
+//     }
+//   },
+//   {
+//     name: "sendEmail",
+//     description: "Send an email to a recipient",
+//     parameters: {
+//       type: "object",
+//       properties: {
+//         to: { 
+//           type: "string", 
+//           description: "Email recipient" 
+//         },
+//         subject: { 
+//           type: "string", 
+//           description: "Email subject" 
+//         },
+//         body: { 
+//           type: "string", 
+//           description: "Email body" 
+//         }
+//       },
+//       required: ["to", "subject", "body"]
+//     }
+//   }
 ];
 
 // All tools combined for passing to AG-UI
