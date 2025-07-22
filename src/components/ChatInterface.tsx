@@ -112,12 +112,6 @@ export default function ChatInterface() {
 
             <ArtifactRenderer artifacts={artifacts} />
 
-            <div className="suggestions-container">
-                {showSuggestions && (
-                    <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
-                )}
-            </div>
-
             <div className="input-container">
                 <TextField
                     inputRef={inputRef}
@@ -139,6 +133,13 @@ export default function ChatInterface() {
                 >
                     <Send />
                 </Button>
+            </div>
+
+            
+            <div className="suggestions-container">
+                {showSuggestions && (
+                    <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
+                )}
             </div>
         </div>
     );
