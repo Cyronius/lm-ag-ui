@@ -16,7 +16,7 @@ import { ArtifactData, AgentSubscriber } from '../types/index';
 import { AgentService } from '../services/AgentService';
 import { useSessionManager } from '../hooks/useSessionManager';
 import { useAgent } from '../hooks/useAgent';
-import { allTools } from '../tools/frontendTools';
+import { allTools } from '../tools/availableTools';
 
 export default function ChatInterface() {
     const [messages, setMessages] = useState<Message[]>([]);

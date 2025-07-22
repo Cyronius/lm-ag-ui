@@ -56,8 +56,14 @@ export const frontendTools: StandardTool[] = [
 
 // Example backend tools (these would be handled by the backend)
 export const backendTools: StandardTool[] = [
-// TODO: I think we just want the backend to handle backend tools, right?
-// does the frontend really need to know about them?
+
+    // Backend-only tools (not registered on the frontend) are executed by the AG-UI middleware without the frontend being notified;
+    // their results are sent back as text or data events from the agent. This is often preferred for things like knowledge base tools,
+    // where direct UX involvement would just add latency for no benefit.
+    // Tools that *are* registered on the frontend (even if they're backend tools) allow the UX to intercept, approve, or orchestrate
+    // tool calls before execution (human-in-the-loop). Whether you add an approval step or just extra UX is up to your implementation.
+    // The AG-UI docs describe this briefly: https://docs.ag-ui.com/concepts/tools
+
 //   {
 //     name: "searchDatabase",
 //     description: "Search the company database for information",
