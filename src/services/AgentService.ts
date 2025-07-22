@@ -9,7 +9,7 @@ export class AgentService {
   private timeout: number;
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_PYTHON_SERVER_URL || 'http://localhost:8000/smarketing';
+    this.baseUrl = `${import.meta.env.VITE_PYTHON_SERVER_URL || 'http://localhost:8000'}/smarketing`;
     this.timeout = parseInt(import.meta.env.VITE_STREAM_TIMEOUT || '30000');
     
     this.agent = new HttpAgent({
