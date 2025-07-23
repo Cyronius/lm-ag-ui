@@ -12,7 +12,7 @@
 }
 
 .message.user {
-    background: #1976d2;
+    background: lightgray;
     color: #fff;
     align-self: flex-end;
     border-bottom-right-radius: 8px;
