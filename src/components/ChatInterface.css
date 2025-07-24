@@ -13,8 +13,7 @@
     width: 600px;
     max-width: 95vw;
     background: #fff;
-    border-radius: 32px;
-    /* box-shadow: 0 4px 24px rgba(25, 118, 210, 0.08); */
+    border-radius: 32px;    
     padding: 8px 16px;
     margin-top: 12px;    
 }
@@ -28,17 +27,11 @@
 }
 
 button.send-button {
-    /* background-color: #e3eafd;
-    color: #1976d2; */
-    /* border-radius: 50%; */
-    /* min-width: 48px; */
-    /* min-height: 48px; */
     margin-left: 1em;
     box-shadow: none;    
 }
 
 .send-button:disabled {
-    /* background-color: #f0f0f0; */
     color: #b0b0b0;
 }
 
@@ -52,4 +45,8 @@ button.send-button {
         width: 98vw;
         padding: 6px 6px;
     }
+}
+
+.suggestions-container {
+    margin-top: 1em;
 }
