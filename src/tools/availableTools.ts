@@ -65,20 +65,6 @@ export const backendTools: StandardTool[] = [
     // The AG-UI docs describe this briefly: https://docs.ag-ui.com/concepts/tools
 
 //   {
-//     name: "searchDatabase",
-//     description: "Search the company database for information",
-//     parameters: {
-//       type: "object",
-//       properties: {
-//         query: { 
-//           type: "string", 
-//           description: "Search query" 
-//         }
-//       },
-//       required: ["query"]
-//     }
-//   },
-//   {
 //     name: "sendEmail",
 //     description: "Send an email to a recipient",
 //     parameters: {

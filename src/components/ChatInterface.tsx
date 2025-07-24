@@ -52,8 +52,6 @@ export default function ChatInterface() {
         scrollToBottom();
     }, [messages, currentMessage]);
 
-    // ...existing code...
-
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
         if (!textToSend.trim() || agentIsStreaming) return;
