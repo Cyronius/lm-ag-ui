@@ -11,11 +11,11 @@ import {
 } from '@ag-ui/core';
 import {
     ToolCallBuffer,
-    FrontendToolHandler,
     ArtifactData,
     AgentSubscriber
 } from '../types/index';
 import { v4 as uuidv4 } from 'uuid';
+import { createUnifiedTools, getToolHandlers, getToolRenderers, ToolHandler, ToolRenderer } from '../tools/unifiedTools';
 
 interface useAgent {
     onMessageComplete: (message: Message) => void;
@@ -34,40 +34,11 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
 
     // Tool execution state
     const [toolCallBuffers, setToolCallBuffers] = useState<Map<string, ToolCallBuffer>>(new Map());
-    const frontendToolHandlers = new Map<string, FrontendToolHandler>([
-        ['changeBackgroundColor', (args: any) => {
-            document.body.style.backgroundColor = args.color;
-            return `Background color changed to ${args.color}`;
-        }],
-        ['showCalendlyWidget', (args: any) => {
-            const artifactId = `calendly_${Date.now()}`;
-            setArtifacts(prev => new Map(prev).set(artifactId, {
-                type: 'calendly',
-                url: args.url,
-                height: args.height || 600
-            }));
-            return `Calendly widget displayed`;
-        }],
-        ['showNotification', (args: any) => {
-            if (import.meta.env.REACT_APP_NOTIFICATION_PERMISSION === 'true') {
-                if (Notification.permission === 'granted') {
-                    new Notification(args.title, { body: args.message });
-                    return `Notification shown: ${args.title}`;
-                } else if (Notification.permission === 'default') {
-                    Notification.requestPermission().then(permission => {
-                        if (permission === 'granted') {
-                            new Notification(args.title, { body: args.message });
-                        }
-                    });
-                    return `Notification permission requested`;
-                } else {
-                    return `Notification permission denied`;
-                }
-            } else {
-                return `Notifications disabled in configuration`;
-            }
-        }]
-    ]);
+    
+    // Create unified tools with required context
+    const unifiedTools = createUnifiedTools({ setArtifacts });
+    const toolHandlers = getToolHandlers(unifiedTools);
+    const toolRenderers = getToolRenderers(unifiedTools);
 
     // Tool execution handlers
     const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
@@ -94,8 +65,20 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
     const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
         const toolCall = toolCallBuffers.get(event.toolCallId);
         if (toolCall) {
-            if (frontendToolHandlers.has(toolCall.name)) {
+            if (toolHandlers.has(toolCall.name)) {
                 executeFrontendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
+            }
+            else {
+                // Backend tool - just handle any special rendering
+                const renderer = toolRenderers.get(toolCall.name);
+                if (renderer) {
+                    try {
+                        const args = JSON.parse(toolCall.argsBuffer);
+                        renderer(args);
+                    } catch (error) {
+                        console.error(`Tool renderer error for ${toolCall.name}:`, error);
+                    }
+                }
             }
             setToolCallBuffers(prev => {
                 const newMap = new Map(prev);
@@ -103,21 +86,27 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
                 return newMap;
             });
         }
-    }, [toolCallBuffers, frontendToolHandlers]);
+    }, [toolCallBuffers, toolHandlers, toolRenderers]);
 
     const executeFrontendTool = useCallback((toolName: string, argsJson: string, toolCallId: string) => {
         try {
             const args = JSON.parse(argsJson);
-            const handler = frontendToolHandlers.get(toolName);
+            const handler = toolHandlers.get(toolName);
             if (handler) {
                 const result = handler(args);
                 sendToolResult(toolCallId, result);
+                
+                // Also call renderer if it exists
+                const renderer = toolRenderers.get(toolName);
+                if (renderer) {
+                    renderer(args, result);
+                }
             }
         } catch (error) {
             console.error(`Tool execution error for ${toolName}:`, error);
             sendToolResult(toolCallId, `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-    }, [frontendToolHandlers]);
+    }, [toolHandlers, toolRenderers]);
 
     const sendToolResult = useCallback((toolCallId: string, content: string) => {
         const toolMessage: Message = {
@@ -203,7 +192,8 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
         currentMessage: currentMessageState,
         currentMessageId: currentMessageIdState,
         toolCallBuffers,
-        frontendToolHandlers,
+        toolHandlers,
+        toolRenderers,
         resetStreaming
     };
 }

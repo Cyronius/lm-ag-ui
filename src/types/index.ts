@@ -62,7 +62,7 @@ export interface ArtifactData {
     [key: string]: any;
 }
 
-export type FrontendToolHandler = (args: any) => string;
+// Tool handler types are now defined in unifiedTools.ts
 
 export interface StandardTool {
     name: string;

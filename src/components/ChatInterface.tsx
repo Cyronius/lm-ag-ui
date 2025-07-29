@@ -16,7 +16,7 @@ import { ArtifactData, AgentSubscriber } from '../types/index';
 import { AgentService } from '../services/AgentService';
 import { useSessionManager } from '../hooks/useSessionManager';
 import { useAgent } from '../hooks/useAgent';
-import { allTools } from '../tools/availableTools';
+import { createUnifiedTools, getAllToolDefinitions } from '../tools/unifiedTools';
 
 export default function ChatInterface() {
     const [messages, setMessages] = useState<Message[]>([]);
@@ -32,6 +32,10 @@ export default function ChatInterface() {
     const agentService = useRef(new AgentService());
 
     const { sessionState, startNewRun, endRun } = useSessionManager();
+    
+    // Create unified tools for this component
+    const unifiedTools = createUnifiedTools({ setArtifacts });
+    const allTools = getAllToolDefinitions(unifiedTools);
     // Use the new combined hook for Agent and Tool Subscribers
     const {
         agentSubscriber,
