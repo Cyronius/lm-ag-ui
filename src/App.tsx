@@ -4,15 +4,18 @@ import ChatInterface from './components/ChatInterface';
 import './App.css';
 import theme from './theme';
 import { Header } from './Header';
+import { AgentClientProvider } from './contexts/AgentClientContext';
 
 const App = () => {
     
     return (
-        <ThemeProvider theme={theme}>
-            <CssBaseline />            
-            <Header/>
-            <ChatInterface />            
-        </ThemeProvider>
+        <AgentClientProvider>
+            <ThemeProvider theme={theme}>
+                <CssBaseline />            
+                <Header/>
+                <ChatInterface />            
+            </ThemeProvider>
+        </AgentClientProvider>
     );
 };
 

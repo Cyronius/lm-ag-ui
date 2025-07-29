@@ -17,14 +17,14 @@ import {
 } from '../types/index';
 import { v4 as uuidv4 } from 'uuid';
 import { createUnifiedTools, getToolHandlers, getToolRenderers, ToolHandler, ToolRenderer } from '../tools/unifiedTools';
-import { AgentService } from '../services/AgentService';
+import { AgentClient } from '../services/AgentClient';
 
 interface useAgent {
     onMessageComplete: (message: Message) => void;
     onErrorMessage: (message: Message) => void;
     setArtifacts: React.Dispatch<React.SetStateAction<Map<string, ArtifactData>>>;
     endRun: () => void;
-    agentService: AgentService;
+    agentService: AgentClient;
     sessionState: { threadId: string | null; runId: string | null };
 }
 
@@ -32,10 +32,10 @@ interface useAgent {
 export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endRun, agentService, sessionState }: useAgent) {
     // Agent streaming state
     const [isStreaming, setIsStreaming] = useState(false);
-    const [currentMessageState, setCurrentMessageState] = useState('');
-    const [currentMessageIdState, setCurrentMessageIdState] = useState<string | null>(null);
-    let currentMessage = currentMessageState;
-    let currentMessageId = currentMessageIdState;
+    // const [currentMessageState, setCurrentMessageState] = useState('');
+    // const [currentMessageIdState, setCurrentMessageIdState] = useState<string | null>(null);
+    let currentMessage = ''
+    let currentMessageId:string|null = null
 
     // Tool execution state (now using ref)
     const toolCallBuffersRef = useRef<Map<string, ToolCallBuffer>>(new Map());
@@ -75,15 +75,10 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
         try {
             const args = JSON.parse(argsJson);
             // Send tool call to server for execution
-            if (agentSubscriberRef.current) {
-                await agentService.executeBackendTool(
-                    { toolCallId, toolName, args },
-                    agentSubscriberRef.current,
-                    sessionState
-                );
-            } else {
-                throw new Error('Agent subscriber not available');
-            }
+            await agentService.executeBackendTool(
+                { toolCallId, toolName, args },
+                agentSubscriber
+            );
             console.log(`Backend tool ${toolName} submitted for execution`);
         } catch (error) {
             console.error(`Backend tool execution error for ${toolName}:`, error);
@@ -95,7 +90,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
             };
             onErrorMessage(errorMessage);
         }
-    }, [agentService, sessionState, onErrorMessage]);
+    }, [agentService, onErrorMessage]);
 
     const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
         console.log('tool call end called for event', event)
@@ -150,11 +145,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
             };
 
             // Submit result back to server to continue agent execution
-            if (agentSubscriberRef.current) {
-                await agentService.submitToolResult(toolMessage, agentSubscriberRef.current, sessionState);
-            } else {
-                throw new Error('Agent subscriber not available');
-            }
+            await agentService.submitToolResult(toolMessage, agentSubscriber);
         } catch (error) {
             console.error('Failed to submit tool result to server:', error);
             // Fallback: add error message to UI
@@ -165,7 +156,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
             };
             onErrorMessage(errorMessage);
         }
-    }, [agentService, sessionState, onErrorMessage]);
+    }, [agentService, onErrorMessage]);
 
     const executeFrontendTool = useCallback(async (toolName: string, argsJson: string, toolCallId: string) => {
         try {
@@ -200,80 +191,67 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
     //     onMessageComplete(toolMessage);
     // }, [onMessageComplete]);
 
-    // Combined AgentSubscriber
-    const agentSubscriberRef = useRef<AgentSubscriber | null>(null);
-    const [shouldClearStreaming, setShouldClearStreaming] = useState(false);
-    useEffect(() => {
-        if (shouldClearStreaming) {
-            setCurrentMessageState('');
-            setCurrentMessageIdState(null);
-            setShouldClearStreaming(false);
-        }
-    }, [shouldClearStreaming]);
-
-    if (!agentSubscriberRef.current) {
-        agentSubscriberRef.current = {
-            onEvent: ({ event }: { event: any }): void => {
-                console.log('RECEIVED EVENT', event);
-            },
-            onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
-                setIsStreaming(true);
-                setCurrentMessageState('');
-                setCurrentMessageIdState(null);
-            },
-            onTextMessageContentEvent: ({ event }: { event: TextMessageContentEvent }) => {
-                if (event.messageId !== currentMessageId) {
-                    currentMessageId = event.messageId;
-                    setCurrentMessageIdState(event.messageId);
-                    currentMessage = event.delta;
-                    setCurrentMessageState(event.delta);
-                } else {
-                    currentMessage += event.delta;
-                    setCurrentMessageState(currentMessage);
-                }
-            },
-            onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {
-                if (currentMessage.trim()) {
-                    const completedMessage: Message = {
-                        id: currentMessageId || `msg_${Date.now()}`,
-                        role: 'assistant',
-                        content: currentMessage
-                    };
-                    onMessageComplete(completedMessage);
-                }
-                setIsStreaming(false);
-                setShouldClearStreaming(true); // Delay clearing until after render
-                endRun();
-            },
-            onRunErrorEvent: ({ event }: { event: RunErrorEvent }) => {
-                setIsStreaming(false);
-                setShouldClearStreaming(true); // Delay clearing until after render
-                const errorMessage: Message = {
-                    id: `error_${Date.now()}`,
+    // Combined AgentSubscriber - recreate on every render to avoid stale closures
+    const agentSubscriber: AgentSubscriber = {
+        onEvent: ({ event }: { event: any }): void => {
+            console.log('RECEIVED EVENT', event);
+        },
+        onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
+            setIsStreaming(true);
+            currentMessage = ''
+            currentMessageId = null
+        },
+        onTextMessageContentEvent: ({ event }: { event: TextMessageContentEvent }) => {
+            if (event.messageId !== currentMessageId) {
+                currentMessageId = event.messageId
+                currentMessage = event.delta;
+            } else {
+                currentMessage += event.delta
+            }
+        },
+        onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {
+            if (currentMessage.trim()) {
+                const completedMessage: Message = {
+                    id: currentMessageId || `msg_${Date.now()}`,
                     role: 'assistant',
-                    content: `Error: ${event.message}`
+                    content: currentMessage
                 };
-                onErrorMessage(errorMessage);
-                endRun();
-            },
-            onToolCallStartEvent: ({ event }: { event: ToolCallStartEvent }) => handleToolCallStart(event),
-            onToolCallArgsEvent: ({ event }: { event: ToolCallArgsEvent }) => handleToolCallArgs(event),
-            onToolCallEndEvent: ({ event }: { event: ToolCallEndEvent }) => handleToolCallEnd(event),
-            onToolCallResultEvent: ({ event }: { event: ToolCallResultEvent }) => handleToolCallResult(event)
-        };
-    }
+                onMessageComplete(completedMessage);
+            }
+            setIsStreaming(false);
+            currentMessage = ''
+            currentMessageId = null
+            endRun();
+        },
+        onRunErrorEvent: ({ event }: { event: RunErrorEvent }) => {
+            setIsStreaming(false);
+            currentMessage = ''
+            currentMessageId = null
+            const errorMessage: Message = {
+                id: `error_${Date.now()}`,
+                role: 'assistant',
+                content: `Error: ${event.message}`
+            };
+            onErrorMessage(errorMessage);
+            endRun();
+        },
+        onToolCallStartEvent: ({ event }: { event: ToolCallStartEvent }) => handleToolCallStart(event),
+        onToolCallArgsEvent: ({ event }: { event: ToolCallArgsEvent }) => handleToolCallArgs(event),
+        onToolCallEndEvent: ({ event }: { event: ToolCallEndEvent }) => handleToolCallEnd(event),
+        onToolCallResultEvent: ({ event }: { event: ToolCallResultEvent }) => handleToolCallResult(event)
+    };
 
     const resetStreaming = useCallback(() => {
         setIsStreaming(false);
-        setCurrentMessageState('');
-        setCurrentMessageIdState(null);
+        currentMessage = ''
+        currentMessageId = null
     }, []);
 
     return {
-        agentSubscriber: agentSubscriberRef.current,
+        agentSubscriber,
         isStreaming,
-        currentMessage: currentMessageState,
-        currentMessageId: currentMessageIdState,
+        currentMessage: currentMessage,
+        currentMessageId: currentMessageId,
         toolCallBuffers: toolCallBuffersRef.current,
         toolHandlers,
         toolRenderers,

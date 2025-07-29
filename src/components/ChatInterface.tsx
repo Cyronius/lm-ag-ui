@@ -13,8 +13,7 @@ import {
     RunErrorEvent
 } from '@ag-ui/core';
 import { ArtifactData, AgentSubscriber } from '../types/index';
-import { AgentService } from '../services/AgentService';
-import { useSessionManager } from '../hooks/useSessionManager';
+import { useAgentClient } from '../hooks/useAgentClient';
 import { useAgent } from '../hooks/useAgent';
 import { createUnifiedTools, getAllToolDefinitions } from '../tools/unifiedTools';
 
@@ -29,9 +28,9 @@ export default function ChatInterface() {
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
-    const agentService = useRef(new AgentService());
-
-    const { sessionState, startNewRun, endRun } = useSessionManager();
+    
+    // Use the unified AgentClient
+    const agentClient = useAgentClient();
     
     // Create unified tools for this component
     const unifiedTools = createUnifiedTools({ setArtifacts });
@@ -45,9 +44,9 @@ export default function ChatInterface() {
         onMessageComplete: (completedMessage) => setMessages(prev => [...prev, completedMessage]),
         onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
         setArtifacts,
-        endRun,
-        agentService: agentService.current,
-        sessionState
+        endRun: () => agentClient.endRun(),
+        agentService: agentClient,
+        sessionState: agentClient.session
     });
 
     const scrollToBottom = () => {
@@ -72,17 +71,16 @@ export default function ChatInterface() {
         setInputValue('');
 
         // Start new run
-        const runState = startNewRun();
+        const runState = agentClient.startNewRun();
 
         // Prepare messages for agent (include conversation history)
         const conversationMessages = [...messages, userMessage];
 
         try {
-            await agentService.current.runAgent(
+            await agentClient.runAgent(
                 conversationMessages,
                 allTools,
-                agentSubscriber,
-                runState
+                agentSubscriber
             );
         } catch (error) {
             console.error('Agent execution failed:', error);
