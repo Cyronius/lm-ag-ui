@@ -50,6 +50,76 @@ export class AgentService {
     }
   }
 
+  async submitToolResult(
+    toolMessage: Message,
+    subscriber: AgentSubscriber,
+    sessionState: { threadId: string | null; runId: string | null }
+  ): Promise<RunAgentResult> {
+    if (!sessionState.threadId) {
+      throw new Error('Thread ID is required for tool result submission');
+    }
+
+    // Generate new run ID for continuation
+    const runId = this.generateRunId();
+
+    try {
+      // Set the thread ID and messages on the agent
+      this.agent.threadId = sessionState.threadId;
+      this.agent.setMessages([toolMessage]);
+
+      const result = await this.agent.runAgent({
+        runId,
+        tools: [], // No new tools needed for continuation
+        context: [],
+        forwardedProps: {}
+      }, subscriber);
+
+      return result;
+    } catch (error) {
+      console.error('Tool result submission error:', error);
+      throw error;
+    }
+  }
+
+  async executeBackendTool(
+    toolCall: { toolCallId: string; toolName: string; args: any },
+    subscriber: AgentSubscriber,
+    sessionState: { threadId: string | null; runId: string | null }
+  ): Promise<RunAgentResult> {
+    if (!sessionState.threadId) {
+      throw new Error('Thread ID is required for backend tool execution');
+    }
+
+    // Generate new run ID for tool execution
+    const runId = this.generateRunId();
+
+    try {
+      // Create a ToolMessage that represents the tool call to be executed
+      const toolCallMessage: Message = {
+        id: `tool_call_${toolCall.toolCallId}`,
+        role: 'tool',
+        content: JSON.stringify(toolCall.args),
+        toolCallId: toolCall.toolCallId
+      };
+
+      // Set the thread ID and messages on the agent
+      this.agent.threadId = sessionState.threadId;
+      this.agent.setMessages([toolCallMessage]);
+
+      const result = await this.agent.runAgent({
+        runId,
+        tools: [], // Backend tools are already registered on the server
+        context: [],
+        forwardedProps: {}
+      }, subscriber);
+
+      return result;
+    } catch (error) {
+      console.error('Backend tool execution error:', error);
+      throw error;
+    }
+  }
+
   private generateRunId(): string {
     return `run_${Date.now()}_${uuidv4().slice(0, 8)}`;
   }

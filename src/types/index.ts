@@ -87,5 +87,6 @@ export interface AgentSubscriber {
     onToolCallStartEvent?(params: { event: ToolCallStartEvent }): void;
     onToolCallArgsEvent?(params: { event: ToolCallArgsEvent }): void;
     onToolCallEndEvent?(params: { event: ToolCallEndEvent }): void;
+    onToolCallResultEvent?(params: { event: ToolCallResultEvent }): void;
     onEvent?(params: { event: BaseEvent }): void;
 }
