@@ -13,7 +13,7 @@ import {
     RunErrorEvent
 } from '@ag-ui/core';
 import { ArtifactData, AgentSubscriber } from '../types/index';
-import { useAgentClient } from '../hooks/useAgentClient';
+import { useAgentClient } from '../contexts/AgentClientContext';
 import { useAgent } from '../hooks/useAgent';
 import { createUnifiedTools, getAllToolDefinitions } from '../tools/unifiedTools';
 

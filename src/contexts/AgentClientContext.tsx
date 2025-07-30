@@ -38,3 +38,14 @@ export function AgentClientProvider({ children }: AgentClientProviderProps) {
 }
 
 export { AgentClientContext };
+
+// Custom hook to access the agentClient from context
+import { useContext } from 'react';
+
+export function useAgentClient() {
+    const context = useContext(AgentClientContext);
+    if (!context) {
+        throw new Error('useAgentClient must be used within an AgentClientProvider');
+    }
+    return context.agentClient;
+}

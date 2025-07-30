@@ -32,8 +32,7 @@ interface useAgent {
 export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endRun, agentService, sessionState }: useAgent) {
     // Agent streaming state
     const [isStreaming, setIsStreaming] = useState(false);
-    // const [currentMessageState, setCurrentMessageState] = useState('');
-    // const [currentMessageIdState, setCurrentMessageIdState] = useState<string | null>(null);
+    
     let currentMessage = ''
     let currentMessageId:string|null = null
 
@@ -46,8 +45,6 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
     const unifiedTools = createUnifiedTools({ setArtifacts });
     const toolHandlers = getToolHandlers(unifiedTools);
     const toolRenderers = getToolRenderers(unifiedTools);
-
-    //console.log('map', toolCallBuffersRef.current)
 
     // Tool execution handlers
     const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
@@ -78,8 +75,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
             await agentService.executeBackendTool(
                 { toolCallId, toolName, args },
                 agentSubscriber
-            );
-            console.log(`Backend tool ${toolName} submitted for execution`);
+            );            
         } catch (error) {
             console.error(`Backend tool execution error for ${toolName}:`, error);
             // Create error message for the conversation
@@ -181,15 +177,6 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
         }
     }, [toolHandlers, toolRenderers, submitToolResultToServer]);
 
-    // const sendToolResult = useCallback((toolCallId: string, content: string) => {
-    //     const toolMessage: Message = {
-    //         id: `tool_${Date.now()}_${uuidv4().slice(0, 8)}`,
-    //         role: "tool",
-    //         content,
-    //         toolCallId
-    //     };
-    //     onMessageComplete(toolMessage);
-    // }, [onMessageComplete]);
 
     // Combined AgentSubscriber - recreate on every render to avoid stale closures
     const agentSubscriber: AgentSubscriber = {

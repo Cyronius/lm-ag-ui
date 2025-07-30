@@ -157,6 +157,8 @@ export class AgentClient {
                 toolCallId: toolCall.toolCallId
             };
 
+            console.log('running tool call', toolCallMessage)
+
             // Set the thread ID and messages on the agent
             this.agent.threadId = this._session.threadId;
             this.agent.setMessages([toolCallMessage]);
@@ -191,18 +193,4 @@ export class AgentClient {
         };
     }
 
-    async healthCheck(): Promise<boolean> {
-        try {
-            const response = await fetch(`${this.baseUrl}/health`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            return response.ok;
-        } catch (error) {
-            console.error('Health check failed:', error);
-            return false;
-        }
-    }
 }
