@@ -47,8 +47,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
     const toolRenderers = getToolRenderers(unifiedTools);
 
     // Tool execution handlers
-    const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
-        console.log('adding tool call', event.toolCallId)
+    const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {        
         toolCallBuffersRef.current.set(event.toolCallId, {
             name: event.toolCallName,
             argsBuffer: "",
@@ -88,18 +87,16 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
         }
     }, [agentService, onErrorMessage]);
 
-    const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
-        console.log('tool call end called for event', event)
-        const toolCall = toolCallBuffersRef.current.get(event.toolCallId);
-        console.log('tool call', toolCall, toolCallBuffersRef.current)
+    const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {        
+        const toolCall = toolCallBuffersRef.current.get(event.toolCallId);        
         if (toolCall) {
             if (toolHandlers.has(toolCall.name)) {
-                console.log('frontend tool')
+                console.log('frontend tool call', toolCall)
                 executeFrontendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
             }
-            else {
-                console.log('backend tool')
+            else {                
                 // Backend tool - execute on server
+                console.log('backend tool call', toolCall)
                 executeBackendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
             }
             toolCallBuffersRef.current.delete(event.toolCallId);
@@ -180,8 +177,10 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
 
     // Combined AgentSubscriber - recreate on every render to avoid stale closures
     const agentSubscriber: AgentSubscriber = {
-        onEvent: ({ event }: { event: any }): void => {
-            console.log('RECEIVED EVENT', event);
+        onEvent: ({ event }: { event: any }): void => {                        
+            if (event.type !== 'TEXT_MESSAGE_CONTENT') {
+                console.log('EVENT RECEIVED: ', event)
+            }
         },
         onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
             setIsStreaming(true);

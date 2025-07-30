@@ -157,8 +157,6 @@ export class AgentClient {
                 toolCallId: toolCall.toolCallId
             };
 
-            console.log('running tool call', toolCallMessage)
-
             // Set the thread ID and messages on the agent
             this.agent.threadId = this._session.threadId;
             this.agent.setMessages([toolCallMessage]);
