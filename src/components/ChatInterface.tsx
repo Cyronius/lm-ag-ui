@@ -5,13 +5,7 @@ import ChatSuggestions from './ChatSuggestions';
 import ChatMessages from './ChatMessages';
 import { ArtifactRenderer } from './artifacts';
 import './ChatInterface.css';
-import {
-    Message,
-    TextMessageContentEvent,
-    RunStartedEvent,
-    RunFinishedEvent,
-    RunErrorEvent
-} from '@ag-ui/core';
+import { Message } from '@ag-ui/core';
 import { ArtifactData, AgentSubscriber } from '../types/index';
 import { useAgentClient } from '../contexts/AgentClientContext';
 import { useAgent } from '../hooks/useAgent';
@@ -20,10 +14,6 @@ import { createUnifiedTools, getAllToolDefinitions } from '../tools/unifiedTools
 export default function ChatInterface() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
-    const [isStreaming, setIsStreaming] = useState(false);
-    const [currentMessage, setCurrentMessage] = useState('');
-    const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
-    const currentMessageIdRef = useRef<string | null>(null);
     const [artifacts, setArtifacts] = useState<Map<string, ArtifactData>>(new Map());
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -55,7 +45,7 @@ export default function ChatInterface() {
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages, currentMessage]);
+    }, [messages, agentCurrentMessage]);
 
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
