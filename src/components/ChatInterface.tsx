@@ -5,33 +5,26 @@ import ChatSuggestions from './ChatSuggestions';
 import ChatMessages from './ChatMessages';
 import { ArtifactRenderer } from './artifacts';
 import './ChatInterface.css';
-import {
-    Message,
-    TextMessageContentEvent,
-    RunStartedEvent,
-    RunFinishedEvent,
-    RunErrorEvent
-} from '@ag-ui/core';
+import { Message } from '@ag-ui/core';
 import { ArtifactData, AgentSubscriber } from '../types/index';
-import { AgentService } from '../services/AgentService';
-import { useSessionManager } from '../hooks/useSessionManager';
+import { useAgentClient } from '../contexts/AgentClientContext';
 import { useAgent } from '../hooks/useAgent';
-import { allTools } from '../tools/availableTools';
+import { createUnifiedTools, getAllToolDefinitions } from '../tools/unifiedTools';
 
 export default function ChatInterface() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
-    const [isStreaming, setIsStreaming] = useState(false);
-    const [currentMessage, setCurrentMessage] = useState('');
-    const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
-    const currentMessageIdRef = useRef<string | null>(null);
     const [artifacts, setArtifacts] = useState<Map<string, ArtifactData>>(new Map());
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
-    const agentService = useRef(new AgentService());
-
-    const { sessionState, startNewRun, endRun } = useSessionManager();
+    
+    // Use the unified AgentClient
+    const agentClient = useAgentClient();
+    
+    // Create unified tools for this component
+    const unifiedTools = createUnifiedTools({ setArtifacts });
+    const allTools = getAllToolDefinitions(unifiedTools);
     // Use the new combined hook for Agent and Tool Subscribers
     const {
         agentSubscriber,
@@ -41,7 +34,9 @@ export default function ChatInterface() {
         onMessageComplete: (completedMessage) => setMessages(prev => [...prev, completedMessage]),
         onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
         setArtifacts,
-        endRun
+        endRun: () => agentClient.endRun(),
+        agentService: agentClient,
+        sessionState: agentClient.session
     });
 
     const scrollToBottom = () => {
@@ -50,7 +45,7 @@ export default function ChatInterface() {
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages, currentMessage]);
+    }, [messages, agentCurrentMessage]);
 
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
@@ -66,17 +61,16 @@ export default function ChatInterface() {
         setInputValue('');
 
         // Start new run
-        const runState = startNewRun();
+        const runState = agentClient.startNewRun();
 
         // Prepare messages for agent (include conversation history)
         const conversationMessages = [...messages, userMessage];
 
         try {
-            await agentService.current.runAgent(
+            await agentClient.runAgent(
                 conversationMessages,
                 allTools,
-                agentSubscriber,
-                runState
+                agentSubscriber
             );
         } catch (error) {
             console.error('Agent execution failed:', error);
