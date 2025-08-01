@@ -77,6 +77,14 @@ export interface StandardTool {
 export interface RunAgentResult {
     result: any;
     newMessages: Message[];
+    /**
+     * Optional array of tool calls/events returned by the agent.
+     * Each item should be an object with event and payload properties.
+     */
+    toolCalls?: Array<{
+        event: string;
+        payload: any;
+    }>;
 }
 
 export interface AgentSubscriber {

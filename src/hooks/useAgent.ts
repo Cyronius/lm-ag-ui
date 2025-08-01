@@ -17,14 +17,22 @@ import {
 } from '../types/index';
 import { v4 as uuidv4 } from 'uuid';
 
-interface useAgent {
+// Extended options to include onToolCall callback
+interface UseAgentOptions {
     onMessageComplete: (message: Message) => void;
     onErrorMessage: (message: Message) => void;
     setArtifacts: React.Dispatch<React.SetStateAction<Map<string, ArtifactData>>>;
     endRun: () => void;
+    onToolCall?: (toolCall: any) => void; // NEW optional callback for completed tool calls
 }
 
-export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endRun }: useAgent) {
+export function useAgent({
+    onMessageComplete,
+    onErrorMessage,
+    setArtifacts,
+    endRun,
+    onToolCall
+}: UseAgentOptions) {
     // Agent streaming state
     const [isStreaming, setIsStreaming] = useState(false);
     const [currentMessageState, setCurrentMessageState] = useState('');
@@ -91,20 +99,6 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
         });
     }, []);
 
-    const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
-        const toolCall = toolCallBuffers.get(event.toolCallId);
-        if (toolCall) {
-            if (frontendToolHandlers.has(toolCall.name)) {
-                executeFrontendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
-            }
-            setToolCallBuffers(prev => {
-                const newMap = new Map(prev);
-                newMap.delete(event.toolCallId);
-                return newMap;
-            });
-        }
-    }, [toolCallBuffers, frontendToolHandlers]);
-
     const executeFrontendTool = useCallback((toolName: string, argsJson: string, toolCallId: string) => {
         try {
             const args = JSON.parse(argsJson);
@@ -129,6 +123,33 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
         onMessageComplete(toolMessage);
     }, [onMessageComplete]);
 
+    // Modified to notify on completed tool calls
+    const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
+        const toolCall = toolCallBuffers.get(event.toolCallId);
+        if (toolCall) {
+            // Notify parent about the completed tool call
+            if (onToolCall) {
+                onToolCall({
+                    type: 'function',
+                    function: {
+                        name: toolCall.name,
+                        arguments: toolCall.argsBuffer
+                    }
+                });
+            }
+            // Execute frontend tool if registered
+            if (frontendToolHandlers.has(toolCall.name)) {
+                executeFrontendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
+            }
+            // Clean up buffer
+            setToolCallBuffers(prev => {
+                const newMap = new Map(prev);
+                newMap.delete(event.toolCallId);
+                return newMap;
+            });
+        }
+    }, [toolCallBuffers, frontendToolHandlers, onToolCall]);
+
     // Combined AgentSubscriber
     const agentSubscriberRef = useRef<AgentSubscriber | null>(null);
     const [shouldClearStreaming, setShouldClearStreaming] = useState(false);
@@ -142,7 +163,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
 
     if (!agentSubscriberRef.current) {
         agentSubscriberRef.current = {
-            onEvent: ({ event }: { event: any }): void => {
+            onEvent: ({ event }) => {
                 console.log('RECEIVED EVENT', event);
             },
             onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
@@ -171,12 +192,12 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
                     onMessageComplete(completedMessage);
                 }
                 setIsStreaming(false);
-                setShouldClearStreaming(true); // Delay clearing until after render
+                setShouldClearStreaming(true);
                 endRun();
             },
             onRunErrorEvent: ({ event }: { event: RunErrorEvent }) => {
                 setIsStreaming(false);
-                setShouldClearStreaming(true); // Delay clearing until after render
+                setShouldClearStreaming(true);
                 const errorMessage: Message = {
                     id: `error_${Date.now()}`,
                     role: 'assistant',

@@ -1,3 +1,7 @@
+// availableTools.ts
+// This file lives on the front end and defines all tool schemas
+// (both frontend-handled and backend-handled tools)
+
 import { StandardTool } from '../types/index';
 
 // Frontend tools that will be handled by the frontend
@@ -8,9 +12,9 @@ export const frontendTools: StandardTool[] = [
     parameters: {
       type: "object",
       properties: {
-        color: { 
-          type: "string", 
-          description: "CSS color value (hex, rgb, or named color)" 
+        color: {
+          type: "string",
+          description: "CSS color value (hex, rgb, or named color)"
         }
       },
       required: ["color"]
@@ -18,17 +22,17 @@ export const frontendTools: StandardTool[] = [
   },
   {
     name: "showCalendlyWidget",
-    description: "Display a Calendly scheduling widget inline in the chat",
+    description: "Book a Demo using Calendly",
     parameters: {
       type: "object",
       properties: {
-        url: { 
-          type: "string", 
-          description: "Calendly scheduling URL" 
+        url: {
+          type: "string",
+          description: "Calendly scheduling URL"
         },
-        height: { 
-          type: "number", 
-          description: "Widget height in pixels" 
+        height: {
+          type: "number",
+          description: "Widget height in pixels"
         }
       },
       required: ["url"]
@@ -40,55 +44,32 @@ export const frontendTools: StandardTool[] = [
     parameters: {
       type: "object",
       properties: {
-        title: { 
-          type: "string", 
-          description: "Notification title" 
-        },
-        message: { 
-          type: "string", 
-          description: "Notification message" 
-        }
+        title: { type: "string", description: "Notification title" },
+        message: { type: "string", description: "Notification message" }
       },
       required: ["title", "message"]
     }
   }
 ];
 
-// Example backend tools (these would be handled by the backend)
+// Backend tools (registered here so the UI knows their schemas)
 export const backendTools: StandardTool[] = [
-
-    // Backend-only tools (not registered on the frontend) are executed by the AG-UI middleware without the frontend being notified;
-    // their results are sent back as text or data events from the agent. This is often preferred for things like knowledge base tools,
-    // where direct UX involvement would just add latency for no benefit.
-    // Tools that *are* registered on the frontend (even if they're backend tools) allow the UX to intercept, approve, or orchestrate
-    // tool calls before execution (human-in-the-loop). Whether you add an approval step or just extra UX is up to your implementation.
-    // The AG-UI docs describe this briefly: https://docs.ag-ui.com/concepts/tools
-
-//   {
-//     name: "sendEmail",
-//     description: "Send an email to a recipient",
-//     parameters: {
-//       type: "object",
-//       properties: {
-//         to: { 
-//           type: "string", 
-//           description: "Email recipient" 
-//         },
-//         subject: { 
-//           type: "string", 
-//           description: "Email subject" 
-//         },
-//         body: { 
-//           type: "string", 
-//           description: "Email body" 
-//         }
-//       },
-//       required: ["to", "subject", "body"]
-//     }
-//   }
+  {
+    name: "book_demo",
+    description: "Book a demo with our sales team via Calendly.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "User's full name" },
+        email: { type: "string", description: "User's email address" },
+        // event_type_id: { type: "string", description: "Calendly event type ID" }
+      },
+      required: ["name", "email"]
+    }
+  }
 ];
 
-// All tools combined for passing to AG-UI
+// All tools combined for passing to AG‑UI
 export const allTools: StandardTool[] = [
   ...frontendTools,
   ...backendTools
