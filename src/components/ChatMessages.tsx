@@ -11,13 +11,13 @@ import { InlineWidget } from 'react-calendly';
 // Extend Message type for Calendly support
 type CalendlyMessage = CoreMessage & {
     type: 'calendly';
-    calendlyUrl: string;
-    calendlyHeight?: number;
+    url: string;
+    height?: number;
 };
 type Message = CoreMessage | CalendlyMessage;
 
 function isCalendlyMessage(message: Message): message is CalendlyMessage {
-    return (message as CalendlyMessage).type === 'calendly' && !!(message as CalendlyMessage).calendlyUrl;
+    return (message as CalendlyMessage).type === 'calendly' && !!(message as CalendlyMessage).url;
 }
 
 interface ChatMessagesProps {
@@ -33,14 +33,22 @@ export default function ChatMessages({ messages, isTyping, currentMessage, messa
             messages.map((message, i) => {
                 if (isCalendlyMessage(message)) {
                     return (
-                        
                         <div key={message.id || i} className={`message ${message.role} calendly-message`}>
                             <div className="bot-icon">
                                 <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
                             </div>
-                            <div>{message.calendlyUrl}</div>
+                            {/* Render message content above widget if present */}
+                            {message.content && (
+                                <div className={`message-content ${message.role}`} style={{ width: '100%' }}>
+                                    <Typography variant="body2" component="div">
+                                        <Markdown remarkPlugins={[remarkGfm]}>
+                                            {message.content}
+                                        </Markdown>
+                                    </Typography>
+                                </div>
+                            )}
                             <div className={`message-content ${message.role}`} style={{ width: '100%', padding: 0 }}>
-                                <InlineWidget url={message.calendlyUrl} styles={{ height: message.calendlyHeight || 600, width: '100%' }} />
+                                <InlineWidget url={message.url} styles={{ height: message.height || 600, width: '100%' }} />
                             </div>
                         </div>
                     );

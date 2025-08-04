@@ -6,6 +6,8 @@ interface CalendlyArtifactProps {
 }
 
 export const CalendlyArtifact: React.FC<CalendlyArtifactProps> = ({ url, height = 600 }) => {
+  const [visible, setVisible] = React.useState(true);
+  if (!visible) return null;
   return (
     <div 
       className="artifact-container" 
@@ -13,7 +15,8 @@ export const CalendlyArtifact: React.FC<CalendlyArtifactProps> = ({ url, height 
         margin: '16px 0', 
         borderRadius: '8px', 
         overflow: 'hidden',
-        border: '1px solid #e0e0e0'
+        border: '1px solid #e0e0e0',
+        position: 'relative'
       }}
     >
       <div 
@@ -22,10 +25,24 @@ export const CalendlyArtifact: React.FC<CalendlyArtifactProps> = ({ url, height 
           padding: '12px', 
           fontSize: '14px', 
           fontWeight: 'bold',
-          borderBottom: '1px solid #e0e0e0'
+          borderBottom: '1px solid #e0e0e0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
         }}
       >
-        📅 Calendly Scheduling
+        <span>📅 Calendly Scheduling</span>
+        <button
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: '16px',
+            cursor: 'pointer',
+            color: '#888'
+          }}
+          title="Dismiss"
+          onClick={() => setVisible(false)}
+        >✖</button>
       </div>
       <iframe
         src={url}

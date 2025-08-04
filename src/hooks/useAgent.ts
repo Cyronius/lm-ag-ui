@@ -19,8 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { createUnifiedTools, getToolHandlers, getToolRenderers, ToolHandler, ToolRenderer } from '../tools/unifiedTools';
 import { AgentClient } from '../services/AgentClient';
 
-// Extended options to include onToolCall callback
-interface UseAgentOptions {
+interface useAgent {
     onMessageComplete: (message: Message) => void;
     onErrorMessage: (message: Message) => void;
     setArtifacts: React.Dispatch<React.SetStateAction<Map<string, ArtifactData>>>;

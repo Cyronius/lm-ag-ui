@@ -12,6 +12,17 @@ import { useAgent } from '../hooks/useAgent';
 import { createUnifiedTools, getAllToolDefinitions } from '../tools/unifiedTools';
 
 export default function ChatInterface() {
+    // Listen for calendly chat message events from the frontend tool
+    useEffect(() => {
+        const handleCalendlyChatMessage = (e: CustomEvent) => {
+            const calendlyMsg = e.detail;
+            setMessages(prev => [...prev, calendlyMsg]);
+        };
+        window.addEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
+        return () => {
+            window.removeEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
+        };
+    }, []);
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [artifacts, setArtifacts] = useState<Map<string, ArtifactData>>(new Map());
@@ -31,7 +42,41 @@ export default function ChatInterface() {
         isStreaming: agentIsStreaming,
         currentMessage: agentCurrentMessage
     } = useAgent({
-        onMessageComplete: (completedMessage) => setMessages(prev => [...prev, completedMessage]),
+        onMessageComplete: (completedMessage) => {
+            let calendlyUrl = null;
+            let height = 600;
+            // If message is from tool or assistant, check for Calendly URL
+            if ((completedMessage.role === 'tool' || completedMessage.role === 'assistant')) {
+                // For tool messages, Calendly URL may be in content
+                if (completedMessage.content && typeof completedMessage.content === 'string' && completedMessage.content.startsWith('https://calendly.com')) {
+                    calendlyUrl = completedMessage.content;
+                } else if (completedMessage.content && typeof completedMessage.content === 'string') {
+                    // Try to parse as JSON for calendlyUrl
+                    try {
+                        const parsed = JSON.parse(completedMessage.content);
+                        if (parsed && parsed.calendlyUrl) {
+                            calendlyUrl = parsed.calendlyUrl;
+                            if (parsed.height) height = parsed.height;
+                        }
+                    } catch {}
+                }
+            }
+            if (calendlyUrl) {
+                setMessages(prev => [
+                    ...prev,
+                    {
+                        id: completedMessage.id || `calendly_${Date.now()}`,
+                        role: 'assistant',
+                        type: 'calendly',
+                        url: calendlyUrl,
+                        height
+                    }
+                ]);
+                return;
+            }
+            // Default: just append the message
+            setMessages(prev => [...prev, completedMessage]);
+        },
         onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
         setArtifacts,
         endRun: () => agentClient.endRun(),
@@ -39,46 +84,26 @@ export default function ChatInterface() {
         sessionState: agentClient.session
     });
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
 
     useEffect(() => {
         scrollToBottom();
     }, [messages, agentCurrentMessage]);
 
-  return (
-    <div className="chat-interface">
-      <ChatMessages
-        messages={messages}
-        isTyping={agentIsStreaming}
-        currentMessage={agentCurrentMessage}
-        messagesEndRef={messagesEndRef}
-      />
-      <ArtifactRenderer artifacts={artifacts} />
+    const handleSendMessage = async (messageText?: string) => {
+        const textToSend = messageText || inputValue;
+        if (!textToSend.trim() || agentIsStreaming) return;
 
-      <div className="input-container">
-        <TextField
-          inputRef={inputRef}
-          value={inputValue}
-          onChange={e => setInputValue(e.target.value)}
-          onKeyUp={handleKeyPress}
-          placeholder="Ask me anything about training!"
-          variant="outlined"
-          fullWidth
-          disabled={agentIsStreaming}
-        />
-        <Button
-          onClick={() => handleSendMessage()}
-          disabled={!inputValue.trim() || agentIsStreaming}
-          variant="contained"
-        >
-          <Send />
-        </Button>
-      </div>
+        // Add user message
+        const userMessage: Message = {
+            id: `user_${Date.now()}`,
+            role: 'user',
+            content: textToSend
+        };
+        setMessages(prev => [...prev, userMessage]);
+        setInputValue('');
 
         // Start new run
         const runState = agentClient.startNewRun();
