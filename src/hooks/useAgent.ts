@@ -32,8 +32,7 @@ interface useAgent {
 export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agentClient }: useAgent) {
     
     
-    // Agent streaming state
-    const [isStreaming, setIsStreaming] = useState(false);
+    // No longer need local isStreaming state - use session.isActive from AgentClient
     
     let currentMessage = ''
     let currentMessageId: string | null = null
@@ -203,7 +202,6 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agen
             }
         },
         onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
-            setIsStreaming(true);
             currentMessage = ''
             currentMessageId = null
         },
@@ -238,14 +236,12 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agen
                 };
                 onErrorMessage(errorMessage);
             } finally {
-                setIsStreaming(false);
                 currentMessage = ''
                 currentMessageId = null
                 agentClient.endRun();
             }
         },
         onRunErrorEvent: ({ event }: { event: RunErrorEvent }) => {
-            setIsStreaming(false);
             currentMessage = ''
             currentMessageId = null
             const errorMessage: Message = {
@@ -262,20 +258,14 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agen
         onToolCallResultEvent: ({ event }: { event: ToolCallResultEvent }) => handleToolCallResult(event)
     };
 
-    const resetStreaming = useCallback(() => {
-        setIsStreaming(false);
-        currentMessage = ''
-        currentMessageId = null
-    }, []);
-
+    
     return {
         agentSubscriber,
-        isStreaming,
+        isStreaming: agentClient.session.isActive,
         currentMessage: currentMessage,
         currentMessageId: currentMessageId,
         toolCallBuffers: toolCallBuffersRef.current,
         toolHandlers,
-        toolRenderers,
-        resetStreaming
+        toolRenderers
     };
 }

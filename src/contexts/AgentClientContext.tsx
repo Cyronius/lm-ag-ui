@@ -55,3 +55,11 @@ export function useAgentClient() {
     }
     return context.agentClient;
 }
+
+export function useAgentSession() {
+    const context = useContext(AgentClientContext);
+    if (!context) {
+        throw new Error('useAgentSession must be used within an AgentClientProvider');
+    }
+    return context.session;
+}

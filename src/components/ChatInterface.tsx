@@ -7,7 +7,7 @@ import { ArtifactRenderer } from './artifacts';
 import './ChatInterface.css';
 import { Message } from '@ag-ui/core';
 import { ArtifactData, AgentSubscriber } from '../types/index';
-import { useAgentClient } from '../contexts/AgentClientContext';
+import { useAgentClient, useAgentSession } from '../contexts/AgentClientContext';
 import { useAgent } from '../hooks/useAgent';
 import { createUnifiedTools, getAllToolDefinitions } from '../tools/unifiedTools';
 
@@ -19,8 +19,9 @@ export default function ChatInterface() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     
-    // Use the unified AgentClient
+    // Use the unified AgentClient and session
     const agentClient = useAgentClient();
+    const session = useAgentSession();
     
     // Create unified tools for this component
     const unifiedTools = createUnifiedTools({ setArtifacts });
@@ -28,7 +29,6 @@ export default function ChatInterface() {
     // Use the new combined hook for Agent and Tool Subscribers
     const {
         agentSubscriber,
-        isStreaming: agentIsStreaming,
         currentMessage: agentCurrentMessage
     } = useAgent({
         onMessageComplete: (completedMessage) => setMessages(prev => [...prev, completedMessage]),
@@ -47,7 +47,7 @@ export default function ChatInterface() {
 
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
-        if (!textToSend.trim() || agentIsStreaming) return;
+        if (!textToSend.trim() || session.isActive) return;
 
         // Add user message
         const userMessage: Message = {
@@ -89,13 +89,13 @@ export default function ChatInterface() {
         }
     };
 
-    const showSuggestions = messages.length === 0 && !agentIsStreaming;
+    const showSuggestions = messages.length === 0 && !session.isActive;
 
     return (
         <div className="chat-interface">
             <ChatMessages
                 messages={messages}
-                isTyping={agentIsStreaming}
+                isTyping={session.isActive}
                 currentMessage={agentCurrentMessage}
                 messagesEndRef={messagesEndRef}
             />
@@ -112,11 +112,11 @@ export default function ChatInterface() {
                     variant="outlined"
                     fullWidth
                     className="input-field"
-                    disabled={agentIsStreaming}
+                    disabled={session.isActive}
                 />
                 <Button
                     onClick={() => handleSendMessage()}
-                    disabled={!inputValue.trim() || agentIsStreaming}
+                    disabled={!inputValue.trim() || session.isActive}
                     variant="contained"
                     color="primary"
                     className="send-button"
