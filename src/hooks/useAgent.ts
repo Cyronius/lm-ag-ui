@@ -265,7 +265,5 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agen
         currentMessage: currentMessage,
         currentMessageId: currentMessageId,
         toolCallBuffers: toolCallBuffersRef.current,
-        toolHandlers,
-        toolRenderers
     };
 }
