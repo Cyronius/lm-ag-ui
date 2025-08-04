@@ -1,6 +1,6 @@
 import React from 'react';
 import { Typography, CircularProgress } from '@mui/material';
-import { Bot, User, Wrench, Settings, Code } from 'lucide-react';
+import { User, Wrench, Settings, Code } from 'lucide-react';
 import './ChatInterface.css';
 import './ChatMessages.css';
 import Markdown from 'react-markdown'

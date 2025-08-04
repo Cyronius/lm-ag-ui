@@ -129,38 +129,6 @@ export function createUnifiedTools(): Map<string, UnifiedToolDefinition> {
             isFrontend: true
         }],
 
-        // // Backend Tools
-        // ['soco_outline_tool', {
-        //     definition: {
-        //         name: "soco_outline_tool",
-        //         description: "Generates a course outline based on a provided topic, including modules, a course title, an image prompt for AI generation, and a subject matter description.",
-        //         parameters: {
-        //             type: "object",
-        //             properties: {
-        //                 course_topic: {
-        //                     type: "string",
-        //                     description: "The provided course topic from the user"
-        //                 },
-        //             },
-        //             required: ["course_topic"]
-        //         }
-        //     },
-        //     // No handler - this is executed by backend
-        //     renderer: (args: any, result?: string) => {
-        //         // If this tool needs special rendering, implement it here
-        //         // For example, you might want to display course outlines in a special format
-        //         console.log('Course outline generated for:', args.course_topic);
-        //         if (result) {
-        //             // Could create an artifact for structured course outline display
-        //             // setArtifacts(prev => new Map(prev).set(`outline_${Date.now()}`, {
-        //             //     type: 'course-outline',
-        //             //     content: result,
-        //             //     topic: args.course_topic
-        //             // }));
-        //         }
-        //     },
-        //     isFrontend: false
-        // }]
     ]);
 }
 

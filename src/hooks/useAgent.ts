@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import {
     Message,
     TextMessageContentEvent,
@@ -47,16 +47,14 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
     const { tools, updateState, getState } = useAgentContext();    
     const toolHandlers = getToolHandlers(tools);
 
-    // Tool execution handlers
-    const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {        
+    const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
         toolCallBuffersRef.current.set(event.toolCallId, {
             name: event.toolCallName,
             argsBuffer: "",
             parentMessageId: event.parentMessageId
         });
-        // Map toolCallId to toolName for later retrieval during message rendering
         toolCallIdToNameRef.current.set(event.toolCallId, event.toolCallName);
-        forceUpdate(n => n + 1); // trigger re-render if UI depends on this
+        forceUpdate(n => n + 1);
     }, []);
 
     const handleToolCallArgs = useCallback((event: ToolCallArgsEvent) => {
@@ -73,11 +71,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
     const executeBackendTool = useCallback(async (toolName: string, argsJson: string, toolCallId: string) => {
         try {
             const args = JSON.parse(argsJson);
-            // Send tool call to server for execution
-            // await agentService.executeBackendTool(
-            //     { toolCallId, toolName, args },
-            //     agentSubscriber
-            // );            
+            
         } catch (error) {
             console.error(`Backend tool execution error for ${toolName}:`, error);
             // Create error message for the conversation
@@ -90,16 +84,12 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
         }
     }, [agentClient, onErrorMessage]);
 
-    const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {        
-        const toolCall = toolCallBuffersRef.current.get(event.toolCallId);        
+    const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
+        const toolCall = toolCallBuffersRef.current.get(event.toolCallId);
         if (toolCall) {
             if (toolHandlers.has(toolCall.name)) {
-                console.log('frontend tool call', toolCall)
                 executeFrontendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
-            }
-            else {                
-                // Backend tool - execute on server
-                console.log('backend tool call', toolCall)
+            } else {
                 executeBackendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
             }
             toolCallBuffersRef.current.delete(event.toolCallId);
@@ -108,8 +98,6 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
     }, [toolHandlers, executeBackendTool]);
 
     const handleToolCallResult = useCallback((event: ToolCallResultEvent) => {
-        console.log('Received tool call result:', event);
-        
         try {
             // Create proper ToolMessage from ToolCallResult event
             const toolResultMessage: Message = {
@@ -139,7 +127,6 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                 toolCallId
             };
 
-            // Submit result back to server to continue agent execution            
             await agentClient.submitToolResult(toolMessage, agentSubscriber);
         } catch (error) {
             console.error('Failed to submit tool result to server:', error);
@@ -160,9 +147,6 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
             if (handler) {
                 const result = handler(args, updateState, getState);
                 
-                // No immediate rendering - rendering now happens in ChatMessages
-                // based on the ToolMessage and global state
-                
                 // Create proper ToolMessage for this frontend tool execution
                 const toolMessage: Message = {
                     id: `tool_${toolCallId}_${Date.now()}`,
@@ -172,7 +156,6 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                 };
                 onMessageComplete(toolMessage);
                 
-                // Submit result back to server to continue agent execution                
                 await submitToolResultToServer(toolCallId, result);
             }
         } catch (error) {
@@ -195,10 +178,8 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
 
     // Combined AgentSubscriber - recreate on every render to avoid stale closures
     const agentSubscriber: AgentSubscriber = {
-        onEvent: ({ event }: { event: any }): void => {                        
-            if (event.type !== 'TEXT_MESSAGE_CONTENT') {
-                console.log('EVENT RECEIVED: ', event)
-            }
+        onEvent: ({ event }: { event: any }): void => {
+            // Handle any custom event processing if needed
         },
         onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
             currentMessage = ''
@@ -214,14 +195,11 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
         },
         onStateSnapshotEvent: ({ event }: { event: StateSnapshotEvent }) => {
             // Handle state snapshot events from AG-UI server
-            console.log('State snapshot received:', event.snapshot);
             if (event.snapshot) {
                 // Replace current state with snapshot - this is the baseline state
                 // In AG-UI, we wait for snapshots rather than updating immediately
                 // The server determines when to send these snapshots
-                console.log('Updating global state with snapshot:', event.snapshot);
-                // For now, we'll log this - full state replacement would need to be implemented
-                // based on the specific AG-UI state schema being used
+                // TODO: Implement full state replacement based on AG-UI state schema
             }
         },
         onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {

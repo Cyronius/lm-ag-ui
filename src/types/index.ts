@@ -17,7 +17,6 @@ import type {
     StateSnapshotEvent
 } from '@ag-ui/core';
 
-//import  from '@ag-ui/client'
 
 // AG-UI Types - Re-export from @ag-ui/core (which is re-exported by @ag-ui/client)
 export type {
@@ -55,10 +54,6 @@ export interface ToolCallBuffer {
     parentMessageId?: string;
 }
 
-export interface ArtifactData {
-    type: string;
-    [key: string]: any;
-}
 
 // Tool handler types are now defined in unifiedTools.ts
 

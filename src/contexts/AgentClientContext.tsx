@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { AgentClient } from '../services/AgentClient';
 import { UnifiedToolDefinition, createUnifiedTools } from '../tools/unifiedTools';
 
@@ -74,10 +74,7 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
     );
 }
 
-export { AgentClientContext };
 
-// Custom hook to access the agentClient from context
-import { useContext } from 'react';
 
 export function useAgentContext() {
     const context = useContext(AgentClientContext);
@@ -87,11 +84,3 @@ export function useAgentContext() {
     return context;
 }
 
-// Keep legacy hooks for backward compatibility during transition
-export const useAgentClient = () => useAgentContext().agentClient;
-export const useAgentSession = () => useAgentContext().session;
-export const useAgentTools = () => useAgentContext().tools;
-export const useAgentState = () => {
-    const { globalState, updateState, getState } = useAgentContext();
-    return { globalState, updateState, getState };
-};

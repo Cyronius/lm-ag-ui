@@ -3,10 +3,8 @@ import { Button, TextField } from '@mui/material';
 import { Send } from 'lucide-react';
 import ChatSuggestions from './ChatSuggestions';
 import ChatMessages from './ChatMessages';
-// ArtifactRenderer removed - rendering moved to ChatMessages
 import './ChatInterface.css';
 import { Message } from '@ag-ui/core';
-import { AgentSubscriber } from '../types/index';
 import { useAgentContext } from '../contexts/AgentClientContext';
 import { useAgent } from '../hooks/useAgent';
 import { getAllToolDefinitions } from '../tools/unifiedTools';
@@ -95,8 +93,6 @@ export default function ChatInterface() {
                 messagesEndRef={messagesEndRef}
                 getToolNameFromCallId={getToolNameFromCallId}
             />
-
-            {/* Artifact rendering will be moved to ChatMessages based on state */}
 
             <div className="input-container">
                 <TextField
