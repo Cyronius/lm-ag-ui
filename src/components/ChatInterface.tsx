@@ -34,9 +34,7 @@ export default function ChatInterface() {
         onMessageComplete: (completedMessage) => setMessages(prev => [...prev, completedMessage]),
         onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
         setArtifacts,
-        endRun: () => agentClient.endRun(),
-        agentClient: agentClient,
-        sessionState: agentClient.session
+        agentClient: agentClient
     });
 
     const scrollToBottom = () => {

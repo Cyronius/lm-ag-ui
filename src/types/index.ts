@@ -48,11 +48,6 @@ export interface ChatSuggestionsProps {
     onSuggestionClick: (suggestion: string) => void;
 }
 
-export interface SessionState {
-    threadId: string | null;
-    runId: string | null;
-    isActive: boolean;
-}
 
 export interface ToolCallBuffer {
     name: string;

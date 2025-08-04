@@ -25,33 +25,18 @@ interface useAgent {
     onMessageComplete: (message: Message) => void;
     onErrorMessage: (message: Message) => void;
     setArtifacts: React.Dispatch<React.SetStateAction<Map<string, ArtifactData>>>;
-    endRun: () => void;
     agentClient: AgentClient;
-    sessionState: { threadId: string | null; runId: string | null };
 }
 
 
-export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endRun, agentClient: agentClient, sessionState }: useAgent) {
+export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agentClient }: useAgent) {
     
     
-    // TODO: logically, currentMessages and these vars are part of the session state. SessionState needs to be renamed
-    // because it means something specific in ag-ui and we are mixing the terms
-    
-
-
     // Agent streaming state
     const [isStreaming, setIsStreaming] = useState(false);
     
-    
-    
     let currentMessage = ''
     let currentMessageId: string | null = null
-
-    
-    // this is a temporary buffer to hold pending messages (of all types) as they are created, 
-    // so that they can be finalized when the run is finished
-    let pendingMessages = []
-    let pendingState = {}
 
     // Tool execution state (now using ref)
     const toolCallBuffersRef = useRef<Map<string, ToolCallBuffer>>(new Map());
@@ -124,26 +109,25 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
     const handleToolCallResult = useCallback((event: ToolCallResultEvent) => {
         console.log('Received tool call result:', event);
         
-        // We need to find the tool name from our stored tool call buffers
-        // Since ToolCallResultEvent might not have toolCallName, we'll try a different approach
-        let toolName: string | undefined;
-        
-        // Try to find any renderer that might match (we could store this mapping earlier)
-        // For now, let's use the available properties to try to identify the tool
-        // This is a fallback approach since we don't have the exact tool name
-        
-        // Handle backend tool result - just add to conversation for now
-        // We can improve this later when we understand the exact event structure
-        
-        // Convert to a message and add to conversation
-        const toolResultMessage: Message = {
-            id: `tool_result_${event.toolCallId}_${Date.now()}`,
-            role: 'tool',
-            content: event.content,
-            toolCallId: event.toolCallId
-        };
-        onMessageComplete(toolResultMessage);
-    }, [toolRenderers, onMessageComplete]);
+        try {
+            // Create proper ToolMessage from ToolCallResult event
+            const toolResultMessage: Message = {
+                id: `tool_result_${event.toolCallId}_${Date.now()}`,
+                role: 'tool',
+                content: event.content || '',
+                toolCallId: event.toolCallId
+            };
+            onMessageComplete(toolResultMessage);
+        } catch (error) {
+            console.error('Error creating tool result message:', error);
+            const errorMessage: Message = {
+                id: `error_tool_${event.toolCallId}_${Date.now()}`,
+                role: 'assistant',
+                content: 'Error processing tool result'
+            };
+            onErrorMessage(errorMessage);
+        }
+    }, [onMessageComplete, onErrorMessage]);
 
     const submitToolResultToServer = useCallback(async (toolCallId: string, content: string) => {
         try {
@@ -181,15 +165,34 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
                     renderer(args, result);
                 }
                 
+                // Create proper ToolMessage for this frontend tool execution
+                const toolMessage: Message = {
+                    id: `tool_${toolCallId}_${Date.now()}`,
+                    role: 'tool',
+                    content: result,
+                    toolCallId
+                };
+                onMessageComplete(toolMessage);
+                
                 // Submit result back to server to continue agent execution                
                 await submitToolResultToServer(toolCallId, result);
             }
         } catch (error) {
             console.error(`Tool execution error for ${toolName}:`, error);
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            
+            // Create error ToolMessage
+            const errorToolMessage: Message = {
+                id: `tool_error_${toolCallId}_${Date.now()}`,
+                role: 'tool',
+                content: errorMessage,
+                toolCallId
+            };
+            onMessageComplete(errorToolMessage);
+            
             await submitToolResultToServer(toolCallId, errorMessage);
         }
-    }, [toolHandlers, toolRenderers, submitToolResultToServer]);
+    }, [toolHandlers, toolRenderers, submitToolResultToServer, onMessageComplete]);
 
 
     // Combined AgentSubscriber - recreate on every render to avoid stale closures
@@ -213,34 +216,33 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
             }
         },
         onStateSnapshotEvent: ({ event }: { event: StateSnapshotEvent }) => {
-            
-            // save state changes back, but note that they are not finalized until a run is finished
-            if (event.snapshot) {
-                pendingState = event.snapshot
-            }
+            // TODO: Handle state snapshot events if needed in the future
+            console.log('State snapshot received:', event.snapshot);
         },
         onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {
-            if (currentMessage.trim()) {
-                // TODO: this is wrong -- we should just append the message in the text message end event
-                // because there might actually be multiple messages, and there are several types of messages....
-                // I mean, why not just append the raw ag-ui message and go off that, right? That way we could get tool call messages in there
-
-                const completedMessage: Message = {
-                    id: currentMessageId || `msg_${Date.now()}`,
-                    role: 'assistant',
-                    content: currentMessage
+            try {
+                if (currentMessage.trim()) {
+                    const completedMessage: Message = {
+                        id: currentMessageId || `msg_${Date.now()}`,
+                        role: 'assistant',
+                        content: currentMessage
+                    };
+                    onMessageComplete(completedMessage);
+                }
+            } catch (error) {
+                console.error('Error creating assistant message:', error);
+                const errorMessage: Message = {
+                    id: `error_${Date.now()}`,
+                    role: 'assistant', 
+                    content: 'Error processing assistant response'
                 };
-                onMessageComplete(completedMessage);
+                onErrorMessage(errorMessage);
+            } finally {
+                setIsStreaming(false);
+                currentMessage = ''
+                currentMessageId = null
+                agentClient.endRun();
             }
-
-            // TODO: add any pending messages
-            // this would be chat messages, tool calls, state snapshots, etc
-            
-
-            setIsStreaming(false);
-            currentMessage = ''
-            currentMessageId = null
-            endRun();
         },
         onRunErrorEvent: ({ event }: { event: RunErrorEvent }) => {
             setIsStreaming(false);
@@ -252,7 +254,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
                 content: `Error: ${event.message}`
             };
             onErrorMessage(errorMessage);
-            endRun();
+            agentClient.endRun();
         },
         onToolCallStartEvent: ({ event }: { event: ToolCallStartEvent }) => handleToolCallStart(event),
         onToolCallArgsEvent: ({ event }: { event: ToolCallArgsEvent }) => handleToolCallArgs(event),

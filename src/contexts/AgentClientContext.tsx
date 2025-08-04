@@ -1,10 +1,16 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { AgentClient } from '../services/AgentClient';
-import { SessionState } from '../types/index';
+
+// Import Session type from AgentClient since it's now defined there
+type Session = {
+    threadId: string | null;
+    runId: string | null;
+    isActive: boolean;
+};
 
 interface AgentClientContextValue {
     agentClient: AgentClient;
-    session: SessionState;
+    session: Session;
 }
 
 const AgentClientContext = createContext<AgentClientContextValue | null>(null);
@@ -17,8 +23,8 @@ export function AgentClientProvider({ children }: AgentClientProviderProps) {
     // Create a single AgentClient instance
     const [agentClient] = useState(() => new AgentClient());
     
-    // Track session state for React re-renders
-    const [session, setSession] = useState<SessionState>(agentClient.session);
+    // Track session for React re-renders
+    const [session, setSession] = useState<Session>(agentClient.session);
 
     // Set up the callback when component mounts
     useEffect(() => {
