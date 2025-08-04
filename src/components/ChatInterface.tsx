@@ -3,37 +3,32 @@ import { Button, TextField } from '@mui/material';
 import { Send } from 'lucide-react';
 import ChatSuggestions from './ChatSuggestions';
 import ChatMessages from './ChatMessages';
-import { ArtifactRenderer } from './artifacts';
+// ArtifactRenderer removed - rendering moved to ChatMessages
 import './ChatInterface.css';
 import { Message } from '@ag-ui/core';
-import { ArtifactData, AgentSubscriber } from '../types/index';
-import { useAgentClient, useAgentSession } from '../contexts/AgentClientContext';
+import { AgentSubscriber } from '../types/index';
+import { useAgentContext } from '../contexts/AgentClientContext';
 import { useAgent } from '../hooks/useAgent';
-import { createUnifiedTools, getAllToolDefinitions } from '../tools/unifiedTools';
+import { getAllToolDefinitions } from '../tools/unifiedTools';
 
 export default function ChatInterface() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
-    const [artifacts, setArtifacts] = useState<Map<string, ArtifactData>>(new Map());
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     
-    // Use the unified AgentClient and session
-    const agentClient = useAgentClient();
-    const session = useAgentSession();
-    
-    // Create unified tools for this component
-    const unifiedTools = createUnifiedTools({ setArtifacts });
-    const allTools = getAllToolDefinitions(unifiedTools);
+    // Use the unified context
+    const { agentClient, session, tools } = useAgentContext();
+    const allTools = getAllToolDefinitions(tools);
     // Use the new combined hook for Agent and Tool Subscribers
     const {
         agentSubscriber,
-        currentMessage: agentCurrentMessage
+        currentMessage: agentCurrentMessage,
+        getToolNameFromCallId
     } = useAgent({
         onMessageComplete: (completedMessage) => setMessages(prev => [...prev, completedMessage]),
         onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
-        setArtifacts,
         agentClient: agentClient
     });
 
@@ -98,9 +93,10 @@ export default function ChatInterface() {
                 isTyping={session.isActive}
                 currentMessage={agentCurrentMessage}
                 messagesEndRef={messagesEndRef}
+                getToolNameFromCallId={getToolNameFromCallId}
             />
 
-            <ArtifactRenderer artifacts={artifacts} />
+            {/* Artifact rendering will be moved to ChatMessages based on state */}
 
             <div className="input-container">
                 <TextField

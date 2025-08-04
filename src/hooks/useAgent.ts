@@ -14,22 +14,21 @@ import {
 
 import {
     ToolCallBuffer,
-    ArtifactData,
     AgentSubscriber
 } from '../types/index';
 import { v4 as uuidv4 } from 'uuid';
-import { createUnifiedTools, getToolHandlers, getToolRenderers, ToolHandler, ToolRenderer } from '../tools/unifiedTools';
+import { getToolHandlers, ToolHandler } from '../tools/unifiedTools';
 import { AgentClient } from '../services/AgentClient';
+import { useAgentContext } from '../contexts/AgentClientContext';
 
 interface useAgent {
     onMessageComplete: (message: Message) => void;
     onErrorMessage: (message: Message) => void;
-    setArtifacts: React.Dispatch<React.SetStateAction<Map<string, ArtifactData>>>;
     agentClient: AgentClient;
 }
 
 
-export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agentClient }: useAgent) {
+export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: useAgent) {
     
     
     // No longer need local isStreaming state - use session.isActive from AgentClient
@@ -39,13 +38,14 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agen
 
     // Tool execution state (now using ref)
     const toolCallBuffersRef = useRef<Map<string, ToolCallBuffer>>(new Map());
+    // Map toolCallId to toolName for later retrieval during rendering
+    const toolCallIdToNameRef = useRef<Map<string, string>>(new Map());
     // Helper to force re-render if needed
     const [, forceUpdate] = useState(0);
 
-    // Create unified tools with required context
-    const unifiedTools = createUnifiedTools({ setArtifacts });
-    const toolHandlers = getToolHandlers(unifiedTools);
-    const toolRenderers = getToolRenderers(unifiedTools);
+    // Get everything from unified context
+    const { tools, updateState, getState } = useAgentContext();    
+    const toolHandlers = getToolHandlers(tools);
 
     // Tool execution handlers
     const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {        
@@ -54,6 +54,8 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agen
             argsBuffer: "",
             parentMessageId: event.parentMessageId
         });
+        // Map toolCallId to toolName for later retrieval during message rendering
+        toolCallIdToNameRef.current.set(event.toolCallId, event.toolCallName);
         forceUpdate(n => n + 1); // trigger re-render if UI depends on this
     }, []);
 
@@ -103,7 +105,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agen
             toolCallBuffersRef.current.delete(event.toolCallId);
             forceUpdate(n => n + 1);
         }
-    }, [toolHandlers, toolRenderers, executeBackendTool]);
+    }, [toolHandlers, executeBackendTool]);
 
     const handleToolCallResult = useCallback((event: ToolCallResultEvent) => {
         console.log('Received tool call result:', event);
@@ -156,13 +158,10 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agen
             const args = JSON.parse(argsJson);
             const handler = toolHandlers.get(toolName);
             if (handler) {
-                const result = handler(args);
+                const result = handler(args, updateState, getState);
                 
-                // Call renderer if it exists (for immediate UI updates)
-                const renderer = toolRenderers.get(toolName);
-                if (renderer) {
-                    renderer(args, result);
-                }
+                // No immediate rendering - rendering now happens in ChatMessages
+                // based on the ToolMessage and global state
                 
                 // Create proper ToolMessage for this frontend tool execution
                 const toolMessage: Message = {
@@ -191,7 +190,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agen
             
             await submitToolResultToServer(toolCallId, errorMessage);
         }
-    }, [toolHandlers, toolRenderers, submitToolResultToServer, onMessageComplete]);
+    }, [toolHandlers, submitToolResultToServer, onMessageComplete, updateState, getState]);
 
 
     // Combined AgentSubscriber - recreate on every render to avoid stale closures
@@ -214,8 +213,16 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agen
             }
         },
         onStateSnapshotEvent: ({ event }: { event: StateSnapshotEvent }) => {
-            // TODO: Handle state snapshot events if needed in the future
+            // Handle state snapshot events from AG-UI server
             console.log('State snapshot received:', event.snapshot);
+            if (event.snapshot) {
+                // Replace current state with snapshot - this is the baseline state
+                // In AG-UI, we wait for snapshots rather than updating immediately
+                // The server determines when to send these snapshots
+                console.log('Updating global state with snapshot:', event.snapshot);
+                // For now, we'll log this - full state replacement would need to be implemented
+                // based on the specific AG-UI state schema being used
+            }
         },
         onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {
             try {
@@ -265,5 +272,6 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, agen
         currentMessage: currentMessage,
         currentMessageId: currentMessageId,
         toolCallBuffers: toolCallBuffersRef.current,
+        getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),
     };
 }

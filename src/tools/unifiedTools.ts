@@ -1,14 +1,13 @@
-import { StandardTool, ArtifactData } from '../types/index';
+import React from 'react';
+import { StandardTool } from '../types/index';
 
 // Tool handler executes the tool's logic (frontend tools only)
-export type ToolHandler = (args: any) => string;
+export type ToolHandler = (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => string;
 
 // Tool renderer handles display/artifacts for the tool result (both frontend and backend)
-export type ToolRenderer = (args: any, result?: string) => void;
+export type ToolRenderer = (args: any, result: string, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => React.ReactElement | void;
 
-export interface ToolContext {
-    setArtifacts: React.Dispatch<React.SetStateAction<Map<string, ArtifactData>>>;
-}
+// No longer need ToolContext since state management is passed at execution time
 
 export interface UnifiedToolDefinition {
     definition: StandardTool;
@@ -17,8 +16,7 @@ export interface UnifiedToolDefinition {
     isFrontend: boolean;
 }
 
-export function createUnifiedTools(context: ToolContext): Map<string, UnifiedToolDefinition> {
-    const { setArtifacts } = context;
+export function createUnifiedTools(): Map<string, UnifiedToolDefinition> {
 
     return new Map([
         // Frontend Tools
@@ -37,8 +35,10 @@ export function createUnifiedTools(context: ToolContext): Map<string, UnifiedToo
                     required: ["color"]
                 }
             },
-            handler: (args: any) => {
+            handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
                 document.body.style.backgroundColor = args.color;
+                // Optionally store state
+                updateState('changeBackgroundColor', { color: args.color, timestamp: Date.now() });
                 return `Background color changed to ${args.color}`;
             },
             isFrontend: true
@@ -63,14 +63,26 @@ export function createUnifiedTools(context: ToolContext): Map<string, UnifiedToo
                     required: ["url"]
                 }
             },
-            handler: (args: any) => {
-                const artifactId = `calendly_${Date.now()}`;
-                setArtifacts(prev => new Map(prev).set(artifactId, {
+            handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
+                const widgetData = {
                     type: 'calendly',
                     url: args.url,
-                    height: args.height || 600
-                }));
+                    height: args.height || 600,
+                    timestamp: Date.now()
+                };
+                updateState('showCalendlyWidget', widgetData);
                 return `Calendly widget displayed`;
+            },
+            renderer: (args: any, result: string, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
+                // Return JSX for the Calendly widget
+                return React.createElement('iframe', {
+                    src: args.url,
+                    width: '100%',
+                    height: args.height || 600,
+                    frameBorder: '0',
+                    title: 'Calendly Widget',
+                    style: { border: '1px solid #ccc', borderRadius: '8px' }
+                });
             },
             isFrontend: true
         }],
@@ -94,10 +106,11 @@ export function createUnifiedTools(context: ToolContext): Map<string, UnifiedToo
                     required: ["title", "message"]
                 }
             },
-            handler: (args: any) => {
+            handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
                 if (import.meta.env.REACT_APP_NOTIFICATION_PERMISSION === 'true') {
                     if (Notification.permission === 'granted') {
                         new Notification(args.title, { body: args.message });
+                        updateState('showNotification', { title: args.title, message: args.message, timestamp: Date.now() });
                         return `Notification shown: ${args.title}`;
                     } else if (Notification.permission === 'default') {
                         Notification.requestPermission().then(permission => {

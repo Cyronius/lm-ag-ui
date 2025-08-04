@@ -1,5 +1,6 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useMemo } from 'react';
 import { AgentClient } from '../services/AgentClient';
+import { UnifiedToolDefinition, createUnifiedTools } from '../tools/unifiedTools';
 
 // Import Session type from AgentClient since it's now defined there
 type Session = {
@@ -11,29 +12,59 @@ type Session = {
 interface AgentClientContextValue {
     agentClient: AgentClient;
     session: Session;
+    tools: Map<string, UnifiedToolDefinition>;
+    globalState: any;
+    updateState: (toolName: string, data: any) => void;
+    getState: (toolName?: string) => any;
 }
 
 const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 
 interface AgentClientProviderProps {
     children: React.ReactNode;
+    tools: Map<string, UnifiedToolDefinition>;
 }
 
-export function AgentClientProvider({ children }: AgentClientProviderProps) {
+export function AgentClientProvider({ children, tools }: AgentClientProviderProps) {
     // Create a single AgentClient instance
     const [agentClient] = useState(() => new AgentClient());
     
     // Track session for React re-renders
     const [session, setSession] = useState<Session>(agentClient.session);
+    
+    // Global AG-UI state management
+    const [globalState, setGlobalState] = useState<any>({});
 
     // Set up the callback when component mounts
     useEffect(() => {
         agentClient.setSessionChangeCallback(setSession);
     }, [agentClient]);
 
+    // State management functions
+    const updateState = (toolName: string, data: any) => {
+        setGlobalState((prev: any) => ({
+            ...prev,
+            [toolName]: data
+        }));
+    };
+    
+    const getState = (toolName?: string) => {
+        if (toolName) {
+            return globalState[toolName];
+        }
+        return globalState;
+    };
+    
+    // Tools are passed in - we just use them directly
+    // The tools should have been created with proper state management functions
+
     const contextValue: AgentClientContextValue = {
         agentClient,
-        session
+        session,
+        tools,
+        globalState,
+        updateState,
+        getState
     };
 
     return (
@@ -48,18 +79,19 @@ export { AgentClientContext };
 // Custom hook to access the agentClient from context
 import { useContext } from 'react';
 
-export function useAgentClient() {
+export function useAgentContext() {
     const context = useContext(AgentClientContext);
     if (!context) {
-        throw new Error('useAgentClient must be used within an AgentClientProvider');
+        throw new Error('useAgentContext must be used within an AgentClientProvider');
     }
-    return context.agentClient;
+    return context;
 }
 
-export function useAgentSession() {
-    const context = useContext(AgentClientContext);
-    if (!context) {
-        throw new Error('useAgentSession must be used within an AgentClientProvider');
-    }
-    return context.session;
-}
+// Keep legacy hooks for backward compatibility during transition
+export const useAgentClient = () => useAgentContext().agentClient;
+export const useAgentSession = () => useAgentContext().session;
+export const useAgentTools = () => useAgentContext().tools;
+export const useAgentState = () => {
+    const { globalState, updateState, getState } = useAgentContext();
+    return { globalState, updateState, getState };
+};
