@@ -92,7 +92,7 @@ export class AgentClient {
             // Set the thread ID and messages on the agent
             this.agent.threadId = threadId;
             this.agent.setMessages(messages);
-
+            console.log('agent run')
             const result = await this.agent.runAgent({
                 runId,
                 tools,
@@ -121,8 +121,8 @@ export class AgentClient {
         try {
             // Set the thread ID and messages on the agent
             this.agent.threadId = this._session.threadId;
-            this.agent.setMessages([toolMessage]);
-
+            this.agent.setMessages([toolMessage]);            
+            console.log('submitting tool result to server')
             const result = await this.agent.runAgent({
                 runId,
                 tools: [], // No new tools needed for continuation
@@ -160,7 +160,7 @@ export class AgentClient {
             // Set the thread ID and messages on the agent
             this.agent.threadId = this._session.threadId;
             this.agent.setMessages([toolCallMessage]);
-
+            console.log('backend tool call')
             const result = await this.agent.runAgent({
                 runId,
                 tools: [], // Backend tools are already registered on the server
@@ -168,7 +168,7 @@ export class AgentClient {
                 forwardedProps: {}
             }, subscriber);
 
-            return result;
+            return result;            
         } catch (error) {
             console.error('Backend tool execution error:', error);
             throw error;

@@ -35,7 +35,7 @@ export default function ChatInterface() {
         onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
         setArtifacts,
         endRun: () => agentClient.endRun(),
-        agentService: agentClient,
+        agentClient: agentClient,
         sessionState: agentClient.session
     });
 

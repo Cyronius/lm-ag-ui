@@ -13,8 +13,11 @@ import type {
     ToolCallResultEvent,
     RunStartedEvent,
     RunFinishedEvent,
-    RunErrorEvent
+    RunErrorEvent,
+    StateSnapshotEvent
 } from '@ag-ui/core';
+
+//import  from '@ag-ui/client'
 
 // AG-UI Types - Re-export from @ag-ui/core (which is re-exported by @ag-ui/client)
 export type {
@@ -88,5 +91,6 @@ export interface AgentSubscriber {
     onToolCallArgsEvent?(params: { event: ToolCallArgsEvent }): void;
     onToolCallEndEvent?(params: { event: ToolCallEndEvent }): void;
     onToolCallResultEvent?(params: { event: ToolCallResultEvent }): void;
+    onStateSnapshotEvent?(params: { event: StateSnapshotEvent }): void;
     onEvent?(params: { event: BaseEvent }): void;
 }

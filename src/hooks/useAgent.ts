@@ -8,8 +8,10 @@ import {
     ToolCallStartEvent,
     ToolCallArgsEvent,
     ToolCallEndEvent,
-    ToolCallResultEvent
+    ToolCallResultEvent,
+    StateSnapshotEvent    
 } from '@ag-ui/core';
+
 import {
     ToolCallBuffer,
     ArtifactData,
@@ -24,17 +26,32 @@ interface useAgent {
     onErrorMessage: (message: Message) => void;
     setArtifacts: React.Dispatch<React.SetStateAction<Map<string, ArtifactData>>>;
     endRun: () => void;
-    agentService: AgentClient;
+    agentClient: AgentClient;
     sessionState: { threadId: string | null; runId: string | null };
 }
 
 
-export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endRun, agentService, sessionState }: useAgent) {
+export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endRun, agentClient: agentClient, sessionState }: useAgent) {
+    
+    
+    // TODO: logically, currentMessages and these vars are part of the session state. SessionState needs to be renamed
+    // because it means something specific in ag-ui and we are mixing the terms
+    
+
+
     // Agent streaming state
     const [isStreaming, setIsStreaming] = useState(false);
     
+    
+    
     let currentMessage = ''
-    let currentMessageId:string|null = null
+    let currentMessageId: string | null = null
+
+    
+    // this is a temporary buffer to hold pending messages (of all types) as they are created, 
+    // so that they can be finalized when the run is finished
+    let pendingMessages = []
+    let pendingState = {}
 
     // Tool execution state (now using ref)
     const toolCallBuffersRef = useRef<Map<string, ToolCallBuffer>>(new Map());
@@ -71,10 +88,10 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
         try {
             const args = JSON.parse(argsJson);
             // Send tool call to server for execution
-            await agentService.executeBackendTool(
-                { toolCallId, toolName, args },
-                agentSubscriber
-            );            
+            // await agentService.executeBackendTool(
+            //     { toolCallId, toolName, args },
+            //     agentSubscriber
+            // );            
         } catch (error) {
             console.error(`Backend tool execution error for ${toolName}:`, error);
             // Create error message for the conversation
@@ -85,7 +102,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
             };
             onErrorMessage(errorMessage);
         }
-    }, [agentService, onErrorMessage]);
+    }, [agentClient, onErrorMessage]);
 
     const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {        
         const toolCall = toolCallBuffersRef.current.get(event.toolCallId);        
@@ -137,8 +154,8 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
                 toolCallId
             };
 
-            // Submit result back to server to continue agent execution
-            await agentService.submitToolResult(toolMessage, agentSubscriber);
+            // Submit result back to server to continue agent execution            
+            await agentClient.submitToolResult(toolMessage, agentSubscriber);
         } catch (error) {
             console.error('Failed to submit tool result to server:', error);
             // Fallback: add error message to UI
@@ -149,7 +166,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
             };
             onErrorMessage(errorMessage);
         }
-    }, [agentService, onErrorMessage]);
+    }, [agentClient, onErrorMessage]);
 
     const executeFrontendTool = useCallback(async (toolName: string, argsJson: string, toolCallId: string) => {
         try {
@@ -164,7 +181,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
                     renderer(args, result);
                 }
                 
-                // Submit result back to server to continue agent execution
+                // Submit result back to server to continue agent execution                
                 await submitToolResultToServer(toolCallId, result);
             }
         } catch (error) {
@@ -195,8 +212,19 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
                 currentMessage += event.delta
             }
         },
+        onStateSnapshotEvent: ({ event }: { event: StateSnapshotEvent }) => {
+            
+            // save state changes back, but note that they are not finalized until a run is finished
+            if (event.snapshot) {
+                pendingState = event.snapshot
+            }
+        },
         onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {
             if (currentMessage.trim()) {
+                // TODO: this is wrong -- we should just append the message in the text message end event
+                // because there might actually be multiple messages, and there are several types of messages....
+                // I mean, why not just append the raw ag-ui message and go off that, right? That way we could get tool call messages in there
+
                 const completedMessage: Message = {
                     id: currentMessageId || `msg_${Date.now()}`,
                     role: 'assistant',
@@ -204,6 +232,11 @@ export function useAgent({ onMessageComplete, onErrorMessage, setArtifacts, endR
                 };
                 onMessageComplete(completedMessage);
             }
+
+            // TODO: add any pending messages
+            // this would be chat messages, tool calls, state snapshots, etc
+            
+
             setIsStreaming(false);
             currentMessage = ''
             currentMessageId = null
