@@ -88,7 +88,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
         const toolCall = toolCallBuffersRef.current.get(event.toolCallId);
         if (toolCall) {
             if (toolHandlers.has(toolCall.name)) {
-                executeFrontendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
+                executeFrontendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);                
             } else {
                 executeBackendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
             }
@@ -201,10 +201,9 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
         onStateSnapshotEvent: ({ event }: { event: StateSnapshotEvent }) => {
             // Handle state snapshot events from AG-UI server
             if (event.snapshot) {
-                // Replace current state with snapshot - this is the baseline state
-                // In AG-UI, we wait for snapshots rather than updating immediately
-                // The server determines when to send these snapshots
-                // TODO: Implement full state replacement based on AG-UI state schema
+
+                // TODO: store state
+
             }
         },
         onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {

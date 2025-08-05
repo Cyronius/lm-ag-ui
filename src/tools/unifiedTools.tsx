@@ -1,5 +1,6 @@
 import React from 'react';
 import { StandardTool } from '../types/index';
+import SocoOutlineResults from './SocoOutlineResults'
 
 // Tool handler executes the tool's logic (frontend tools only)
 export type ToolHandler = (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => string;
@@ -128,6 +129,30 @@ export function createUnifiedTools(): Map<string, UnifiedToolDefinition> {
             },
             isFrontend: true
         }],
+
+        
+        // Backend Tools
+        ['soco_outline_tool', {
+            definition: {
+                name: "soco_outline_tool",
+                description: "Generates a course outline based on a provided topic, including modules, a course title, an image prompt for AI generation, and a subject matter description.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        course_topic: {
+                            type: "string",
+                            description: "The provided course topic from the user"
+                        },
+                    },
+                    required: ["course_topic"]
+                }
+            },
+            // No handler - this is executed by backend
+            renderer: (args: any, result?: string) => {
+                return <SocoOutlineResults outline={ args } />
+            },
+            isFrontend: false
+        }]
 
     ]);
 }
