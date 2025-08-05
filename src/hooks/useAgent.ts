@@ -180,6 +180,11 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
     const agentSubscriber: AgentSubscriber = {
         onEvent: ({ event }: { event: any }): void => {
             // Handle any custom event processing if needed
+            
+            if (event.type !== 'TEXT_MESSAGE_CONTENT') {
+                console.log('event received:', event)
+            }
+
         },
         onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
             currentMessage = ''
