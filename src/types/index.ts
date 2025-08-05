@@ -62,7 +62,7 @@ export interface ArtifactData {
     [key: string]: any;
 }
 
-// Tool handler types are now defined in unifiedTools.ts
+export type FrontendToolHandler = (args: any) => string;
 
 export interface StandardTool {
     name: string;
@@ -77,14 +77,6 @@ export interface StandardTool {
 export interface RunAgentResult {
     result: any;
     newMessages: Message[];
-    /**
-     * Optional array of tool calls/events returned by the agent.
-     * Each item should be an object with event and payload properties.
-     */
-    toolCalls?: Array<{
-        event: string;
-        payload: any;
-    }>;
 }
 
 export interface AgentSubscriber {
@@ -95,6 +87,5 @@ export interface AgentSubscriber {
     onToolCallStartEvent?(params: { event: ToolCallStartEvent }): void;
     onToolCallArgsEvent?(params: { event: ToolCallArgsEvent }): void;
     onToolCallEndEvent?(params: { event: ToolCallEndEvent }): void;
-    onToolCallResultEvent?(params: { event: ToolCallResultEvent }): void;
     onEvent?(params: { event: BaseEvent }): void;
 }

@@ -58,7 +58,6 @@ export function createUnifiedTools(context: ToolContext): Map<string, UnifiedToo
             },
             handler: (args: any) => {
                 // Auto-generate event_type_id (hardcoded or random)
-                // const calendly_url = `https://calendly.com/${event_type_id}?name=${encodeURIComponent(args.name)}&email=${encodeURIComponent(args.email)}`;
                 const calendly_url = 'https://meetings-na2.hubspot.com/sheryl-porter'
                 // Push a calendly message to chat (assume a global or context function is available)
                 if (window && window.dispatchEvent) {

@@ -43,38 +43,6 @@ export default function ChatInterface() {
         currentMessage: agentCurrentMessage
     } = useAgent({
         onMessageComplete: (completedMessage) => {
-            let calendlyUrl = null;
-            let height = 600;
-            // If message is from tool or assistant, check for Calendly URL
-            if ((completedMessage.role === 'tool' || completedMessage.role === 'assistant')) {
-                // For tool messages, Calendly URL may be in content
-                if (completedMessage.content && typeof completedMessage.content === 'string' && completedMessage.content.startsWith('https://calendly.com')) {
-                    calendlyUrl = completedMessage.content;
-                } else if (completedMessage.content && typeof completedMessage.content === 'string') {
-                    // Try to parse as JSON for calendlyUrl
-                    try {
-                        const parsed = JSON.parse(completedMessage.content);
-                        if (parsed && parsed.calendlyUrl) {
-                            calendlyUrl = parsed.calendlyUrl;
-                            if (parsed.height) height = parsed.height;
-                        }
-                    } catch {}
-                }
-            }
-            if (calendlyUrl) {
-                setMessages(prev => [
-                    ...prev,
-                    {
-                        id: completedMessage.id || `calendly_${Date.now()}`,
-                        role: 'assistant',
-                        type: 'calendly',
-                        url: calendlyUrl,
-                        height
-                    }
-                ]);
-                return;
-            }
-            // Default: just append the message
             setMessages(prev => [...prev, completedMessage]);
         },
         onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
@@ -109,7 +77,9 @@ export default function ChatInterface() {
         const runState = agentClient.startNewRun();
 
         // Prepare messages for agent (include conversation history)
-        const conversationMessages = [...messages, userMessage];
+        // Filter out Calendly messages before sending to backend
+        const isCalendlyMessage = (msg: any) => msg.type === 'calendly' && !!msg.url;
+        const conversationMessages = [...messages, userMessage].filter(msg => !isCalendlyMessage(msg));
 
         try {
             await agentClient.runAgent(
