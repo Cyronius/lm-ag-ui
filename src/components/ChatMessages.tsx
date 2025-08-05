@@ -31,9 +31,11 @@ export default function ChatMessages({ messages, isTyping, currentMessage, messa
     return <>
         {
             messages.map((message, i) => {
+                // Ensure unique key for each message
+                const key = message.id ? `${message.id}_${i}` : `msg_${i}`;
                 if (isCalendlyMessage(message)) {
                     return (
-                        <div key={message.id || i} className={`message ${message.role} calendly-message`}>
+                        <div key={key} className={`message ${message.role} calendly-message`}>
                             <div className="bot-icon">
                                 <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
                             </div>
@@ -55,7 +57,7 @@ export default function ChatMessages({ messages, isTyping, currentMessage, messa
                 }
                 // Default message rendering
                 return (
-                    <div key={message.id || i} className={`message ${message.role}`}>
+                    <div key={key} className={`message ${message.role}`}>
                         {message.role === 'assistant' && (
                             <div className="bot-icon">                            
                                 <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
