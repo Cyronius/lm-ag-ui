@@ -12,6 +12,17 @@ import { useAgent } from '../hooks/useAgent';
 import { createUnifiedTools, getAllToolDefinitions } from '../tools/unifiedTools';
 
 export default function ChatInterface() {
+    // Listen for calendly chat message events from the frontend tool
+    useEffect(() => {
+        const handleCalendlyChatMessage = (e: CustomEvent) => {
+            const calendlyMsg = e.detail;
+            setMessages(prev => [...prev, calendlyMsg]);
+        };
+        window.addEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
+        return () => {
+            window.removeEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
+        };
+    }, []);
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [artifacts, setArtifacts] = useState<Map<string, ArtifactData>>(new Map());
@@ -31,7 +42,9 @@ export default function ChatInterface() {
         isStreaming: agentIsStreaming,
         currentMessage: agentCurrentMessage
     } = useAgent({
-        onMessageComplete: (completedMessage) => setMessages(prev => [...prev, completedMessage]),
+        onMessageComplete: (completedMessage) => {
+            setMessages(prev => [...prev, completedMessage]);
+        },
         onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
         setArtifacts,
         endRun: () => agentClient.endRun(),
@@ -64,7 +77,9 @@ export default function ChatInterface() {
         const runState = agentClient.startNewRun();
 
         // Prepare messages for agent (include conversation history)
-        const conversationMessages = [...messages, userMessage];
+        // Filter out Calendly messages before sending to backend
+        const isCalendlyMessage = (msg: any) => msg.type === 'calendly' && !!msg.url;
+        const conversationMessages = [...messages, userMessage].filter(msg => !isCalendlyMessage(msg));
 
         try {
             await agentClient.runAgent(

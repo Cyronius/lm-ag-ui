@@ -47,29 +47,30 @@ export function createUnifiedTools(context: ToolContext): Map<string, UnifiedToo
         ['showCalendlyWidget', {
             definition: {
                 name: "showCalendlyWidget",
-                description: "Display a Calendly scheduling widget inline in the chat",
+                description: "Book a demo with our sales team via Calendly. Displays a Calendly widget.",
                 parameters: {
                     type: "object",
                     properties: {
-                        url: { 
-                            type: "string", 
-                            description: "Calendly scheduling URL" 
-                        },
-                        height: { 
-                            type: "number", 
-                            description: "Widget height in pixels" 
-                        }
+                        height: { type: "number", description: "Widget height in pixels" }
                     },
-                    required: ["url"]
+                    required: []
                 }
             },
             handler: (args: any) => {
-                const artifactId = `calendly_${Date.now()}`;
-                setArtifacts(prev => new Map(prev).set(artifactId, {
-                    type: 'calendly',
-                    url: args.url,
-                    height: args.height || 600
-                }));
+                // Auto-generate event_type_id (hardcoded or random)
+                const calendly_url = 'https://meetings-na2.hubspot.com/sheryl-porter'
+                // Push a calendly message to chat (assume a global or context function is available)
+                if (window && window.dispatchEvent) {
+                    window.dispatchEvent(new CustomEvent('addCalendlyChatMessage', {
+                        detail: {
+                            id: `calendly_${Date.now()}`,
+                            role: 'assistant',
+                            type: 'calendly',
+                            url: calendly_url,
+                            height: args.height || 600
+                        }
+                    }));
+                }
                 return `Calendly widget displayed`;
             },
             isFrontend: true

@@ -5,7 +5,20 @@ import './ChatInterface.css';
 import './ChatMessages.css';
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Message } from '@ag-ui/core';
+import { Message as CoreMessage } from '@ag-ui/core';
+import { InlineWidget } from 'react-calendly';
+
+// Extend Message type for Calendly support
+type CalendlyMessage = CoreMessage & {
+    type: 'calendly';
+    url: string;
+    height?: number;
+};
+type Message = CoreMessage | CalendlyMessage;
+
+function isCalendlyMessage(message: Message): message is CalendlyMessage {
+    return (message as CalendlyMessage).type === 'calendly' && !!(message as CalendlyMessage).url;
+}
 
 interface ChatMessagesProps {
     messages: Message[];
@@ -17,29 +30,56 @@ interface ChatMessagesProps {
 export default function ChatMessages({ messages, isTyping, currentMessage, messagesEndRef }: ChatMessagesProps) {
     return <>
         {
-            messages.map((message, i) => (
-                <div key={message.id || i} className={`message ${message.role}`}>
-                    {message.role === 'assistant' && (
-                        <div className="bot-icon">                            
-                            <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
-                        </div>
-                    )}
-                    <div className={`message-content ${message.role}`}>
-                        <Typography variant="body2" component="div">
+            messages.map((message, i) => {
+                // Ensure unique key for each message
+                const key = message.id ? `${message.id}_${i}` : `msg_${i}`;
+                if (isCalendlyMessage(message)) {
+                    return (
+                        <div key={key} className={`message ${message.role} calendly-message`}>
+                            <div className="bot-icon">
+                                <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
+                            </div>
+                            {/* Render message content above widget if present */}
                             {message.content && (
-                                <Markdown remarkPlugins={[remarkGfm]}>
-                                    {message.content}
-                                </Markdown>
+                                <div className={`message-content ${message.role}`} style={{ width: '100%' }}>
+                                    <Typography variant="body2" component="div">
+                                        <Markdown remarkPlugins={[remarkGfm]}>
+                                            {message.content}
+                                        </Markdown>
+                                    </Typography>
+                                </div>
                             )}
-                        </Typography>
-                    </div>
-                    {message.role === 'user' && (
-                        <div className="user-icon">
-                            <User className="icon" />
+                            <div className={`message-content ${message.role}`} style={{ width: '100%', padding: 0 }}>
+                                <InlineWidget url={message.url} styles={{ height: message.height || 600, width: '100%' }} />
+                            </div>
                         </div>
-                    )}
-                </div>
-            ))
+                    );
+                }
+                // Default message rendering
+                return (
+                    <div key={key} className={`message ${message.role}`}>
+                        {message.role === 'assistant' && (
+                            <div className="bot-icon">                            
+                                <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
+                            </div>
+                        )}
+                        <div className={`message-content ${message.role}`}>
+                            <Typography variant="body2" component="div">
+                                {message.content && (
+                                    <Markdown remarkPlugins={[remarkGfm]}>
+                                        {message.content}
+                                    </Markdown>
+                                )}
+                            </Typography>
+                        </div>
+                        {message.role === 'user' && (
+                            <div className="user-icon">
+                                <User className="icon" />
+                            </div>
+                        )}
+                    </div>
+                );
+            })
         }
         {
             isTyping && (

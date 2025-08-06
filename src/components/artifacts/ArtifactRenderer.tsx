@@ -11,14 +11,6 @@ export const ArtifactRenderer: React.FC<ArtifactRendererProps> = ({ artifacts })
     <div className="artifacts-container">
       {Array.from(artifacts.entries()).map(([id, artifact]) => {
         switch (artifact.type) {
-          case 'calendly':
-            return (
-              <CalendlyArtifact 
-                key={id} 
-                url={artifact.url} 
-                height={artifact.height} 
-              />
-            );
           default:
             return null;
         }
