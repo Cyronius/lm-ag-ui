@@ -148,7 +148,7 @@ function getMessageIcon(role: string) {
 
 export default function ChatMessages({ messages, isTyping, currentMessage, messagesEndRef, getToolNameFromCallId }: ChatMessagesProps) {
     const { tools, globalState, updateState, getState } = useAgentContext();
-    
+    console.log('messages', messages)
     return <>
         {
             

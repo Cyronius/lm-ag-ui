@@ -67,17 +67,17 @@ export function SoCoOutlineView({ outline }: { outline: Outline }) {
 
         <h5>Course Title: {outline.header}</h5>
         
-        <p>
+        <div>
             <h5>Course Overview:</h5>
             {outline.description}
-        </p>
+        </div>
 
-        <p>
+        <div>
             <h5>Learning Objectives:</h5>
             <span>By the end of this course, learners will yada yada yada</span>
-        </p>
+        </div>
         
-        <p>
+        <div>
             <h5>Course Modules:</h5>
             <div>
             
@@ -90,7 +90,7 @@ export function SoCoOutlineView({ outline }: { outline: Outline }) {
                     ))}
                 </ul>
             </div>
-        </p>
+        </div>
         
         <span>Would you like for Learner Mobile to create this course for you? It's going to look like this!</span>
         <p>[This is where we would put some preview images]</p>

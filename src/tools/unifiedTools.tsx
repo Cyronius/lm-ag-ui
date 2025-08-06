@@ -1,6 +1,7 @@
 import React from 'react';
 import { StandardTool } from '../types/index';
 import SocoOutlineSignupFlow from './SocoOutlineResults'
+import SignupForm from './SignupForm'
 
 // Tool handler executes the tool's logic (frontend tools only)
 export type ToolHandler = (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => string;
@@ -162,11 +163,10 @@ export function createUnifiedTools(): Map<string, UnifiedToolDefinition> {
                     "type": "object",
                     "properties": {
                     
-                    },
-                    "required": ["tool_context"]
+                    },                    
                 }
             },
-            renderer: (args: any, result?: string) => <p>approval granted</p>,
+            renderer: (args: any, result?: string) => <SignupForm/>,
             handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
                 console.log('approval handled')
             },
@@ -193,14 +193,25 @@ export function getBackendToolDefinitions(tools: Map<string, UnifiedToolDefiniti
         .map(tool => tool.definition);
 }
 
-export function getToolHandlers(tools: Map<string, UnifiedToolDefinition>): Map<string, ToolHandler> {
-    const handlers = new Map<string, ToolHandler>();
+// export function getToolHandlers(tools: Map<string, UnifiedToolDefinition>): Map<string, ToolHandler> {
+//     const handlers = new Map<string, ToolHandler>();
+//     tools.forEach((tool, name) => {
+//         if (tool.handler) {
+//             handlers.set(name, tool.handler);
+//         }
+//     });
+//     return handlers;
+// }
+
+export function getFrontEndTools(tools: Map<string, UnifiedToolDefinition>): Map<string, UnifiedToolDefinition> {
+    
+    const frontEndTools = new Map<string, UnifiedToolDefinition>();
     tools.forEach((tool, name) => {
-        if (tool.handler) {
-            handlers.set(name, tool.handler);
+        if (tool.isFrontend) {
+            frontEndTools.set(name, tool);
         }
     });
-    return handlers;
+    return frontEndTools;
 }
 
 export function getToolRenderers(tools: Map<string, UnifiedToolDefinition>): Map<string, ToolRenderer> {
