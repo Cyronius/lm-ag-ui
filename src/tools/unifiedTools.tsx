@@ -1,6 +1,6 @@
 import React from 'react';
 import { StandardTool } from '../types/index';
-import SocoOutlineResults from './SocoOutlineResults'
+import SocoOutlineSignupFlow from './SocoOutlineResults'
 
 // Tool handler executes the tool's logic (frontend tools only)
 export type ToolHandler = (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => string;
@@ -149,9 +149,28 @@ export function createUnifiedTools(): Map<string, UnifiedToolDefinition> {
             },
             // No handler - this is executed by backend
             renderer: (args: any, result?: string) => {
-                return <SocoOutlineResults outline={ args } />
+                return <SocoOutlineSignupFlow outline={ args } />
             },
             isFrontend: false
+        }],
+
+        ['approve_outline_tool', {
+            definition: {
+                "name": "approve_outline_tool",
+                "description": "Approves the previously generated course outline and proceeds with course creation. Should be invoked when the user affirms they want to proceed after receiving a soco_outline_tool message.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                    
+                    },
+                    "required": ["tool_context"]
+                }
+            },
+            renderer: (args: any, result?: string) => <p>approval granted</p>,
+            handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
+                console.log('approval handled')
+            },
+            isFrontend: false,
         }]
 
     ]);

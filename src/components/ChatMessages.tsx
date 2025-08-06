@@ -121,8 +121,6 @@ function renderToolMessage(message: Message, tools: Map<string, any>, globalStat
     if (!React.isValidElement(renderResult)) {
         return
     }
-    
-    console.log('result', renderResult)
                 
     return (
         <div className="message-content tool">
@@ -153,6 +151,7 @@ export default function ChatMessages({ messages, isTyping, currentMessage, messa
     
     return <>
         {
+            
             messages.map((message, i) => {
                 
                 let results = renderMessage(message, tools, globalState, getToolNameFromCallId, updateState, getState)

@@ -1,4 +1,6 @@
 import Button from '@mui/material/Button';
+import { useAgentContext } from '../contexts/AgentClientContext';
+import { Message } from '@ag-ui/client';
 
 // TypeScript type for the outline parameter based on the provided JSON
 export type OutlineModule = {
@@ -15,9 +17,49 @@ export type Outline = {
     description: string;
 };
 
-export default function SocoOutlineResults({ outline }: { outline: Outline }) {
+export default function SocoOutlineSignupFlow({ outline }: { outline: Outline }) {
 
-    console.log('outline', outline)
+    const { agentClient, session, tools } = useAgentContext();
+
+    async function doSignup() {
+        
+        // // TODO: invoke backend tool cool for signup
+        // // Add user message
+        // const userMessage: Message = {
+        //     id: `user_${Date.now()}`,
+        //     role: 'user',
+        //     content: 'sign me up for learner mobile'
+        // };
+        
+        
+        // // Start new run
+        // const runState = agentClient.startNewRun();
+
+        
+
+        // try {
+        //     // await agentClient.runAgent(
+        //     //     conversationMessages,
+        //     //     allTools,
+        //     //     agentSubscriber
+        //     // );
+        // } catch (error) {
+        //     console.error('Agent execution failed:', error);
+        //     // Error handling is now managed by the hook
+        //     throw error;
+        // }
+    }
+
+    return (
+        <div>
+            <SoCoOutlineView outline={outline} />
+            <Button variant="contained" style={{ maxWidth: '10em' }} onClick={doSignup}>Yes</Button>
+        </div>
+    )
+}
+
+export function SoCoOutlineView({ outline }: { outline: Outline }) {
+    
 
     return <div style={{ display: 'flex', flexDirection: 'column', gap: '1em', lineHeight: 1.3}}>
         
@@ -52,6 +94,6 @@ export default function SocoOutlineResults({ outline }: { outline: Outline }) {
         
         <span>Would you like for Learner Mobile to create this course for you? It's going to look like this!</span>
         <p>[This is where we would put some preview images]</p>
-        <Button variant="contained" style={{ maxWidth: '10em' }}>Yes</Button>
+        
     </div>
 }

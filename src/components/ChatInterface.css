@@ -1,11 +1,8 @@
 /* Styles specific to the ChatInterface component */
 
 .chat-interface {
-    display: flex;
-    flex-direction: column;
-    max-height: 80vh;       
-    justify-content: flex-end;
-    align-items: center;
+    overflow: auto;    
+    max-height: 60vh;           
 }
 
 .input-container {
