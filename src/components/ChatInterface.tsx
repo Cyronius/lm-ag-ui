@@ -7,7 +7,7 @@ import './ChatInterface.css';
 import { Message } from '@ag-ui/core';
 import { useAgentContext } from '../contexts/AgentClientContext';
 import { useAgent } from '../hooks/useAgent';
-import { getAllToolDefinitions } from '../tools/unifiedTools';
+import { getAllToolDefinitions } from '../tools/toolUtils';
 
 export default function ChatInterface() {
     const [messages, setMessages] = useState<Message[]>([]);

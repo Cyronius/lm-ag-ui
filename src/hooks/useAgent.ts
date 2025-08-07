@@ -17,7 +17,8 @@ import {
     AgentSubscriber
 } from '../types/index';
 import { v4 as uuidv4 } from 'uuid';
-import { getFrontEndTools, ToolHandler } from '../tools/unifiedTools';
+import { ToolHandler } from '../types/index';
+import { getFrontEndTools } from '../tools/toolUtils';
 import { AgentClient } from '../services/AgentClient';
 import { useAgentContext } from '../contexts/AgentClientContext';
 

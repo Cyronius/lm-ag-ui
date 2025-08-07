@@ -1,3 +1,5 @@
+import React from 'react';
+
 // Import AG-UI types for local use
 import type {
     Message,
@@ -55,8 +57,6 @@ export interface ToolCallBuffer {
 }
 
 
-// Tool handler types are now defined in unifiedTools.ts
-
 export interface StandardTool {
     name: string;
     description: string;
@@ -83,4 +83,17 @@ export interface AgentSubscriber {
     onToolCallResultEvent?(params: { event: ToolCallResultEvent }): void;
     onStateSnapshotEvent?(params: { event: StateSnapshotEvent }): void;
     onEvent?(params: { event: BaseEvent }): void;
+}
+
+// Tool handler executes the tool's logic (frontend tools only)
+export type ToolHandler = (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => string;
+
+// Tool renderer handles display/artifacts for the tool result (both frontend and backend)
+export type ToolRenderer = (args: any, result: string, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => React.ReactElement | void;
+
+export interface ToolDefinition {
+    definition: StandardTool;
+    handler?: ToolHandler;  // Only for frontend tools
+    renderer?: ToolRenderer; // For tools that need special rendering
+    isFrontend: boolean;
 }

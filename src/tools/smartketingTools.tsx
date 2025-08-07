@@ -1,24 +1,9 @@
 import React from 'react';
-import { StandardTool } from '../types/index';
+import { ToolDefinition } from '../types/index';
 import SocoOutlineSignupFlow from './SocoOutlineResults'
 import SignupForm from './SignupForm'
 
-// Tool handler executes the tool's logic (frontend tools only)
-export type ToolHandler = (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => string;
-
-// Tool renderer handles display/artifacts for the tool result (both frontend and backend)
-export type ToolRenderer = (args: any, result: string, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => React.ReactElement | void;
-
-// No longer need ToolContext since state management is passed at execution time
-
-export interface UnifiedToolDefinition {
-    definition: StandardTool;
-    handler?: ToolHandler;  // Only for frontend tools
-    renderer?: ToolRenderer; // For tools that need special rendering
-    isFrontend: boolean;
-}
-
-export function createUnifiedTools(): Record<string, UnifiedToolDefinition> {
+export function createSmarketingTools(): Record<string, ToolDefinition> {
     return {
         // Frontend Tools
         changeBackgroundColor: {
@@ -172,41 +157,4 @@ export function createUnifiedTools(): Record<string, UnifiedToolDefinition> {
             isFrontend: false,
         }
     };
-}
-
-// Helper functions
-export function getAllToolDefinitions(tools: Record<string, UnifiedToolDefinition>): StandardTool[] {
-    return Object.values(tools).map(tool => tool.definition);
-}
-
-export function getFrontendToolDefinitions(tools: Record<string, UnifiedToolDefinition>): StandardTool[] {
-    return Object.values(tools)
-        .filter(tool => tool.isFrontend)
-        .map(tool => tool.definition);
-}
-
-export function getBackendToolDefinitions(tools: Record<string, UnifiedToolDefinition>): StandardTool[] {
-    return Object.values(tools)
-        .filter(tool => !tool.isFrontend)
-        .map(tool => tool.definition);
-}
-
-export function getFrontEndTools(tools: Record<string, UnifiedToolDefinition>): Record<string, UnifiedToolDefinition> {
-    const frontEndTools: Record<string, UnifiedToolDefinition> = {};
-    Object.entries(tools).forEach(([name, tool]) => {
-        if (tool.isFrontend) {
-            frontEndTools[name] = tool;
-        }
-    });
-    return frontEndTools;
-}
-
-export function getToolRenderers(tools: Record<string, UnifiedToolDefinition>): Record<string, ToolRenderer> {
-    const renderers: Record<string, ToolRenderer> = {};
-    Object.entries(tools).forEach(([name, tool]) => {
-        if (tool.renderer) {
-            renderers[name] = tool.renderer;
-        }
-    });
-    return renderers;
 }

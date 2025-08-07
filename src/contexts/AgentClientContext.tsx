@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { AgentClient } from '../services/AgentClient';
-import { UnifiedToolDefinition, createUnifiedTools } from '../tools/unifiedTools';
+import { ToolDefinition } from '../types/index';
 
 // Import Session type from AgentClient since it's now defined there
 type Session = {
@@ -12,7 +12,7 @@ type Session = {
 interface AgentClientContextValue {
     agentClient: AgentClient;
     session: Session;
-    tools: Record<string, UnifiedToolDefinition>;
+    tools: Record<string, ToolDefinition>;
     globalState: any;
     updateState: (toolName: string, data: any) => void;
     getState: (toolName?: string) => any;
@@ -22,7 +22,7 @@ const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 
 interface AgentClientProviderProps {
     children: React.ReactNode;
-    tools: Record<string, UnifiedToolDefinition>;
+    tools: Record<string, ToolDefinition>;
 }
 
 export function AgentClientProvider({ children, tools }: AgentClientProviderProps) {
