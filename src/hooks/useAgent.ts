@@ -45,8 +45,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
 
     // Get everything from unified context
     const { tools, updateState, getState } = useAgentContext();    
-    //const frontEndTools = getFrontEndTools(tools);
-    const frontEndTools = [...tools.keys()].filter(t => t.isFrontEnd)
+    const frontEndTools = getFrontEndTools(tools);
 
     const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
         toolCallBuffersRef.current.set(event.toolCallId, {
@@ -71,7 +70,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
 
     const executeBackendTool = useCallback(async (toolName: string, argsJson: string, toolCallId: string) => {
         try {
-            const args = JSON.parse(argsJson);
+            const args = argsJson ? JSON.parse(argsJson) : argsJson
             
         } catch (error) {
             console.error(`Backend tool execution error for ${toolName}:`, error);
@@ -88,7 +87,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
     const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
         const toolCall = toolCallBuffersRef.current.get(event.toolCallId);
         if (toolCall) {
-            if (frontEndTools.has(toolCall.name)) {
+            if (frontEndTools[toolCall.name]) {
                 executeFrontendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);                
             } else {
                 executeBackendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
@@ -145,9 +144,9 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
     const executeFrontendTool = useCallback(async (toolName: string, argsJson: string, toolCallId: string) => {
         try {
             const args = argsJson ? JSON.parse(argsJson) : argsJson           
-            const handler = frontEndTools.get(toolName);
-            if (handler) {
-                const result = handler(args, updateState, getState);
+            const tool = frontEndTools[toolName];
+            if (tool?.handler) {
+                const result = tool.handler(args, updateState, getState);
                 
                 // Create proper ToolMessage for this frontend tool execution
                 const toolMessage: Message = {

@@ -12,7 +12,7 @@ type Session = {
 interface AgentClientContextValue {
     agentClient: AgentClient;
     session: Session;
-    tools: Map<string, UnifiedToolDefinition>;
+    tools: Record<string, UnifiedToolDefinition>;
     globalState: any;
     updateState: (toolName: string, data: any) => void;
     getState: (toolName?: string) => any;
@@ -22,7 +22,7 @@ const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 
 interface AgentClientProviderProps {
     children: React.ReactNode;
-    tools: Map<string, UnifiedToolDefinition>;
+    tools: Record<string, UnifiedToolDefinition>;
 }
 
 export function AgentClientProvider({ children, tools }: AgentClientProviderProps) {

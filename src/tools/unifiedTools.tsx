@@ -18,11 +18,10 @@ export interface UnifiedToolDefinition {
     isFrontend: boolean;
 }
 
-export function createUnifiedTools(): Map<string, UnifiedToolDefinition> {
-
-    return new Map([
+export function createUnifiedTools(): Record<string, UnifiedToolDefinition> {
+    return {
         // Frontend Tools
-        ['changeBackgroundColor', {
+        changeBackgroundColor: {
             definition: {
                 name: "changeBackgroundColor",
                 description: "Change the background color of the page",
@@ -44,9 +43,9 @@ export function createUnifiedTools(): Map<string, UnifiedToolDefinition> {
                 return `Background color changed to ${args.color}`;
             },
             isFrontend: true
-        }],
+        },
         
-        ['showCalendlyWidget', {
+        showCalendlyWidget: {
             definition: {
                 name: "showCalendlyWidget",
                 description: "Display a Calendly scheduling widget inline in the chat",
@@ -87,9 +86,9 @@ export function createUnifiedTools(): Map<string, UnifiedToolDefinition> {
                 });
             },
             isFrontend: true
-        }],
+        },
         
-        ['showNotification', {
+        showNotification: {
             definition: {
                 name: "showNotification",
                 description: "Show a browser notification to the user",
@@ -129,11 +128,11 @@ export function createUnifiedTools(): Map<string, UnifiedToolDefinition> {
                 }
             },
             isFrontend: true
-        }],
+        },
 
         
         // Backend Tools
-        ['soco_outline_tool', {
+        soco_outline_tool: {
             definition: {
                 name: "soco_outline_tool",
                 description: "Generates a course outline based on a provided topic, including modules, a course title, an image prompt for AI generation, and a subject matter description.",
@@ -153,72 +152,60 @@ export function createUnifiedTools(): Map<string, UnifiedToolDefinition> {
                 return <SocoOutlineSignupFlow outline={ args } />
             },
             isFrontend: false
-        }],
+        },
 
-        ['approve_outline_tool', {
+        approve_outline_tool: {
             definition: {
                 "name": "approve_outline_tool",
                 "description": "Approves the previously generated course outline and proceeds with course creation. Should be invoked when the user affirms they want to proceed after receiving a soco_outline_tool message.",
                 "parameters": {
                     "type": "object",
-                    "properties": {
-                    
-                    },                    
+                    "properties": {},
+                    "required": []
                 }
             },
             renderer: (args: any, result?: string) => <SignupForm/>,
             handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
-                console.log('approval handled')
+                console.log('approval handled');
+                return 'Outline approved';
             },
             isFrontend: false,
-        }]
-
-    ]);
+        }
+    };
 }
 
 // Helper functions
-export function getAllToolDefinitions(tools: Map<string, UnifiedToolDefinition>): StandardTool[] {
-    return Array.from(tools.values()).map(tool => tool.definition);
+export function getAllToolDefinitions(tools: Record<string, UnifiedToolDefinition>): StandardTool[] {
+    return Object.values(tools).map(tool => tool.definition);
 }
 
-export function getFrontendToolDefinitions(tools: Map<string, UnifiedToolDefinition>): StandardTool[] {
-    return Array.from(tools.values())
+export function getFrontendToolDefinitions(tools: Record<string, UnifiedToolDefinition>): StandardTool[] {
+    return Object.values(tools)
         .filter(tool => tool.isFrontend)
         .map(tool => tool.definition);
 }
 
-export function getBackendToolDefinitions(tools: Map<string, UnifiedToolDefinition>): StandardTool[] {
-    return Array.from(tools.values())
+export function getBackendToolDefinitions(tools: Record<string, UnifiedToolDefinition>): StandardTool[] {
+    return Object.values(tools)
         .filter(tool => !tool.isFrontend)
         .map(tool => tool.definition);
 }
 
-// export function getToolHandlers(tools: Map<string, UnifiedToolDefinition>): Map<string, ToolHandler> {
-//     const handlers = new Map<string, ToolHandler>();
-//     tools.forEach((tool, name) => {
-//         if (tool.handler) {
-//             handlers.set(name, tool.handler);
-//         }
-//     });
-//     return handlers;
-// }
-
-export function getFrontEndTools(tools: Map<string, UnifiedToolDefinition>): Map<string, UnifiedToolDefinition> {
-    
-    const frontEndTools = new Map<string, UnifiedToolDefinition>();
-    tools.forEach((tool, name) => {
+export function getFrontEndTools(tools: Record<string, UnifiedToolDefinition>): Record<string, UnifiedToolDefinition> {
+    const frontEndTools: Record<string, UnifiedToolDefinition> = {};
+    Object.entries(tools).forEach(([name, tool]) => {
         if (tool.isFrontend) {
-            frontEndTools.set(name, tool);
+            frontEndTools[name] = tool;
         }
     });
     return frontEndTools;
 }
 
-export function getToolRenderers(tools: Map<string, UnifiedToolDefinition>): Map<string, ToolRenderer> {
-    const renderers = new Map<string, ToolRenderer>();
-    tools.forEach((tool, name) => {
+export function getToolRenderers(tools: Record<string, UnifiedToolDefinition>): Record<string, ToolRenderer> {
+    const renderers: Record<string, ToolRenderer> = {};
+    Object.entries(tools).forEach(([name, tool]) => {
         if (tool.renderer) {
-            renderers.set(name, tool.renderer);
+            renderers[name] = tool.renderer;
         }
     });
     return renderers;

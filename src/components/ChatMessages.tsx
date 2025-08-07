@@ -16,7 +16,7 @@ interface ChatMessagesProps {
     getToolNameFromCallId: (toolCallId: string) => string | undefined;
 }
 
-function renderMessage(message: Message, tools: Map<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) {
+function renderMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) {
     switch (message.role) {
         case 'user':
             return (
@@ -72,7 +72,7 @@ function renderMessage(message: Message, tools: Map<string, any>, globalState: a
     }
 }
 
-function renderToolMessage(message: Message, tools: Map<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) {
+function renderToolMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) {
     // Get the tool name from the toolCallId mapping
     let toolName = '';
     const toolCallId = (message.role === 'tool' && 'toolCallId' in message) ? (message as any).toolCallId : undefined;
@@ -85,7 +85,7 @@ function renderToolMessage(message: Message, tools: Map<string, any>, globalStat
         return;
     }
 
-    const tool = tools.get(toolName);
+    const tool = tools[toolName];
     if (!tool) {
         console.error(`invalid tool ${toolName}`)
         return
