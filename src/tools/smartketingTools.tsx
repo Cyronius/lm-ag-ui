@@ -2,9 +2,11 @@ import React from 'react';
 import { ToolDefinition } from '../types/index';
 import SocoOutlineSignupFlow from './SocoOutlineResults'
 import SignupForm from './SignupForm'
+import { CalendlyArtifact } from './CalendlyArtifact';
 
 export function createSmarketingTools(): Record<string, ToolDefinition> {
     return {
+        
         // Frontend Tools
         changeBackgroundColor: {
             definition: {
@@ -42,80 +44,13 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
                     required: []
                 }
             },
-            handler: (args: any) => {
-                // Auto-generate event_type_id (hardcoded or random)
-                const calendly_url = 'https://meetings-na2.hubspot.com/sheryl-porter'
-                // Push a calendly message to chat (assume a global or context function is available)
-                if (window && window.dispatchEvent) {
-                    window.dispatchEvent(new CustomEvent('addCalendlyChatMessage', {
-                        detail: {
-                            id: `calendly_${Date.now()}`,
-                            role: 'assistant',
-                            type: 'calendly',
-                            url: calendly_url,
-                            height: args.height || 600
-                        }
-                    }));
-                }
+            handler: (args: any) => {                
                 return `Calendly widget displayed`;
             },
-            renderer: (args: any, result: string, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
-                // Return JSX for the Calendly widget
-                return React.createElement('iframe', {
-                    src: args.url,
-                    width: '100%',
-                    height: args.height || 600,
-                    frameBorder: '0',
-                    title: 'Calendly Widget',
-                    style: { border: '1px solid #ccc', borderRadius: '8px' }
-                });
-            },
+            renderer: (args: any, result?: string) =>  <CalendlyArtifact url="https://meetings-na2.hubspot.com/sheryl-porter" />,
             isFrontend: true
         },
-        
-        showNotification: {
-            definition: {
-                name: "showNotification",
-                description: "Show a browser notification to the user",
-                parameters: {
-                    type: "object",
-                    properties: {
-                        title: { 
-                            type: "string", 
-                            description: "Notification title" 
-                        },
-                        message: { 
-                            type: "string", 
-                            description: "Notification message" 
-                        }
-                    },
-                    required: ["title", "message"]
-                }
-            },
-            handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
-                if (import.meta.env.REACT_APP_NOTIFICATION_PERMISSION === 'true') {
-                    if (Notification.permission === 'granted') {
-                        new Notification(args.title, { body: args.message });
-                        updateState('showNotification', { title: args.title, message: args.message, timestamp: Date.now() });
-                        return `Notification shown: ${args.title}`;
-                    } else if (Notification.permission === 'default') {
-                        Notification.requestPermission().then(permission => {
-                            if (permission === 'granted') {
-                                new Notification(args.title, { body: args.message });
-                            }
-                        });
-                        return `Notification permission requested`;
-                    } else {
-                        return `Notification permission denied`;
-                    }
-                } else {
-                    return `Notifications disabled in configuration`;
-                }
-            },
-            isFrontend: true
-        },
-
-        
+                
         // Backend Tools
         soco_outline_tool: {
             definition: {
