@@ -5,7 +5,20 @@ import './ChatInterface.css';
 import './ChatMessages.css';
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Message } from '@ag-ui/core';
+import { Message as CoreMessage } from '@ag-ui/core';
+import { InlineWidget } from 'react-calendly';
+
+// Extend Message type for Calendly support
+type CalendlyMessage = CoreMessage & {
+    type: 'calendly';
+    url: string;
+    height?: number;
+};
+type Message = CoreMessage | CalendlyMessage;
+
+function isCalendlyMessage(message: Message): message is CalendlyMessage {
+    return (message as CalendlyMessage).type === 'calendly' && !!(message as CalendlyMessage).url;
+}
 import { useAgentContext } from '../contexts/AgentClientContext';
 
 interface ChatMessagesProps {

@@ -56,6 +56,12 @@ export interface ToolCallBuffer {
     parentMessageId?: string;
 }
 
+export interface ArtifactData {
+    type: string;
+    [key: string]: any;
+}
+
+// Tool handler types are now defined in unifiedTools.ts
 
 export interface StandardTool {
     name: string;
