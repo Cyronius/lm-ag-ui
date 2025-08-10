@@ -73,15 +73,7 @@ function renderMessage(message: Message, tools: Record<string, any>, globalState
                     </Typography>
                 </div>
             );
-            
-        // default:
-        //     return (
-        //         <div className="message-content">
-        //             <Typography variant="body2" component="div">
-        //                 {message.content || ''}
-        //             </Typography>
-        //         </div>
-        //     );
+
     }
 }
 
@@ -161,7 +153,7 @@ function getMessageIcon(role: string) {
 
 export default function ChatMessages({ messages, isTyping, currentMessage, messagesEndRef, getToolNameFromCallId }: ChatMessagesProps) {
     const { tools, globalState, updateState, getState } = useAgentContext();
-    console.log('messages', messages)
+    
     return <>
         {
             

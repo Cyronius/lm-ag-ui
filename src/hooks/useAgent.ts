@@ -31,9 +31,6 @@ interface useAgent {
 
 export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: useAgent) {
     
-    
-    // No longer need local isStreaming state - use session.isActive from AgentClient
-    
     let currentMessage = ''
     let currentMessageId: string | null = null
 
