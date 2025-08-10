@@ -149,7 +149,7 @@ function getMessageIcon(role: string) {
         case 'user':
             return <User className="icon" />;
         case 'tool':
-            return <Wrench className="icon" />;
+            return null;
         case 'system':
             return <Settings className="icon" />;
         case 'developer':
@@ -172,8 +172,8 @@ export default function ChatMessages({ messages, isTyping, currentMessage, messa
                     return null
                 }
                 
-                return <div key={message.id || i} className={`message ${message.role}`}>
-                    {(message.role === 'assistant' || message.role === 'tool' || message.role === 'system' || message.role === 'developer') && (
+                return <div key={message.id || i} className={`message ${message.role}`}>                    
+                    {(message.role === 'assistant' || message.role === 'system' || message.role === 'developer') && (
                         <div className="bot-icon">
                             {getMessageIcon(message.role)}
                         </div>
