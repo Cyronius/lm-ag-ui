@@ -25,21 +25,25 @@ export default function SocoOutlineSignupFlow({ outline }: { outline: Outline })
     // TODO: useAgent needs access to the messages -- messages should be owned
     // by context
     //const { } = useAgent();
+        const {
+            agentSubscriber,
+            currentMessage: agentCurrentMessage,
+            getToolNameFromCallId,
+            executeFrontendTool
+        } = useAgent({
+            agentClient: agentClient
+        });
 
     async function doSignup() {
         
-        // // TODO: invoke backend tool cool for signup
-        // // Add user message
-        // const userMessage: Message = {
-        //     id: `user_${Date.now()}`,
-        //     role: 'user',
-        //     content: 'sign me up for learner mobile'
-        // };
+        
+        // TODO: update state for approval
         
         
-        // // Start new run
-        // const runState = agentClient.startNewRun();
 
+        executeFrontendTool('create_account_tool')
+
+        
         
 
         // try {

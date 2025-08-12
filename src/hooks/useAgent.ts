@@ -65,19 +65,25 @@ export function useAgent({ agentClient }: useAgent) {
     }, []);
 
     const executeBackendTool = useCallback(async (toolName: string, argsJson: string, toolCallId: string) => {
-        try {
-            const args = argsJson ? JSON.parse(argsJson) : argsJson
-            
-        } catch (error) {
-            console.error(`Backend tool execution error for ${toolName}:`, error);
-            // Create error message for the conversation
-            const errorMessage: Message = {
-                id: `error_${Date.now()}_${uuidv4().slice(0, 8)}`,
-                role: 'assistant',
-                content: `Backend tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-            };
-            addMessage(errorMessage);
-        }
+        
+        // TODO: this implementation is out of spec with ag-ui in my opinion -- but only because the middleware has an oversight.
+        // if you have a tool that is a backend tool but is defined on the frontend as well, in my opinion, the adk server should
+        // send TOOL_CALL_START / ARG / END, but not actually execute it. It should only automatically execute a tool if the tool has
+        // no definition on the frontend. Unfortunately, this is not how it works today. That is why this method is left blank --
+        // to account for a change later on that will solve this use case better.
+
+        // try {
+        //     const args = argsJson ? JSON.parse(argsJson) : argsJson            
+        // } catch (error) {
+        //     console.error(`Backend tool execution error for ${toolName}:`, error);
+        //     // Create error message for the conversation
+        //     const errorMessage: Message = {
+        //         id: `error_${Date.now()}_${uuidv4().slice(0, 8)}`,
+        //         role: 'assistant',
+        //         content: `Backend tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        //     };
+        //     addMessage(errorMessage);
+        // }
     }, [agentClient, addMessage]);
 
     const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
@@ -115,14 +121,22 @@ export function useAgent({ agentClient }: useAgent) {
         }
     }, [addMessage]);
 
-    const submitToolResultToServer = useCallback(async (toolCallId: string, content: string) => {
+    const submitToolResultToServer = useCallback(async (toolCallId: string, content: string | Message) => {
         try {
-            const toolMessage: Message = {
-                id: `tool_${Date.now()}_${uuidv4().slice(0, 8)}`,
-                role: "tool",
-                content,
-                toolCallId
-            };
+            
+            let toolMessage: Message;
+
+            if (typeof content === 'string') {
+                toolMessage = {
+                    id: `tool_${Date.now()}_${uuidv4().slice(0, 8)}`,
+                    role: "tool",
+                    content,
+                    toolCallId
+                };
+            }
+            else {
+                toolMessage = content;
+            }
 
             await agentClient.submitToolResult(toolMessage, agentSubscriber);
         } catch (error) {
@@ -137,14 +151,19 @@ export function useAgent({ agentClient }: useAgent) {
         }
     }, [agentClient, addMessage]);
 
-    const executeFrontendTool = useCallback(async (toolName: string, argsJson: string, toolCallId: string) => {
+    const executeFrontendTool = useCallback(async (toolName: string, argsJson: string | null = null, toolCallId: string|null = null) => {
+        
+        if (!toolCallId) {
+            toolCallId = uuidv4()
+        }
+        
         try {
-            const args = argsJson ? JSON.parse(argsJson) : argsJson           
+            const args = argsJson ? JSON.parse(argsJson) : null
             const tool = frontEndTools[toolName];
             if (tool?.handler) {
                 const result = tool.handler(args, updateState, getState);
                 
-                // Create proper ToolMessage for this frontend tool execution
+                // Create proper ToolMessage for this frontend tool execution                                
                 const toolMessage: Message = {
                     id: `tool_${toolCallId}_${Date.now()}`,
                     role: 'tool',
@@ -153,7 +172,7 @@ export function useAgent({ agentClient }: useAgent) {
                 };
                 addMessage(toolMessage);
                 
-                await submitToolResultToServer(toolCallId, result);
+                await submitToolResultToServer(toolCallId, toolMessage);
             }
         } catch (error) {            
             console.error(`Tool execution error for ${toolName}:`, error);            
@@ -168,7 +187,7 @@ export function useAgent({ agentClient }: useAgent) {
             };
             addMessage(errorToolMessage);
             
-            await submitToolResultToServer(toolCallId, errorMessage);
+            await submitToolResultToServer(toolCallId, errorToolMessage);
         }
     }, [frontEndTools, submitToolResultToServer, addMessage, updateState, getState]);
 
@@ -252,5 +271,6 @@ export function useAgent({ agentClient }: useAgent) {
         currentMessageId: currentMessageId,
         toolCallBuffers: toolCallBuffersRef.current,
         getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),
+        executeFrontendTool        
     };
 }

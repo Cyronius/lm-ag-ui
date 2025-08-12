@@ -76,10 +76,11 @@ function renderToolMessage(message: Message, tools: Record<string, any>, globalS
         console.error(`couldn't find tool with id ${toolCallId}, so skipping rendering`);
         return;
     }
-
+    
     const tool = tools[toolName];
-    if (!tool) {
-        console.error(`invalid tool ${toolName}`)
+    
+    // tool not being found is not necessarily a problem -- the frontend doesn't know about every tool the backend has and vice versa
+    if (!tool) {        
         return
     }
 

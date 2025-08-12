@@ -87,9 +87,29 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
             renderer: (args: any, result?: string) => <SignupForm/>,
             handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
                 console.log('approval handled');
-                return 'Outline approved';
+                return `{ "message": "Outline approved" }`;
+
+                // TODO: this should just set 'approval' in state and then queue up a tool call for the form
+                // rather than show the form directly.
             },
-            isFrontend: false,
+            isFrontend: false,            
+        },
+
+        create_account_tool: {
+            definition: {
+                "name": "create_account_tool",
+                "description": "invoke this tool when the user requests to try out learner mobile or create a learner mobile account",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            renderer: (args: any, result?: string) => <SignupForm/>,
+            handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {                
+                return 'Signup Form'                
+            },            
+            isFrontend: true,
         }
     };
 }
