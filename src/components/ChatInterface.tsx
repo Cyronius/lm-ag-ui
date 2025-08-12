@@ -32,17 +32,17 @@ export default function ChatInterface() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    // // Listen for calendly chat message events from the frontend tool
-    // useEffect(() => {
-    //     const handleCalendlyChatMessage = (e: CustomEvent) => {
-    //         const calendlyMsg = e.detail;
-    //         addMessage(calendlyMsg);
-    //     };
-    //     window.addEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
-    //     return () => {
-    //         window.removeEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
-    //     };
-    // }, [addMessage]);
+    // Listen for calendly chat message events from the frontend tool
+    useEffect(() => {
+        const handleCalendlyChatMessage = (e: CustomEvent) => {
+            const calendlyMsg = e.detail;
+            addMessage(calendlyMsg);
+        };
+        window.addEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
+        return () => {
+            window.removeEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
+        };
+    }, [addMessage]);
 
     useEffect(() => {
         scrollToBottom();
