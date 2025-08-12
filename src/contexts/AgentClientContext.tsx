@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { AgentClient } from '../services/AgentClient';
 import { ToolDefinition } from '../types/index';
+import { Message } from '@ag-ui/core';
 
 // Import Session type from AgentClient since it's now defined there
 type Session = {
@@ -14,6 +15,9 @@ interface AgentClientContextValue {
     session: Session;
     tools: Record<string, ToolDefinition>;
     globalState: any;
+    messages: Message[];
+    addMessage: (message: Message) => void;
+    clearMessages: () => void;
     updateState: (toolName: string, data: any) => void;
     getState: (toolName?: string) => any;
 }
@@ -34,6 +38,9 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
     
     // Global AG-UI state management
     const [globalState, setGlobalState] = useState<any>({});
+    
+    // Messages state management
+    const [messages, setMessages] = useState<Message[]>([]);
 
     // Set up the callback when component mounts
     useEffect(() => {
@@ -55,6 +62,15 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
         return globalState;
     };
     
+    // Message management functions
+    const addMessage = (message: Message) => {
+        setMessages(prev => [...prev, message]);
+    };
+    
+    const clearMessages = () => {
+        setMessages([]);
+    };
+    
     // Tools are passed in - we just use them directly
     // The tools should have been created with proper state management functions
 
@@ -63,6 +79,9 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
         session,
         tools,
         globalState,
+        messages,
+        addMessage,
+        clearMessages,
         updateState,
         getState
     };

@@ -23,13 +23,11 @@ import { AgentClient } from '../services/AgentClient';
 import { useAgentContext } from '../contexts/AgentClientContext';
 
 interface useAgent {
-    onMessageComplete: (message: Message) => void;
-    onErrorMessage: (message: Message) => void;
     agentClient: AgentClient;
 }
 
 
-export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: useAgent) {
+export function useAgent({ agentClient }: useAgent) {
     
     let currentMessage = ''
     let currentMessageId: string | null = null
@@ -42,7 +40,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
     const [, forceUpdate] = useState(0);
 
     // Get everything from unified context
-    const { tools, updateState, getState } = useAgentContext();    
+    const { tools, updateState, getState, addMessage } = useAgentContext();    
     const frontEndTools = getFrontEndTools(tools);
 
     const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
@@ -78,9 +76,9 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                 role: 'assistant',
                 content: `Backend tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
             };
-            onErrorMessage(errorMessage);
+            addMessage(errorMessage);
         }
-    }, [agentClient, onErrorMessage]);
+    }, [agentClient, addMessage]);
 
     const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
         const toolCall = toolCallBuffersRef.current.get(event.toolCallId);
@@ -105,7 +103,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                 toolCallId: event.toolCallId
             };
             console.log('adding tool call result to messages', toolResultMessage)
-            onMessageComplete(toolResultMessage);
+            addMessage(toolResultMessage);
         } catch (error) {
             console.error('Error creating tool result message:', error);
             const errorMessage: Message = {
@@ -113,9 +111,9 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                 role: 'assistant',
                 content: 'Error processing tool result'
             };
-            onErrorMessage(errorMessage);
+            addMessage(errorMessage);
         }
-    }, [onMessageComplete, onErrorMessage]);
+    }, [addMessage]);
 
     const submitToolResultToServer = useCallback(async (toolCallId: string, content: string) => {
         try {
@@ -135,9 +133,9 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                 role: 'assistant',
                 content: `Failed to submit tool result: ${error instanceof Error ? error.message : 'Unknown error'}`
             };
-            onErrorMessage(errorMessage);
+            addMessage(errorMessage);
         }
-    }, [agentClient, onErrorMessage]);
+    }, [agentClient, addMessage]);
 
     const executeFrontendTool = useCallback(async (toolName: string, argsJson: string, toolCallId: string) => {
         try {
@@ -153,7 +151,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                     content: result,
                     toolCallId
                 };
-                onMessageComplete(toolMessage);
+                addMessage(toolMessage);
                 
                 await submitToolResultToServer(toolCallId, result);
             }
@@ -168,11 +166,11 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                 content: errorMessage,
                 toolCallId
             };
-            onMessageComplete(errorToolMessage);
+            addMessage(errorToolMessage);
             
             await submitToolResultToServer(toolCallId, errorMessage);
         }
-    }, [frontEndTools, submitToolResultToServer, onMessageComplete, updateState, getState]);
+    }, [frontEndTools, submitToolResultToServer, addMessage, updateState, getState]);
 
 
     // Combined AgentSubscriber - recreate on every render to avoid stale closures
@@ -213,7 +211,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                         role: 'assistant',
                         content: currentMessage
                     };
-                    onMessageComplete(completedMessage);
+                    addMessage(completedMessage);
                 }
             } catch (error) {
                 console.error('Error creating assistant message:', error);
@@ -222,7 +220,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                     role: 'assistant', 
                     content: 'Error processing assistant response'
                 };
-                onErrorMessage(errorMessage);
+                addMessage(errorMessage);
             } finally {
                 currentMessage = ''
                 currentMessageId = null
@@ -237,7 +235,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                 role: 'assistant',
                 content: `Error: ${event.message}`
             };
-            onErrorMessage(errorMessage);
+            addMessage(errorMessage);
             agentClient.endRun();
         },
         onToolCallStartEvent: ({ event }: { event: ToolCallStartEvent }) => handleToolCallStart(event),
