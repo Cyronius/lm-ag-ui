@@ -1,5 +1,6 @@
 import Button from '@mui/material/Button';
 import { useAgentContext } from '../contexts/AgentClientContext';
+import { useAgent } from '../hooks/useAgent';
 import { Message } from '@ag-ui/client';
 
 // TypeScript type for the outline parameter based on the provided JSON
@@ -20,6 +21,10 @@ export type Outline = {
 export default function SocoOutlineSignupFlow({ outline }: { outline: Outline }) {
 
     const { agentClient, session, tools } = useAgentContext();
+
+    // TODO: useAgent needs access to the messages -- messages should be owned
+    // by context
+    //const { } = useAgent();
 
     async function doSignup() {
         

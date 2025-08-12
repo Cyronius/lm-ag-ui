@@ -19,10 +19,40 @@ export default function SignupForm() {
     const [showPassword, setShowPassword] = useState(false);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
 
-    const handleSignUp = (e) => {
+    const handleSignUp = async (e) => {
         e.preventDefault();
-        // Dummy signup handler
-        alert('Sign up function called');
+        
+        let signupForm = {
+            urlHostName: window.location.origin,            
+            //gRecaptchaResponse: token,
+            signupValues: [
+                { name: "email", value: email },
+                { name: "accountName", value: fullName },
+                { name: "password", value: password },
+                { name: "fullName", value: fullName },
+                { name: "agreeTos", value: acceptedTerms },
+                { name: "referrer", value: document.referrer },                
+                { name: "signupType", value: 'authoring' }
+            ]
+        };
+
+        let res = await fetch(`${import.meta.env.VITE_LOGIN_URL}/Account/AccountSignUp`, {
+            body: JSON.stringify(signupForm),
+            headers: {                  
+                "Content-Type": 'application/json'
+            },
+            method: "POST",
+        });
+        
+        if (res && res.ok) {
+            let { accountId } = res.json()
+            console.log('account id is', accountId)
+        }
+        else {
+            console.error(res)
+            throw new Error(`Error creating account code=${res.status}, detail=${res.statusText}`)
+        }
+        
     };
 
     return (
