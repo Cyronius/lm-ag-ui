@@ -78,8 +78,8 @@ function renderToolMessage(message: Message, tools: Record<string, any>, globalS
     }
 
     const tool = tools[toolName];
-    if (!tool) {
-        console.error(`invalid tool ${toolName}`)
+    // it is possible a tool is defined on the backend but not the frontend -- this is true for knowledge bases
+    if (!tool) {        
         return
     }
 
