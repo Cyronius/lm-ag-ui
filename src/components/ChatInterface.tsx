@@ -3,13 +3,11 @@ import { Button, TextField } from '@mui/material';
 import { Send } from 'lucide-react';
 import ChatSuggestions from './ChatSuggestions';
 import ChatMessages from './ChatMessages';
-import { ArtifactRenderer } from './artifacts';
 import './ChatInterface.css';
 import { Message } from '@ag-ui/core';
-import { ArtifactData, AgentSubscriber } from '../types/index';
-import { useAgentClient } from '../contexts/AgentClientContext';
+import { useAgentContext } from '../contexts/AgentClientContext';
 import { useAgent } from '../hooks/useAgent';
-import { createUnifiedTools, getAllToolDefinitions } from '../tools/unifiedTools';
+import { getAllToolDefinitions } from '../tools/toolUtils';
 
 export default function ChatInterface() {
     // Listen for calendly chat message events from the frontend tool
@@ -25,31 +23,24 @@ export default function ChatInterface() {
     }, []);
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
-    const [artifacts, setArtifacts] = useState<Map<string, ArtifactData>>(new Map());
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     
-    // Use the unified AgentClient
-    const agentClient = useAgentClient();
-    
-    // Create unified tools for this component
-    const unifiedTools = createUnifiedTools({ setArtifacts });
-    const allTools = getAllToolDefinitions(unifiedTools);
+    // Use the unified context
+    const { agentClient, session, tools } = useAgentContext();
+    const allTools = getAllToolDefinitions(tools);
     // Use the new combined hook for Agent and Tool Subscribers
     const {
         agentSubscriber,
-        isStreaming: agentIsStreaming,
-        currentMessage: agentCurrentMessage
+        currentMessage: agentCurrentMessage,
+        getToolNameFromCallId
     } = useAgent({
         onMessageComplete: (completedMessage) => {
             setMessages(prev => [...prev, completedMessage]);
         },
         onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
-        setArtifacts,
-        endRun: () => agentClient.endRun(),
-        agentService: agentClient,
-        sessionState: agentClient.session
+        agentClient: agentClient
     });
 
     const scrollToBottom = () => {
@@ -62,7 +53,7 @@ export default function ChatInterface() {
 
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
-        if (!textToSend.trim() || agentIsStreaming) return;
+        if (!textToSend.trim() || session.isActive) return;
 
         // Add user message
         const userMessage: Message = {
@@ -106,18 +97,17 @@ export default function ChatInterface() {
         }
     };
 
-    const showSuggestions = messages.length === 0 && !agentIsStreaming;
+    const showSuggestions = messages.length === 0 && !session.isActive;
 
     return (
         <div className="chat-interface">
             <ChatMessages
                 messages={messages}
-                isTyping={agentIsStreaming}
+                isTyping={session.isActive}
                 currentMessage={agentCurrentMessage}
                 messagesEndRef={messagesEndRef}
+                getToolNameFromCallId={getToolNameFromCallId}
             />
-
-            <ArtifactRenderer artifacts={artifacts} />
 
             <div className="input-container">
                 <TextField
@@ -129,11 +119,11 @@ export default function ChatInterface() {
                     variant="outlined"
                     fullWidth
                     className="input-field"
-                    disabled={agentIsStreaming}
+                    disabled={session.isActive}
                 />
                 <Button
                     onClick={() => handleSendMessage()}
-                    disabled={!inputValue.trim() || agentIsStreaming}
+                    disabled={!inputValue.trim() || session.isActive}
                     variant="contained"
                     color="primary"
                     className="send-button"

@@ -1,16 +1,22 @@
 import { HttpAgent } from '@ag-ui/client';
 import { Message, Tool } from '@ag-ui/core';
-import { AgentSubscriber, RunAgentResult, SessionState } from '../types/index';
+import { AgentSubscriber, RunAgentResult } from '../types/index';
 import { v4 as uuidv4 } from 'uuid';
+
+interface Session {
+    threadId: string | null;
+    runId: string | null;
+    isActive: boolean;
+}
 
 export class AgentClient {
     private agent: HttpAgent;
     private baseUrl: string;
     private timeout: number;
-    private _session: SessionState;
+    private _session: Session;
 
-    // Session state change callback for React integration
-    private onSessionChange?: (session: SessionState) => void;
+    // Session change callback for React integration
+    private onSessionChange?: (session: Session) => void;
 
     constructor() {
         this.baseUrl = `${import.meta.env.VITE_PYTHON_SERVER_URL || 'http://localhost:8000'}/smarketing`;
@@ -24,7 +30,7 @@ export class AgentClient {
             }
         });
 
-        // Initialize session state
+        // Initialize session
         this._session = {
             threadId: null,
             runId: null,
@@ -32,24 +38,24 @@ export class AgentClient {
         };
     }
 
-    // Session state getter
-    get session(): SessionState {
+    // Session getter
+    get session(): Session {
         return { ...this._session };
     }
 
     // Internal method to update session and notify React
-    private updateSession(updates: Partial<SessionState>) {
+    private updateSession(updates: Partial<Session>) {
         this._session = { ...this._session, ...updates };
         this.onSessionChange?.(this.session);
     }
 
     // Set the callback for session changes (used by React context)
-    setSessionChangeCallback(callback: (session: SessionState) => void) {
+    setSessionChangeCallback(callback: (session: Session) => void) {
         this.onSessionChange = callback;
     }
 
     // Session management methods
-    startNewRun(): SessionState {
+    startNewRun(): Session {
         const newRunId = this.generateRunId();
         const threadId = this._session.threadId || this.generateThreadId();
 
@@ -84,7 +90,7 @@ export class AgentClient {
         tools: Tool[],
         subscriber: AgentSubscriber
     ): Promise<RunAgentResult> {
-        // Use current session state (always fresh)
+        // Use current session (always fresh)
         const threadId = this._session.threadId || this.generateThreadId();
         const runId = this._session.runId || this.generateRunId();
 
@@ -92,7 +98,6 @@ export class AgentClient {
             // Set the thread ID and messages on the agent
             this.agent.threadId = threadId;
             this.agent.setMessages(messages);
-
             const result = await this.agent.runAgent({
                 runId,
                 tools,
@@ -120,9 +125,8 @@ export class AgentClient {
 
         try {
             // Set the thread ID and messages on the agent
-            this.agent.threadId = this._session.threadId;
+            this.agent.threadId = this._session.threadId;            
             this.agent.setMessages([toolMessage]);
-
             const result = await this.agent.runAgent({
                 runId,
                 tools: [], // No new tools needed for continuation
@@ -159,8 +163,7 @@ export class AgentClient {
 
             // Set the thread ID and messages on the agent
             this.agent.threadId = this._session.threadId;
-            this.agent.setMessages([toolCallMessage]);
-
+           // this.agent.setMessages([toolCallMessage]);
             const result = await this.agent.runAgent({
                 runId,
                 tools: [], // Backend tools are already registered on the server
@@ -168,7 +171,7 @@ export class AgentClient {
                 forwardedProps: {}
             }, subscriber);
 
-            return result;
+            return result;            
         } catch (error) {
             console.error('Backend tool execution error:', error);
             throw error;

@@ -5,11 +5,14 @@ import './App.css';
 import theme from './theme';
 import { Header } from './Header';
 import { AgentClientProvider } from './contexts/AgentClientContext';
+import { createSmarketingTools } from './tools/smartketingTools';
 
 const App = () => {
+    // Create tools without state management - provider will inject it at execution time
+    const tools = createSmarketingTools();
     
     return (
-        <AgentClientProvider>
+        <AgentClientProvider tools={tools}>
             <ThemeProvider theme={theme}>
                 <CssBaseline />            
                 <Header/>

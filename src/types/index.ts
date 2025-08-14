@@ -1,3 +1,5 @@
+import React from 'react';
+
 // Import AG-UI types for local use
 import type {
     Message,
@@ -13,8 +15,10 @@ import type {
     ToolCallResultEvent,
     RunStartedEvent,
     RunFinishedEvent,
-    RunErrorEvent
+    RunErrorEvent,
+    StateSnapshotEvent
 } from '@ag-ui/core';
+
 
 // AG-UI Types - Re-export from @ag-ui/core (which is re-exported by @ag-ui/client)
 export type {
@@ -45,11 +49,6 @@ export interface ChatSuggestionsProps {
     onSuggestionClick: (suggestion: string) => void;
 }
 
-export interface SessionState {
-    threadId: string | null;
-    runId: string | null;
-    isActive: boolean;
-}
 
 export interface ToolCallBuffer {
     name: string;
@@ -62,7 +61,7 @@ export interface ArtifactData {
     [key: string]: any;
 }
 
-export type FrontendToolHandler = (args: any) => string;
+// Tool handler types are now defined in unifiedTools.ts
 
 export interface StandardTool {
     name: string;
@@ -87,5 +86,20 @@ export interface AgentSubscriber {
     onToolCallStartEvent?(params: { event: ToolCallStartEvent }): void;
     onToolCallArgsEvent?(params: { event: ToolCallArgsEvent }): void;
     onToolCallEndEvent?(params: { event: ToolCallEndEvent }): void;
+    onToolCallResultEvent?(params: { event: ToolCallResultEvent }): void;
+    onStateSnapshotEvent?(params: { event: StateSnapshotEvent }): void;
     onEvent?(params: { event: BaseEvent }): void;
+}
+
+// Tool handler executes the tool's logic (frontend tools only)
+export type ToolHandler = (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => string;
+
+// Tool renderer handles display/artifacts for the tool result (both frontend and backend)
+export type ToolRenderer = (args: any, result: string, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => React.ReactElement | void;
+
+export interface ToolDefinition {
+    definition: StandardTool;
+    handler?: ToolHandler;  // Only for frontend tools
+    renderer?: ToolRenderer; // For tools that need special rendering
+    isFrontend: boolean;
 }
