@@ -2,6 +2,7 @@ import Button from '@mui/material/Button';
 import { useAgentContext } from '../contexts/AgentClientContext';
 import { useAgent } from '../hooks/useAgent';
 import { Message } from '@ag-ui/client';
+import { getAllToolDefinitions } from '../tools/toolUtils'
 
 // TypeScript type for the outline parameter based on the provided JSON
 export type OutlineModule = {
@@ -20,7 +21,7 @@ export type Outline = {
 
 export default function SocoOutlineSignupFlow({ outline }: { outline: Outline }) {
 
-    const { agentClient, session, tools } = useAgentContext();
+    const { agentClient, session, tools, messages, addMessage } = useAgentContext();
 
     // TODO: useAgent needs access to the messages -- messages should be owned
     // by context
@@ -28,8 +29,7 @@ export default function SocoOutlineSignupFlow({ outline }: { outline: Outline })
         const {
             agentSubscriber,
             currentMessage: agentCurrentMessage,
-            getToolNameFromCallId,
-            executeFrontendTool
+            getToolNameFromCallId,            
         } = useAgent({
             agentClient: agentClient
         });
@@ -37,15 +37,30 @@ export default function SocoOutlineSignupFlow({ outline }: { outline: Outline })
     async function doSignup() {
         
         
-        // TODO: update state for approval
+        // TODO: this is really dumb
         
+        // Add user message
+        const userMessage: Message = {
+            id: `user_${Date.now()}`,
+            role: 'user',
+            content: 'invoke the approve_outline_tool'
+        };
+        //addMessage(userMessage);
+        agentClient.startNewRun();
+                try {
+            await agentClient.runAgent(
+                [...messages, userMessage],
+                getAllToolDefinitions(tools),
+                agentSubscriber
+            );
+        } catch (error) {
+            console.error('Agent execution failed:', error);
+            // Error handling is now managed by the hook
+            throw error;
+        }
         
-
-        executeFrontendTool('create_account_tool')
-
+        //await executeFrontendTool('create_account_tool')
         
-        
-
         // try {
         //     // await agentClient.runAgent(
         //     //     conversationMessages,

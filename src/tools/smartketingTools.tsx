@@ -106,8 +106,9 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
                 }
             },
             renderer: (args: any, result?: string) => <SignupForm/>,
-            handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {                
-                return 'Signup Form'                
+            handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {   
+                // TODO: should be able to return objects directly.
+                return JSON.stringify({ message: 'signup form invoked' })
             },            
             isFrontend: true,
         }
