@@ -1,6 +1,5 @@
 import Button from '@mui/material/Button';
 import { useAgentContext } from '../contexts/AgentClientContext';
-import { useAgent } from '../hooks/useAgent';
 import { Message } from '@ag-ui/client';
 import { getAllToolDefinitions } from '../tools/toolUtils'
 
@@ -21,18 +20,16 @@ export type Outline = {
 
 export default function SocoOutlineSignupFlow({ outline }: { outline: Outline }) {
 
-    const { agentClient, session, tools, messages, addMessage } = useAgentContext();
-
-    // TODO: useAgent needs access to the messages -- messages should be owned
-    // by context
-    //const { } = useAgent();
-        const {
-            agentSubscriber,
-            currentMessage: agentCurrentMessage,
-            getToolNameFromCallId,            
-        } = useAgent({
-            agentClient: agentClient
-        });
+    const { 
+        agentClient, 
+        session, 
+        tools, 
+        messages, 
+        addMessage,
+        agentSubscriber,
+        currentMessage: agentCurrentMessage,
+        getToolNameFromCallId
+    } = useAgentContext();
 
     async function doSignup() {
         

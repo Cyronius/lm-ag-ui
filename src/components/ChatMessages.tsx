@@ -16,7 +16,7 @@ interface ChatMessagesProps {
     getToolNameFromCallId: (toolCallId: string) => string | undefined;
 }
 
-function renderMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) {
+function renderMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void) {
     switch (message.role) {
         case 'user':
             return (
@@ -41,7 +41,7 @@ function renderMessage(message: Message, tools: Record<string, any>, globalState
             );
             
         case 'tool':
-            return renderToolMessage(message, tools, globalState, getToolNameFromCallId, updateState, getState);
+            return renderToolMessage(message, tools, globalState, getToolNameFromCallId, updateState);
             
         case 'system':
             return (
@@ -64,7 +64,7 @@ function renderMessage(message: Message, tools: Record<string, any>, globalState
     }
 }
 
-function renderToolMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) {
+function renderToolMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void) {
     // Get the tool name from the toolCallId mapping
     let toolName = '';
     const toolCallId = (message.role === 'tool' && 'toolCallId' in message) ? (message as any).toolCallId : undefined;
@@ -108,7 +108,7 @@ function renderToolMessage(message: Message, tools: Record<string, any>, globalS
     }
     
     // Call the tool's renderer with state management functions
-    const renderResult = tool.renderer(args, message.content || '', updateState, getState);
+    const renderResult = tool.renderer(args, message.content || '', updateState);
     
     // If the renderer returns JSX, render it
     if (!React.isValidElement(renderResult)) {
@@ -140,14 +140,14 @@ function getMessageIcon(role: string) {
 }
 
 export default function ChatMessages({ messages, isTyping, currentMessage, messagesEndRef, getToolNameFromCallId }: ChatMessagesProps) {
-    const { tools, globalState, updateState, getState } = useAgentContext();
+    const { tools, globalState, updateState } = useAgentContext();
     
     return <>
         {
             
             messages.map((message, i) => {
                 
-                let results = renderMessage(message, tools, globalState, getToolNameFromCallId, updateState, getState)
+                let results = renderMessage(message, tools, globalState, getToolNameFromCallId, updateState)
                 if (!results) {
                     return null
                 }

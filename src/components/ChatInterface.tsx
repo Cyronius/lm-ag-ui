@@ -6,7 +6,6 @@ import ChatMessages from './ChatMessages';
 import './ChatInterface.css';
 import { Message } from '@ag-ui/core';
 import { useAgentContext } from '../contexts/AgentClientContext';
-import { useAgent } from '../hooks/useAgent';
 import { getAllToolDefinitions } from '../tools/toolUtils';
 
 export default function ChatInterface() {
@@ -17,16 +16,17 @@ export default function ChatInterface() {
     const inputRef = useRef<HTMLInputElement>(null);
     
     // Use the unified context
-    const { agentClient, session, tools, messages, addMessage } = useAgentContext();
-    const allTools = getAllToolDefinitions(tools);
-    // Use the new combined hook for Agent and Tool Subscribers
-    const {
+    const { 
+        agentClient, 
+        session, 
+        tools, 
+        messages, 
+        addMessage,
         agentSubscriber,
         currentMessage: agentCurrentMessage,
         getToolNameFromCallId
-    } = useAgent({
-        agentClient: agentClient
-    });
+    } = useAgentContext();
+    const allTools = getAllToolDefinitions(tools);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
