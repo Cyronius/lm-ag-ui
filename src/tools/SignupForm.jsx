@@ -15,9 +15,47 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 export default function SignupForm() {
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
+    const [emailError, setEmailError] = useState(null);
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+
+    const validateEmail = async () => {
+        
+        if (!email) {
+            return
+        }
+
+        var validateParams = new URLSearchParams();
+        validateParams.append("email", email?.trim());
+        validateParams.append("whiteListDomains", ['gmail.com']);
+
+        let res = await fetch(`${import.meta.env.VITE_ADMIN_URL}/Account/ValidateEmail?${validateParams.toString()}`, {            
+            headers: {                  
+                "Content-Type": 'application/json'
+            },
+            method: "POST",
+        });
+
+        if (!res) {
+            return
+        }
+
+        if (res.ok) {
+            json = await res.json();
+            if (json.success) {                
+                setEmailError(null);
+            }
+            else {
+                setEmailError("Invalid Email");
+            }
+        }
+        else {
+            // some kind of server error
+            setEmailError("Error validating email");
+        }
+    }
 
     const handleSignUp = async (e) => {
         e.preventDefault();
@@ -30,7 +68,7 @@ export default function SignupForm() {
                 { name: "accountName", value: fullName },
                 { name: "password", value: password },
                 { name: "fullName", value: fullName },
-                { name: "agreeTos", value: acceptedTerms },
+                { name: "agreeTos", value: acceptedTerms.toString() },
                 { name: "referrer", value: document.referrer },                
                 { name: "signupType", value: 'authoring' }
             ]
@@ -45,7 +83,7 @@ export default function SignupForm() {
         });
         
         if (res && res.ok) {
-            let { accountId } = res.json()
+            let { accountId } = await res.json()                        
             console.log('account id is', accountId)
         }
         else {
@@ -84,9 +122,13 @@ export default function SignupForm() {
                     fullWidth
                     required
                     type="email"
-                    margin="normal"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}                    
+                    margin="normal"                    
+                    onChange={(e) => {                        
+                        setEmail(e.target.value)
+                    }}
+                    onBlur={validateEmail}
+                    error={!!emailError}
+                    helperText={emailError}
                 />
                 <TextField
                     label="Password"
@@ -94,9 +136,10 @@ export default function SignupForm() {
                     fullWidth
                     required
                     type={showPassword ? 'text' : 'password'}
-                    margin="normal"
-                    value={password}
+                    margin="normal"                    
                     onChange={(e) => setPassword(e.target.value)}
+                    error={password && password.length < 6}
+                    helperText={(password && password.length < 6) ? "Password must be at least 6 characters." : null}
                     InputProps={{                        
                         endAdornment: (
                             <InputAdornment position="end">
