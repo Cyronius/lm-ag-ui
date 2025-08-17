@@ -43,7 +43,7 @@ export default function SignupForm() {
         }
 
         if (res.ok) {
-            json = await res.json();
+            let json = await res.json();
             if (json.success) {                
                 setEmailError(null);
             }
@@ -138,7 +138,7 @@ export default function SignupForm() {
                     type={showPassword ? 'text' : 'password'}
                     margin="normal"                    
                     onChange={(e) => setPassword(e.target.value)}
-                    error={password && password.length < 6}
+                    error={!!password && password.length < 6}
                     helperText={(password && password.length < 6) ? "Password must be at least 6 characters." : null}
                     InputProps={{                        
                         endAdornment: (

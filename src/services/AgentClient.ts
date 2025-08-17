@@ -108,6 +108,7 @@ export class AgentClient {
             return result;
         } catch (error) {
             console.error('Agent execution error:', error);
+            this.endRun();
             throw error;
         }
     }

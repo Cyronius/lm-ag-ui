@@ -204,70 +204,88 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
         }
     }, []);
 
-    // Central AgentSubscriber - recreated on each render to avoid stale closures
-    const agentSubscriber: AgentSubscriber = {
-        onEvent: ({ event }: { event: any }): void => {
-            if (event.type !== 'TEXT_MESSAGE_CONTENT') {
-                console.log('event received:', event);
-            }
-        },
-        onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {
-            setCurrentMessage('');
-            setCurrentMessageId(null);
-        },
-        onTextMessageContentEvent: ({ event }: { event: TextMessageContentEvent }) => {
-            if (event.messageId !== currentMessageId) {
-                setCurrentMessageId(event.messageId);
-                setCurrentMessage(event.delta);
-            } else {
-                setCurrentMessage(prev => prev + event.delta);
-            }
-        },
-        onStateSnapshotEvent: ({ event }: { event: StateSnapshotEvent }) => {
-            if (event.snapshot) {
-                // TODO: store state
-            }
-        },
-        onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {
-            try {
-                if (currentMessage.trim()) {
-                    const completedMessage: Message = {
-                        id: currentMessageId || `msg_${Date.now()}`,
-                        role: 'assistant',
-                        content: currentMessage
-                    };
-                    addMessage(completedMessage);
-                }
-            } catch (error) {
-                console.error('Error creating assistant message:', error);
-                const errorMessage: Message = {
-                    id: `error_${Date.now()}`,
-                    role: 'assistant', 
-                    content: 'Error processing assistant response'
+    // Create singleton AgentSubscriber ref to maintain object identity
+    const agentSubscriberRef = useRef<AgentSubscriber>({
+        onEvent: ({ event }: { event: any }): void => {},
+        onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {},
+        onTextMessageContentEvent: ({ event }: { event: TextMessageContentEvent }) => {},
+        onStateSnapshotEvent: ({ event }: { event: StateSnapshotEvent }) => {},
+        onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {},
+        onRunErrorEvent: ({ event }: { event: RunErrorEvent }) => {},
+        onToolCallStartEvent: ({ event }: { event: ToolCallStartEvent }) => {},
+        onToolCallArgsEvent: ({ event }: { event: ToolCallArgsEvent }) => {},
+        onToolCallEndEvent: ({ event }: { event: ToolCallEndEvent }) => {},
+        onToolCallResultEvent: ({ event }: { event: ToolCallResultEvent }) => {}
+    });
+
+    // Update handlers with fresh closures on each render while keeping same object identity
+    agentSubscriberRef.current.onEvent = ({ event }: { event: any }): void => {
+        if (event.type !== 'TEXT_MESSAGE_CONTENT') {
+            console.log('event received:', event);
+        }
+    };
+    
+    agentSubscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
+        setCurrentMessage('');
+        setCurrentMessageId(null);
+    };
+    
+    agentSubscriberRef.current.onTextMessageContentEvent = ({ event }: { event: TextMessageContentEvent }) => {
+        if (event.messageId !== currentMessageId) {
+            setCurrentMessageId(event.messageId);
+            setCurrentMessage(event.delta);
+        } else {
+            setCurrentMessage(prev => prev + event.delta);
+        }
+    };
+    
+    agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {
+        if (event.snapshot) {
+            // TODO: store state
+        }
+    };
+    
+    agentSubscriberRef.current.onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }) => {
+        try {
+            if (currentMessage.trim()) {
+                const completedMessage: Message = {
+                    id: currentMessageId || `msg_${Date.now()}`,
+                    role: 'assistant',
+                    content: currentMessage
                 };
-                addMessage(errorMessage);
-            } finally {
-                setCurrentMessage('');
-                setCurrentMessageId(null);
-                agentClient.endRun();
+                addMessage(completedMessage);
             }
-        },
-        onRunErrorEvent: ({ event }: { event: RunErrorEvent }) => {
-            setCurrentMessage('');
-            setCurrentMessageId(null);
+        } catch (error) {
+            console.error('Error creating assistant message:', error);
             const errorMessage: Message = {
                 id: `error_${Date.now()}`,
-                role: 'assistant',
-                content: `Error: ${event.message}`
+                role: 'assistant', 
+                content: 'Error processing assistant response'
             };
             addMessage(errorMessage);
+        } finally {
+            setCurrentMessage('');
+            setCurrentMessageId(null);
             agentClient.endRun();
-        },
-        onToolCallStartEvent: ({ event }: { event: ToolCallStartEvent }) => handleToolCallStart(event),
-        onToolCallArgsEvent: ({ event }: { event: ToolCallArgsEvent }) => handleToolCallArgs(event),
-        onToolCallEndEvent: ({ event }: { event: ToolCallEndEvent }) => handleToolCallEnd(event),
-        onToolCallResultEvent: ({ event }: { event: ToolCallResultEvent }) => handleToolCallResult(event)
+        }
     };
+    
+    agentSubscriberRef.current.onRunErrorEvent = ({ event }: { event: RunErrorEvent }) => {
+        setCurrentMessage('');
+        setCurrentMessageId(null);
+        const errorMessage: Message = {
+            id: `error_${Date.now()}`,
+            role: 'assistant',
+            content: `Error: ${event.message}`
+        };
+        addMessage(errorMessage);
+        agentClient.endRun();
+    };
+    
+    agentSubscriberRef.current.onToolCallStartEvent = ({ event }: { event: ToolCallStartEvent }) => handleToolCallStart(event);
+    agentSubscriberRef.current.onToolCallArgsEvent = ({ event }: { event: ToolCallArgsEvent }) => handleToolCallArgs(event);
+    agentSubscriberRef.current.onToolCallEndEvent = ({ event }: { event: ToolCallEndEvent }) => handleToolCallEnd(event);
+    agentSubscriberRef.current.onToolCallResultEvent = ({ event }: { event: ToolCallResultEvent }) => handleToolCallResult(event);
 
     const contextValue: AgentClientContextValue = {
         agentClient,
@@ -282,7 +300,7 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
         currentMessageId,
         isStreaming,        
         getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),        
-        agentSubscriber
+        agentSubscriber: agentSubscriberRef.current
     };
 
     return (
