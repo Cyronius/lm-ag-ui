@@ -99,6 +99,17 @@
 }
 
 /* Responsive design */
+@media (max-width: 1060px) {
+    .suggestions-scroll-container {
+        flex: 0 0 700px;
+    }
+}
+
+@media (max-width: 780px) {
+    .suggestions-scroll-container {
+        flex: 1;
+    }
+}
 @media (max-width: 768px) {
     .suggestions-wrapper {
         padding: 0 16px;
@@ -118,10 +129,6 @@
         margin-left: 16px;
     }
 
-    .suggestions-scroll-container {
-        flex: 0 0 calc(100vw - 120px);
-        /* Adjust for smaller screens */
-    }
 
     .suggestion-button {
         padding: 0 20px;
@@ -148,9 +155,6 @@
         margin-left: 12px;
     }
 
-    .suggestions-scroll-container {
-        flex: 0 0 calc(100vw - 95px);
-    }
 
     .suggestion-button {
         padding: 0 16px;
