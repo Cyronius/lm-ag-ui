@@ -8,7 +8,7 @@
 .calendly-message .message-content {
     width: 100%;
     padding: 0 !important;
-    min-width: 350px;
+    min-width: 280px;
     max-width: 950px;
 }
 
@@ -17,16 +17,17 @@
     padding: 14px 20px;
     border-radius: 22px;
     word-break: break-word;
-    font-size: 1.08rem;
-    box-shadow: 0 2px 8px rgba(25, 118, 210, 0.04);
+    font-size: clamp(1rem, 2vw, 1.08rem);
     display: flex;
     align-items: flex-start;
+    max-width: 100%;
 }
 
 .message.user {
-    background: lightgray;
+    background: #fbd2d4;
     color: #fff;
     align-self: flex-end;
+    border: 1px solid #e1abae;
     border-bottom-right-radius: 8px;
 }
 
@@ -35,7 +36,7 @@
     color: #222;
     align-self: flex-start;
     border-bottom-left-radius: 8px;
-    display: flex;        
+    display: flex;
     align-items: center;
 }
 
@@ -43,6 +44,8 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    min-width: 0;
+    flex: 1;
 }
 
 .message-timestamp {
@@ -51,15 +54,17 @@
     margin-top: 2px;
 }
 
-.bot-icon, .user-icon {
+.bot-icon,
+.user-icon {
     display: flex;
-    align-items: center;    
+    align-items: center;
     margin-top: auto;
     margin-bottom: auto;
     margin-left: 10px;
     margin-right: 20px;
     width: 2.5em;
     aspect-ratio: 1;
+    flex-shrink: 0;
 }
 
 .typing-indicator {
@@ -67,9 +72,135 @@
     align-items: center;
 }
 
-/* @media (max-width: 700px) {
-    .input-container {
-        width: 98vw;
-        padding: 6px 6px;
+/* Dark mode styles */
+[data-theme="dark"] .message.bot {
+    background: #333;
+    color: #fff;
+}
+
+[data-theme="dark"] .message.user {
+    background: #323232;
+    color: #fff;
+    border: 1px solid #242424;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .message {
+        padding: 12px 16px;
+        font-size: 1rem;
+        margin-bottom: 12px;
     }
-} */
+
+    .bot-icon,
+    .user-icon {
+        width: 2em;
+        margin-left: 8px;
+        margin-right: 12px;
+    }
+
+    .calendly-message .message-content {
+        min-width: 260px;
+        max-width: calc(100vw - 40px);
+    }
+}
+
+@media (max-width: 480px) {
+    .message {
+        padding: 10px 12px;
+        font-size: 0.95rem;
+        margin-bottom: 10px;
+    }
+
+    .bot-icon,
+    .user-icon {
+        width: 1.8em;
+        margin-left: 6px;
+        margin-right: 10px;
+    }
+
+    .calendly-message .message-content {
+        min-width: 240px;
+        max-width: calc(100vw - 20px);
+    }
+}
+
+/* Use Cases CTA (bottom-fixed) */
+.use-cases-container {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 16px;
+    padding-bottom: env(safe-area-inset-bottom);
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    /* allows only the button to be clickable */
+    z-index: 1000;
+}
+
+.use-cases-toggle {
+    pointer-events: auto;
+    display: inline-flex;
+    flex-direction: column;
+    /* stack text above arrow */
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    border-radius: 18px;
+    border: 1px solid;
+    font-weight: 600;
+    cursor: pointer;
+    background: #fff;
+    /* light theme: white button */
+    color: #000;
+    /* light theme: black text */
+    border-color: rgba(0, 0, 0, 0.15);
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease, color .12s ease, border-color .12s ease;
+}
+
+.use-cases-toggle:hover {
+    transform: translateY(-1px);
+    background-color: transparent;
+    box-shadow: none;
+}
+
+/* Dark mode explicit guard (in case a dark bg is desired, keep it neutral) */
+[data-theme="dark"] .use-cases-toggle:hover {
+    background-color: transparent;
+    box-shadow: none;
+}
+
+[data-theme="dark"] .use-cases-toggle {
+    color: #fff;
+    /* dark theme: white text */
+}
+
+.use-cases-toggle .label {
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.use-cases-toggle .icon {
+    width: 1.1em;
+    height: 1.1em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .2s ease;
+}
+
+/* Rotate arrow when open (toggle .is-open on a parent node, e.g., body or a page wrapper) */
+.is-open .use-cases-toggle .icon {
+    transform: rotate(180deg);
+}
+
+/* Responsive sizing */
+@media (max-width: 480px) {
+    .use-cases-toggle {
+        padding: 9px 12px;
+        border-radius: 16px;
+        font-size: 0.95rem;
+        gap: 4px;
+    }
+}

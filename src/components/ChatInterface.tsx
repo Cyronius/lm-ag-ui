@@ -1,15 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, TextField } from '@mui/material';
-import { Send } from 'lucide-react';
-import ChatSuggestions from './ChatSuggestions';
+import { Box, TextField, Button, IconButton } from '@mui/material';
+import { Add } from '@mui/icons-material';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ChatMessages from './ChatMessages';
+import ChatSuggestions from './ChatSuggestions';
+import { useThemeMode } from '../contexts/ThemeContext';
 import './ChatInterface.css';
 import { Message } from '@ag-ui/core';
 import { useAgentContext } from '../contexts/AgentClientContext';
 import { useAgent } from '../hooks/useAgent';
 import { getAllToolDefinitions } from '../tools/toolUtils';
 
-export default function ChatInterface() {
+// callback prop to lift dynamic content meta
+type ChatInterfaceProps = {
+    onDynamicMetaChange?: (meta: { showDynamicContent: boolean; lastQuestion?: string }) => void;
+};
+
+export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProps) {
+    const { mode } = useThemeMode();
+    const [lastSuggestionClicked, setLastSuggestionClicked] = useState<string>();
+
     // Listen for calendly chat message events from the frontend tool
     useEffect(() => {
         const handleCalendlyChatMessage = (e: CustomEvent) => {
@@ -23,10 +33,12 @@ export default function ChatInterface() {
     }, []);
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
+    const [attachments, setAttachments] = useState<File[]>([]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
-    
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     // Use the unified context
     const { agentClient, session, tools } = useAgentContext();
     const allTools = getAllToolDefinitions(tools);
@@ -44,7 +56,14 @@ export default function ChatInterface() {
     });
 
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (messagesEndRef.current) {
+            const container = messagesEndRef.current.parentElement;
+            if (container && container.classList.contains('chat-messages-container')) {
+                container.scrollTop = container.scrollHeight;
+            } else {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
     };
 
     useEffect(() => {
@@ -63,6 +82,7 @@ export default function ChatInterface() {
         };
         setMessages(prev => [...prev, userMessage]);
         setInputValue('');
+        setAttachments([]);
 
         // Start new run
         const runState = agentClient.startNewRun();
@@ -86,40 +106,87 @@ export default function ChatInterface() {
     };
 
     const handleSuggestionClick = (suggestion: string) => {
-        handleSendMessage(suggestion);
+        setLastSuggestionClicked(suggestion);
+        setInputValue(suggestion);
         inputRef.current?.focus();
     };
 
-    const handleKeyPress = (e: React.KeyboardEvent) => {
+    const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSendMessage();
         }
     };
 
+    const openFilePicker = () => fileInputRef.current?.click();
+    const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length) setAttachments(prev => [...prev, ...files]);
+        // allow selecting same file again
+        if (e.target) e.target.value = '';
+    };
+
+    // Lift visibility and label info to parent
+    useEffect(() => {
+        const showDynamicContent = messages.length === 0 && !session.isActive;
+        onDynamicMetaChange?.({
+            showDynamicContent,
+            lastQuestion: inputValue || lastSuggestionClicked
+        });
+    }, [messages, session.isActive, inputValue, lastSuggestionClicked, onDynamicMetaChange]);
+
+    // Hide header when chat is open (has messages or typing)
+    useEffect(() => {
+        const isChatOpen = messages.length > 0 || session.isActive;
+        const el = document.documentElement;
+        if (isChatOpen) {
+            el.setAttribute('data-chat-open', 'true');
+        } else {
+            el.removeAttribute('data-chat-open');
+        }
+        return () => el.removeAttribute('data-chat-open');
+    }, [messages.length, session.isActive]);
+
     const showSuggestions = messages.length === 0 && !session.isActive;
+    // const showDynamicContent = messages.length === 0 && !session.isActive; // moved up
 
     return (
-        <div className="chat-interface">
-            <ChatMessages
-                messages={messages}
-                isTyping={session.isActive}
-                currentMessage={agentCurrentMessage}
-                messagesEndRef={messagesEndRef}
-                getToolNameFromCallId={getToolNameFromCallId}
-            />
+        <Box className="chat-interface">
+            {messages.length > 0 && (
+                <div className="chat-messages-container">
+                    <ChatMessages
+                        messages={messages}
+                        isTyping={session.isActive}
+                        currentMessage={agentCurrentMessage}
+                        messagesEndRef={messagesEndRef}
+                        getToolNameFromCallId={getToolNameFromCallId}
+                    />
+                </div>
+            )}
 
             <div className="input-container">
+                <IconButton
+                    className="attach-button"
+                    aria-label="attach files"
+                    onClick={openFilePicker}
+                    disabled={session.isActive}
+                    size="large"
+                >
+                    <Add />
+                </IconButton>
                 <TextField
                     inputRef={inputRef}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    onKeyUp={handleKeyPress}
-                    placeholder="Ask me anything about training!"
+                    onKeyDown={(e) => handleKeyPress(e as React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>)}
+                    placeholder="Ask questions, create content, schedule demos, or get account help - all through natural conversation..."
                     variant="outlined"
                     fullWidth
                     className="input-field"
                     disabled={session.isActive}
+                    multiline
+                    minRows={1}
+                    maxRows={6}
                 />
                 <Button
                     onClick={() => handleSendMessage()}
@@ -128,16 +195,29 @@ export default function ChatInterface() {
                     color="primary"
                     className="send-button"
                 >
-                    <Send />
+                    <ArrowUpwardIcon />
                 </Button>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    hidden
+                    onChange={handleFilesSelected}
+                />
             </div>
 
-            
-            <div className="suggestions-container">
-                {showSuggestions && (
+
+            {attachments.length > 0 && (
+                <div style={{ alignSelf: 'flex-start', marginTop: 8, fontSize: 12, opacity: 0.75 }}>
+                    {attachments.length} file(s) selected
+                </div>
+            )}
+
+            {showSuggestions && (
+                <Box className="suggestions-container">
                     <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
-                )}
-            </div>
-        </div>
+                </Box>
+            )}
+        </Box>
     );
-};
+}

@@ -158,11 +158,6 @@ export default function ChatMessages({ messages, isTyping, currentMessage, messa
                         </div>
                     )}
                     {results}
-                    {message.role === 'user' && (
-                        <div className="user-icon">
-                            <User className="icon" />
-                        </div>
-                    )}
                 </div>
 
             })
