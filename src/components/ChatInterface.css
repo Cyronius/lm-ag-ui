@@ -8,7 +8,6 @@
     flex-direction: column;
     min-height: 250px;
     position: relative;
-    margin-top: 80px;
 }
 
 .chat-messages-container {
@@ -24,6 +23,7 @@
     border-radius: 20px;
     max-height: clamp(480px, 70vh, 700px);
     min-height: 300px;
+    margin-top: 80px;
 }
 
 [data-theme="dark"] .chat-messages-container {
