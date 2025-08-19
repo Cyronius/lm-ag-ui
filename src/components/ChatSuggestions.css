@@ -57,7 +57,7 @@
     gap: 8px;
     overflow-x: auto;
     scrollbar-width: none;
-    flex: 0 0 900px;
+    flex: 0 0 1000px;
     padding: 8px 0;
 }
 
@@ -99,6 +99,12 @@
 }
 
 /* Responsive design */
+@media (max-width: 1160px) {
+    .suggestions-scroll-container {
+        flex: 0 0 900px;
+    }
+}
+
 @media (max-width: 1060px) {
     .suggestions-scroll-container {
         flex: 0 0 700px;
