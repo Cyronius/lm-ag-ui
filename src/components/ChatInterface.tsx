@@ -55,6 +55,20 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         agentClient: agentClient
     });
 
+    // Restore focus when agent session ends
+    useEffect(() => {
+        if (!session.isActive && inputRef.current && messages.length > 0) {
+            const timer = setTimeout(() => {
+                requestAnimationFrame(() => {
+                    if (inputRef.current && !inputRef.current.disabled) {
+                        inputRef.current.focus();
+                    }
+                });
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, [session.isActive, messages.length]);
+
     const scrollToBottom = () => {
         if (messagesEndRef.current) {
             const container = messagesEndRef.current.parentElement;
