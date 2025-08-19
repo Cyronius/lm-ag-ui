@@ -113,7 +113,7 @@
 
 /* Hide the header on chat screen (when chat is open) */
 [data-chat-open="true"] .app-header {
-    visibility: hidden;
+    display: none;
 }
 
 /* Theme toggle switch styles */
