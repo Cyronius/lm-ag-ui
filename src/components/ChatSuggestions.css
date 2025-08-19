@@ -149,7 +149,7 @@
     }
 
     .suggestions-scroll-container {
-        flex: 0 0 calc(100vw - 88px);
+        flex: 0 0 calc(100vw - 95px);
     }
 
     .suggestion-button {

@@ -69,7 +69,9 @@ const ChatSuggestions: React.FC<ChatSuggestionsProps> = ({ onSuggestionClick }) 
         onClick={() => scroll('left')}
         disabled={!canScrollLeft}
         className="scroll-button scroll-button-left"
-        sx={{ padding: "40px" }}
+        sx={{ 
+          padding: { xs: "10px", sm: "40px" }
+        }}
       >
         <ArrowBackIosIcon fontSize="large" />
       </IconButton>
@@ -97,7 +99,9 @@ const ChatSuggestions: React.FC<ChatSuggestionsProps> = ({ onSuggestionClick }) 
         onClick={() => scroll('right')}
         disabled={!canScrollRight}
         className="scroll-button scroll-button-right"
-        sx={{ padding: "40px" }}
+        sx={{ 
+          padding: { xs: "10px", sm: "40px" }
+        }}
       >
         <ArrowForwardIosIcon fontSize="large" />
       </IconButton>
