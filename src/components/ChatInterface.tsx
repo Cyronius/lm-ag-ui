@@ -49,7 +49,19 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         getToolNameFromCallId
     } = useAgent({
         onMessageComplete: (completedMessage) => {
-            setMessages(prev => [...prev, completedMessage]);
+            setMessages(prev => {
+                let prevMessages = [...prev];
+                let toAppend = prevMessages.find(pm => pm.id === completedMessage.id);
+
+                // When scheduling a demo, the followup response is returned in multiple chunks with the same id and React complains about duplicate keys.
+                // Group these chunks together to form one single response.
+                if (toAppend && toAppend.content) {
+                    toAppend.content += completedMessage.content;
+                    return prevMessages;
+                }
+
+                return [...prev, completedMessage]}
+            );
         },
         onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
         agentClient: agentClient
