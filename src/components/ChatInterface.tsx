@@ -17,23 +17,9 @@ type ChatInterfaceProps = {
 
 export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProps) {
     const { mode } = useThemeMode();
-    const [lastSuggestionClicked, setLastSuggestionClicked] = useState<string>();
-
-    // Listen for calendly chat message events from the frontend tool
-    useEffect(() => {
-        const handleCalendlyChatMessage = (e: CustomEvent) => {
-            const calendlyMsg = e.detail;
-            setMessages(prev => [...prev, calendlyMsg]);
-        };
-        window.addEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
-        return () => {
-            window.removeEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
-        };
-    }, []);
-    const [messages, setMessages] = useState<Message[]>([]);
+    const [lastSuggestionClicked, setLastSuggestionClicked] = useState<string>();    
     const [inputValue, setInputValue] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
-
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
