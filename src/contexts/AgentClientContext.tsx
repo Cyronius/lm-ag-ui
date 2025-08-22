@@ -84,6 +84,7 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
     // Get frontend tools
     const frontEndTools = useMemo(() => getFrontEndTools(tools), [tools]);
 
+    // TODO: not sure state management by toolname is necessary -- could just expose set and get for global state
     // State management functions - need to be defined first
     const updateState = useCallback((toolName: string, data: any) => {
         setGlobalState((prev: any) => ({
@@ -239,10 +240,8 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
         }
     };
     
-    agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {
-        if (event.snapshot) {
-            // TODO: store state
-        }
+    agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {        
+        setGlobalState(event.snapshot ?? {})        
     };
     
     agentSubscriberRef.current.onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }) => {

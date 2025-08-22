@@ -11,7 +11,7 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
         changeBackgroundColor: {
             definition: {
                 name: "changeBackgroundColor",
-                description: "Change the background color of the page",
+                description: "Change the background color of the page.",
                 parameters: {
                     type: "object",
                     properties: {
@@ -74,9 +74,9 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
             isFrontend: false
         },
 
-        approve_outline_tool: {
+        transition_to_signup_tool: {
             definition: {
-                "name": "approve_outline_tool",
+                "name": "transition_to_signup_tool",
                 "description": "Approves the previously generated course outline and proceeds with course creation. Should be invoked when the user affirms they want to proceed after receiving a soco_outline_tool message.",
                 "parameters": {
                     "type": "object",
@@ -87,10 +87,7 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
             renderer: (args: any, result?: string) => <SignupForm/>,
             handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
                 console.log('approval handled');
-                return `{ "message": "Outline approved" }`;
-
-                // TODO: this should just set 'approval' in state and then queue up a tool call for the form
-                // rather than show the form directly.
+                return `{ "message": "Outline approved" }`;                
             },
             isFrontend: false,            
         },

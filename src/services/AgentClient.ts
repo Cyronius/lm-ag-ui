@@ -1,5 +1,5 @@
 import { HttpAgent } from '@ag-ui/client';
-import { Message, Tool } from '@ag-ui/core';
+import { Message, State, Tool } from '@ag-ui/core';
 import { AgentSubscriber, RunAgentResult } from '../types/index';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -112,72 +112,76 @@ export class AgentClient {
             throw error;
         }
     }
-
-    async submitToolResult(
-        toolMessage: Message,
-        subscriber: AgentSubscriber
-    ): Promise<RunAgentResult> {
-        if (!this._session.threadId) {
-            throw new Error('Thread ID is required for tool result submission');
-        }
-
-        // Generate new run ID for continuation
-        const runId = this.generateRunId();
-
-        try {
-            // Set the thread ID and messages on the agent
-            this.agent.threadId = this._session.threadId;            
-            this.agent.setMessages([toolMessage]);
-            const result = await this.agent.runAgent({
-                runId,
-                tools: [], // No new tools needed for continuation
-                context: [],
-                forwardedProps: {}
-            }, subscriber);
-
-            return result;
-        } catch (error) {
-            console.error('Tool result submission error:', error);
-            throw error;
-        }
+    
+    setState(state: State) {
+        this.agent.setState(state)        
     }
 
-    async executeBackendTool(
-        toolCall: { toolCallId: string; toolName: string; args: any },
-        subscriber: AgentSubscriber
-    ): Promise<RunAgentResult> {
-        if (!this._session.threadId) {
-            throw new Error('Thread ID is required for backend tool execution');
-        }
+    // async submitToolResult(
+    //     toolMessage: Message,
+    //     subscriber: AgentSubscriber
+    // ): Promise<RunAgentResult> {
+    //     if (!this._session.threadId) {
+    //         throw new Error('Thread ID is required for tool result submission');
+    //     }
 
-        // Generate new run ID for tool execution
-        const runId = this.generateRunId();
+    //     // Generate new run ID for continuation
+    //     const runId = this.generateRunId();
 
-        try {
-            // Create a ToolMessage that represents the tool call to be executed
-            const toolCallMessage: Message = {
-                id: `tool_call_${toolCall.toolCallId}`,
-                role: 'tool',
-                content: JSON.stringify(toolCall.args),
-                toolCallId: toolCall.toolCallId
-            };
+    //     try {
+    //         // Set the thread ID and messages on the agent
+    //         this.agent.threadId = this._session.threadId;            
+    //         this.agent.setMessages([toolMessage]);
+    //         const result = await this.agent.runAgent({
+    //             runId,
+    //             tools: [], // No new tools needed for continuation
+    //             context: [],
+    //             forwardedProps: {}
+    //         }, subscriber);
 
-            // Set the thread ID and messages on the agent
-            this.agent.threadId = this._session.threadId;
-           // this.agent.setMessages([toolCallMessage]);
-            const result = await this.agent.runAgent({
-                runId,
-                tools: [], // Backend tools are already registered on the server
-                context: [],
-                forwardedProps: {}
-            }, subscriber);
+    //         return result;
+    //     } catch (error) {
+    //         console.error('Tool result submission error:', error);
+    //         throw error;
+    //     }
+    // }
 
-            return result;            
-        } catch (error) {
-            console.error('Backend tool execution error:', error);
-            throw error;
-        }
-    }
+    // async executeBackendTool(
+    //     toolCall: { toolCallId: string; toolName: string; args: any },
+    //     subscriber: AgentSubscriber
+    // ): Promise<RunAgentResult> {
+    //     if (!this._session.threadId) {
+    //         throw new Error('Thread ID is required for backend tool execution');
+    //     }
+
+    //     // Generate new run ID for tool execution
+    //     const runId = this.generateRunId();
+
+    //     try {
+    //         // Create a ToolMessage that represents the tool call to be executed
+    //         const toolCallMessage: Message = {
+    //             id: `tool_call_${toolCall.toolCallId}`,
+    //             role: 'tool',
+    //             content: JSON.stringify(toolCall.args),
+    //             toolCallId: toolCall.toolCallId
+    //         };
+
+    //         // Set the thread ID and messages on the agent
+    //         this.agent.threadId = this._session.threadId;
+    //        // this.agent.setMessages([toolCallMessage]);
+    //         const result = await this.agent.runAgent({
+    //             runId,
+    //             tools: [], // Backend tools are already registered on the server
+    //             context: [],
+    //             forwardedProps: {}
+    //         }, subscriber);
+
+    //         return result;            
+    //     } catch (error) {
+    //         console.error('Backend tool execution error:', error);
+    //         throw error;
+    //     }
+    // }
 
     // Utility methods
     private generateRunId(): string {

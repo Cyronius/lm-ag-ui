@@ -11,6 +11,7 @@ import {
     Typography
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { useAgentContext } from '../contexts/AgentClientContext';
 
 export default function SignupForm() {
     const [fullName, setFullName] = useState('');
@@ -20,9 +21,21 @@ export default function SignupForm() {
     const [showPassword, setShowPassword] = useState(false);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
 
+    const {
+        // agentClient, 
+        // session, 
+        // tools, 
+        // messages, 
+        // addMessage,
+        // agentSubscriber,
+        // currentMessage: agentCurrentMessage,
+        // getToolNameFromCallId
+        globalState
+    } = useAgentContext();
+
 
     const validateEmail = async () => {
-        
+
         if (!email) {
             return
         }
@@ -31,10 +44,12 @@ export default function SignupForm() {
         validateParams.append("email", email?.trim());
         validateParams.append("whiteListDomains", ['gmail.com']);
 
-        let res = await fetch(`${import.meta.env.VITE_ADMIN_URL}/Account/ValidateEmail?${validateParams.toString()}`, {            
-            headers: {                  
-                "Content-Type": 'application/json'
+        let res = await fetch(`${import.meta.env.VITE_ADMIN_URL}/Account/ValidateEmail?${validateParams.toString()}`, {
+            headers: {
+                "Content-Type": "application/json",
+                //"Access-Control-Allow-Credentials": "true",
             },
+            //credentials: "include",
             method: "POST",
         });
 
@@ -44,7 +59,7 @@ export default function SignupForm() {
 
         if (res.ok) {
             let json = await res.json();
-            if (json.success) {                
+            if (json.success) {
                 setEmailError(null);
             }
             else {
@@ -59,9 +74,9 @@ export default function SignupForm() {
 
     const handleSignUp = async (e) => {
         e.preventDefault();
-        
+
         let signupForm = {
-            urlHostName: window.location.origin,            
+            urlHostName: window.location.origin,
             //gRecaptchaResponse: token,
             signupValues: [
                 { name: "email", value: email },
@@ -69,38 +84,89 @@ export default function SignupForm() {
                 { name: "password", value: password },
                 { name: "fullName", value: fullName },
                 { name: "agreeTos", value: acceptedTerms.toString() },
-                { name: "referrer", value: document.referrer },                
+                { name: "referrer", value: document.referrer },
                 { name: "signupType", value: 'authoring' }
             ]
         };
 
+        let accountId = await createAccount(signupForm)
+        let versionId = await createSocoCourseFromOutline(accountId)
+
+        // redirect to either admin cbiv or admin landing dpeending on if a soco was created
+        let redirectUrl = `${import.meta.env.VITE_ADMIN_URL}`
+        if (versionId) {
+           redirectUrl = `${redirectUrl}/course/Edit/${versionId}`
+        }        
+        window.top.location.replace(redirectUrl);
+    }
+
+    /** creates the account and returns the accountId */
+    async function createAccount(signupForm) {
         let res = await fetch(`${import.meta.env.VITE_LOGIN_URL}/Account/AccountSignUp`, {
             body: JSON.stringify(signupForm),
-            headers: {                  
+            headers: {
                 "Content-Type": 'application/json'
             },
             method: "POST",
         });
-        
-        if (res && res.ok) {
-            let { accountId } = await res.json()                        
+
+        // raced response
+        if (!res) {
+            return null
+        }
+
+        if (res.ok) {
+            let { accountId } = await res.json()
             console.log('account id is', accountId)
+            return accountId;
         }
         else {
             console.error(res)
             throw new Error(`Error creating account code=${res.status}, detail=${res.statusText}`)
         }
+
+    }
+
+    /** write the generated soco outline to cards/course tables */
+    async function createSocoCourseFromOutline(accountId) {
+        let socoOutline = globalState['soco_outline']
+        console.log('outline', socoOutline)
+
+        if (!socoOutline) {
+            return null
+        }
+
+        let req = {
+            course_outline: socoOutline,
+            account_id: accountId,
+            user_id: ""
+        }
+
+        let res = await fetch(`${import.meta.env.VITE_PYTHON_SERVER_URL}/soco/outline`, {
+            body: JSON.stringify(req),
+            headers: {
+                "Content-Type": 'application/json'
+            },
+            method: "POST",
+        });
         
-    };
+        // raced response
+        if (!res || !res.ok) {
+            return null            
+        }
+        
+        let { VersionId } = await res.json()        
+        return VersionId
+    }
 
     return (
         <Box
-            sx={{                
+            sx={{
                 margin: '0 auto',
                 mt: 7,
-                p: 4,                
+                p: 4,
                 borderRadius: 3,
-                boxShadow: 6,                
+                boxShadow: 6,
             }}
         >
             <Typography variant="h6" sx={{ mb: 2 }}>
@@ -114,7 +180,7 @@ export default function SignupForm() {
                     required
                     margin="normal"
                     value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}                    
+                    onChange={(e) => setFullName(e.target.value)}
                 />
                 <TextField
                     label="Email"
@@ -122,8 +188,8 @@ export default function SignupForm() {
                     fullWidth
                     required
                     type="email"
-                    margin="normal"                    
-                    onChange={(e) => {                        
+                    margin="normal"
+                    onChange={(e) => {
                         setEmail(e.target.value)
                     }}
                     onBlur={validateEmail}
@@ -136,31 +202,31 @@ export default function SignupForm() {
                     fullWidth
                     required
                     type={showPassword ? 'text' : 'password'}
-                    margin="normal"                    
+                    margin="normal"
                     onChange={(e) => setPassword(e.target.value)}
                     error={!!password && password.length < 6}
                     helperText={(password && password.length < 6) ? "Password must be at least 6 characters." : null}
-                    InputProps={{                        
+                    InputProps={{
                         endAdornment: (
                             <InputAdornment position="end">
                                 <IconButton
                                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                                     onClick={() => setShowPassword((prev) => !prev)}
                                     edge="end"
-                                    tabIndex={-1}                      
+                                    tabIndex={-1}
                                 >
                                     {showPassword ? <VisibilityOff /> : <Visibility />}
                                 </IconButton>
                             </InputAdornment>
                         )
-                    }}                    
+                    }}
                 />
 
                 <FormControlLabel
                     control={
                         <Checkbox
                             checked={acceptedTerms}
-                            onChange={(e) => setAcceptedTerms(e.target.checked)}                            
+                            onChange={(e) => setAcceptedTerms(e.target.checked)}
                         />
                     }
                     label={
@@ -217,4 +283,6 @@ export default function SignupForm() {
             </Typography>
         </Box>
     );
+
+
 }

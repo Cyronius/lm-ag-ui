@@ -14,6 +14,7 @@ export type OutlineModule = {
 export type Outline = {
     modules: OutlineModule[];
     header: string;
+    headerImagePath: string;
     imagePrompt: string;
     description: string;
 };
@@ -28,23 +29,25 @@ export default function SocoOutlineSignupFlow({ outline }: { outline: Outline })
         addMessage,
         agentSubscriber,
         currentMessage: agentCurrentMessage,
-        getToolNameFromCallId
+        getToolNameFromCallId,
+        globalState
     } = useAgentContext();
 
     async function doSignup() {
-        
-        
-        // TODO: this is really dumb
-        
+                
         // Add user message
         const userMessage: Message = {
             id: `user_${Date.now()}`,
             role: 'user',
             content: 'invoke the approve_outline_tool'
         };
-        //addMessage(userMessage);
+        
         agentClient.startNewRun();
-                try {
+        try {
+
+            // stick soco outline into state and send state snapshot prior to run
+            agentClient.setState({ ...globalState, soco_outline: outline })
+
             await agentClient.runAgent(
                 [...messages, userMessage],
                 getAllToolDefinitions(tools),
@@ -55,20 +58,7 @@ export default function SocoOutlineSignupFlow({ outline }: { outline: Outline })
             // Error handling is now managed by the hook
             throw error;
         }
-        
-        //await executeFrontendTool('create_account_tool')
-        
-        // try {
-        //     // await agentClient.runAgent(
-        //     //     conversationMessages,
-        //     //     allTools,
-        //     //     agentSubscriber
-        //     // );
-        // } catch (error) {
-        //     console.error('Agent execution failed:', error);
-        //     // Error handling is now managed by the hook
-        //     throw error;
-        // }
+
     }
 
     return (
@@ -83,21 +73,15 @@ export function SoCoOutlineView({ outline }: { outline: Outline }) {
     
 
     return <div style={{ display: 'flex', flexDirection: 'column', gap: '1em', lineHeight: 1.3}}>
-        
-        <i>add some short verbiage about the course</i>
 
         <h5>Course Title: {outline.header}</h5>
+        {outline.headerImagePath && <img src={outline.headerImagePath} />}
         
         <div>
             <h5>Course Overview:</h5>
             {outline.description}
         </div>
 
-        <div>
-            <h5>Learning Objectives:</h5>
-            <span>By the end of this course, learners will yada yada yada</span>
-        </div>
-        
         <div>
             <h5>Course Modules:</h5>
             <div>
@@ -113,8 +97,7 @@ export function SoCoOutlineView({ outline }: { outline: Outline }) {
             </div>
         </div>
         
-        <span>Would you like for Learner Mobile to create this course for you? It's going to look like this!</span>
-        <p>[This is where we would put some preview images]</p>
-        
+        <span>Would you like for Learner Mobile to create this course for you?</span>
+                
     </div>
 }
