@@ -232,12 +232,12 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
     };
     
     agentSubscriberRef.current.onTextMessageContentEvent = ({ event }: { event: TextMessageContentEvent }) => {
+        
         if (event.messageId !== currentMessageId) {
-            setCurrentMessageId(event.messageId);
-            setCurrentMessage(event.delta);
-        } else {
-            setCurrentMessage(prev => prev + event.delta);
-        }
+            setCurrentMessageId(event.messageId);            
+        } 
+
+        setCurrentMessage(prev => prev + event.delta);
     };
     
     agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {        
@@ -247,6 +247,9 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
     agentSubscriberRef.current.onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }) => {
         try {
             if (currentMessage.trim()) {
+
+                console.log('completed message', currentMessage)
+
                 const completedMessage: Message = {
                     id: currentMessageId || `msg_${Date.now()}`,
                     role: 'assistant',

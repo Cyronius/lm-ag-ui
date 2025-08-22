@@ -96,8 +96,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                 agentSubscriber
             );
         } catch (error) {
-            console.error('Agent execution failed:', error);
-            // Error handling is now managed by the hook
+            console.error('Agent execution failed:', error);            
             throw error;
         }
     };
