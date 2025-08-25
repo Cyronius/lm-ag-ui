@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Box, Button, IconButton } from '@mui/material';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import ArrowBackIosIcon from '@mui/icons-material/ArrowBackIos';
+import LabelIcon from '@mui/icons-material/Label';
 import './ChatSuggestions.css';
 
 interface ChatSuggestionsProps {
@@ -9,30 +10,20 @@ interface ChatSuggestionsProps {
 }
 
 const suggestions = [
-  "Schedule a demo",
-  "Create training content",
+  "Create a course about...",
+  "Create safety training for the role of...",
   "Ask about microlearning",
   "Inquire about compliance training",
   "What integrations does your system have?",
-  "Create a course about...",
+  "Schedule a demo",
   "Training questions"
 ];
 
-function getRandomSuggestions(arr: string[], n: number) {
-  const shuffled = arr.slice();
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled.slice(0, n);
-}
 
 const ChatSuggestions: React.FC<ChatSuggestionsProps> = ({ onSuggestionClick }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
-  const randomSuggestions = React.useMemo(() => getRandomSuggestions(suggestions, 6), []);
-
   const checkScrollButtons = () => {
     if (scrollContainerRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
@@ -82,14 +73,15 @@ const ChatSuggestions: React.FC<ChatSuggestionsProps> = ({ onSuggestionClick }) 
         onScroll={checkScrollButtons}
         className="suggestions-scroll-container"
       >
-        {randomSuggestions.map((suggestion, index) => (
+        {suggestions.map((suggestion, index) => (
           <Button
             key={index}
             onClick={() => onSuggestionClick(suggestion)}
             variant="outlined"
             className="suggestion-button"
+            startIcon={<LabelIcon />}
           >
-            {suggestion}
+            <span className="suggestion-text">{suggestion}</span>
           </Button>
         ))}
       </Box>
