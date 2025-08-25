@@ -151,8 +151,13 @@ export default function SignupForm() {
         });
         
         // raced response
-        if (!res || !res.ok) {
+        if (!res) {
             return null            
+        }
+        
+        if (!res.ok) {
+            console.log('failed to create course with status and message', res.status, res.statusText)
+            throw 'failed to create course'
         }
         
         let { VersionId } = await res.json()        
