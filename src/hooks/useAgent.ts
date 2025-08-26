@@ -54,7 +54,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
     const frontEndTools = getFrontEndTools(tools);
 
     // Flag to control tool call message injection
-    const showToolCallMessages = !!import.meta.env.REACT_APP_SHOW_TOOL_CALL_MESSAGES || true;
+    const showToolCallMessages = !!import.meta.env.REACT_APP_SHOW_TOOL_CALL_MESSAGES;
 
     const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
         toolCallBuffersRef.current.set(event.toolCallId, {
