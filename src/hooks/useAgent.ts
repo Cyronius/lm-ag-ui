@@ -54,7 +54,7 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
     const frontEndTools = getFrontEndTools(tools);
 
     // Flag to control tool call message injection
-    const showToolCallMessages = !!import.meta.env.REACT_APP_SHOW_TOOL_CALL_MESSAGES;
+    const showToolCallMessages = !!import.meta.env.VITE_SHOW_TOOL_CALL_MESSAGES;
 
     const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
         toolCallBuffersRef.current.set(event.toolCallId, {
@@ -148,7 +148,13 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                 toolCallId
             };
 
-            await agentClient.submitToolResult(toolMessage, agentSubscriber);
+            // Only call submitToolResult if it exists
+            if (typeof agentClient.submitToolResult === "function") {
+                await agentClient.submitToolResult(toolMessage, agentSubscriber);
+            } else {
+                // Prevent error and optionally log a warning
+                console.warn("agentClient.submitToolResult is not implemented yet.");
+            }
         } catch (error) {
             console.error('Failed to submit tool result to server:', error);
             // Fallback: add error message to UI
