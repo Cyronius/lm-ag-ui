@@ -22,6 +22,14 @@ import { getFrontEndTools } from '../tools/toolUtils';
 import { AgentClient } from '../services/AgentClient';
 import { useAgentContext } from '../contexts/AgentClientContext';
 
+interface Message {
+    id: string;
+    role: 'developer' | 'assistant' | 'tool';
+    content: string;
+    name?: string;
+    toolCallId?: string;
+}
+
 interface useAgent {
     onMessageComplete: (message: Message) => void;
     onErrorMessage: (message: Message) => void;
@@ -45,6 +53,9 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
     const { tools, updateState, getState } = useAgentContext();    
     const frontEndTools = getFrontEndTools(tools);
 
+    // Flag to control tool call message injection
+    const showToolCallMessages = !!import.meta.env.VITE_SHOW_TOOL_CALL_MESSAGES;
+
     const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
         toolCallBuffersRef.current.set(event.toolCallId, {
             name: event.toolCallName,
@@ -53,7 +64,18 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
         });
         toolCallIdToNameRef.current.set(event.toolCallId, event.toolCallName);
         forceUpdate(n => n + 1);
-    }, []);
+
+        // Inject tool call message if enabled
+        if (showToolCallMessages) {
+            const toolCallMessage: Message = {
+                id: `tool_call_${event.toolCallId}_${Date.now()}`,
+                role: 'developer',
+                content: `TOOL CALL: ${event.toolCallName}`,
+                toolCallId: event.toolCallId
+            };
+            onMessageComplete(toolCallMessage);
+        }
+    }, [onMessageComplete, showToolCallMessages]);
 
     const handleToolCallArgs = useCallback((event: ToolCallArgsEvent) => {
         const current = toolCallBuffersRef.current.get(event.toolCallId);
@@ -126,7 +148,13 @@ export function useAgent({ onMessageComplete, onErrorMessage, agentClient }: use
                 toolCallId
             };
 
-            await agentClient.submitToolResult(toolMessage, agentSubscriber);
+            // Only call submitToolResult if it exists
+            if (typeof agentClient.submitToolResult === "function") {
+                await agentClient.submitToolResult(toolMessage, agentSubscriber);
+            } else {
+                // Prevent error and optionally log a warning
+                console.warn("agentClient.submitToolResult is not implemented yet.");
+            }
         } catch (error) {
             console.error('Failed to submit tool result to server:', error);
             // Fallback: add error message to UI
