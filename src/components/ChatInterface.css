@@ -33,7 +33,7 @@
 
 .input-container {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: 8px;
     background: var(--background-color);
     border: 2px solid var(--border-color);
@@ -43,10 +43,13 @@
     position: sticky;
     bottom: 0;
     z-index: 100;
+    flex-wrap: wrap;
+    box-shadow: 10px 6px 20px rgba(0, 0, 0, 0.1);
 }
 
 .input-field {
-    flex: 1;
+    flex: 1 1 220px;
+    min-width: 120px;
     border: none !important;
     background: transparent !important;
     font-size: 1.15rem;
@@ -60,6 +63,21 @@
 .input-field .MuiInputBase-input {
     padding: 8px 0 !important;
     color: var(--text-primary) !important;
+}
+
+.input-field .MuiInputBase-root {
+    padding-bottom: 0;
+    align-items: center;
+    margin: 8px 0;
+}
+
+.input-field .MuiInputBase-inputMultiline {
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+.input-container .selected-chip {
+    align-self: center;
 }
 
 /* Multiline behavior: auto-grow, then scroll */
@@ -149,6 +167,22 @@ button.send-button:hover {
     border-color: #555;
 }
 
+.selected-chip {
+    margin: 4px 4px 0 0;
+}
+
+[data-theme="light"] .selected-chip {
+    background: white;
+
+    border: 1px solid #e1abae;
+}
+
+[data-theme="dark"] .selected-chip {
+    background: #222;
+    color: #e6e6e6;
+    border: 1px solid #444;
+}
+
 /* Custom scrollbar styling for dark mode */
 [data-theme="dark"] .MuiInputBase-inputMultiline::-webkit-scrollbar {
     width: 8px;
@@ -227,6 +261,10 @@ button.send-button:hover {
     margin: 12px 0;
 }
 
+[data-theme="light"] .chip-leading-icon {
+    color: #e1abae !important;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .chat-interface {
@@ -258,6 +296,10 @@ button.send-button:hover {
 
     .suggestions-container {
         margin: 16px 0;
+    }
+
+    .selected-chip {
+        margin: 2px 4px 0 0;
     }
 }
 

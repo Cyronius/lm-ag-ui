@@ -30,18 +30,45 @@
     position: relative;
     background-color: var(--background-color);
     color: var(--text-primary);
+    z-index: 0;
+}
+
+.app-container>* {
+    position: relative;
+    z-index: 1;
+}
+
+.app-container::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 2rem;
+    width: clamp(420px, 90vw, 1200px);
+    aspect-ratio: 1600 / 600;
+    background-image: url('https://premiumlearnermobileblob.blob.core.windows.net/e840bd34-5281-40dc-afce-d4c43d9c4fa2/9adc1ed5-4c4f-b1aa-5131-394495636182.png?timeStamp=638917564045359994');
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position: right bottom;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 300ms ease-in-out;
+}
+
+[data-chat-open="true"] .app-container::after,
+.app-container[data-dyn-open="true"]::after {
+    opacity: 0;
 }
 
 /* Header section */
 .app-header {
     text-align: center;
-    margin: 80px auto 60px auto;
+    margin: 80px auto 30px auto;
     width: 100%;
 }
 
 
 .main-title {
-    font-size: clamp(2rem, 5vw, 2.7rem);
+    font-size: clamp(2rem, 5vw, 3.1rem);
     font-weight: 500;
     margin: 0 0 16px 0;
     color: var(--text-primary);

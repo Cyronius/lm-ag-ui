@@ -9,9 +9,10 @@ import { useThemeMode } from '../contexts/ThemeContext';
 interface DynamicContentProps {
     lastQuestion?: string;
     isVisible: boolean;
+    onOpenChange?: (open: boolean) => void;
 }
 
-const DynamicContent: React.FC<DynamicContentProps> = ({ lastQuestion, isVisible }) => {
+const DynamicContent: React.FC<DynamicContentProps> = ({ lastQuestion, isVisible, onOpenChange }) => {
     const { mode } = useThemeMode();
     const isDark = mode === 'dark';
     const [showContent, setShowContent] = useState(false);
@@ -56,7 +57,13 @@ const DynamicContent: React.FC<DynamicContentProps> = ({ lastQuestion, isVisible
         }
     };
 
-    const handleToggleContent = () => setShowContent((s) => !s);
+    const handleToggleContent = () => {
+        setShowContent((s) => {
+            const next = !s;
+            onOpenChange?.(next);
+            return next;
+        });
+    };
 
     return (
         <Box

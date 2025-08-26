@@ -16,12 +16,13 @@ const App = () => {
         showDynamicContent: false,
         lastQuestion: undefined
     });
+    const [isDynOpen, setIsDynOpen] = React.useState(false);
 
     return (
         <AppThemeProvider>
             <AgentClientProvider tools={tools}>
                 <CssBaseline />
-                <div className="app-container">
+                <div className="app-container" data-dyn-open={isDynOpen ? 'true' : undefined}>
                     <Header />
                     <div className="main-content">
                         <ChatInterface onDynamicMetaChange={setDynMeta} />
@@ -30,6 +31,7 @@ const App = () => {
                                 <DynamicContent
                                     lastQuestion={dynMeta.lastQuestion}
                                     isVisible={true}
+                                    onOpenChange={setIsDynOpen}
                                 />
                             </div>
                         )}

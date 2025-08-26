@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, TextField, Button, IconButton } from '@mui/material';
+import { Box, TextField, Button, IconButton, Chip } from '@mui/material';
 import { Add } from '@mui/icons-material';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import LabelIcon from '@mui/icons-material/Label';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import ChatMessages from './ChatMessages';
 import ChatSuggestions from './ChatSuggestions';
 import { useThemeMode } from '../contexts/ThemeContext';
@@ -20,10 +22,11 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
     const [lastSuggestionClicked, setLastSuggestionClicked] = useState<string>();    
     const [inputValue, setInputValue] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
+    const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
     // Use the unified context
     const { 
         agentClient, 
@@ -69,17 +72,25 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
 
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
-        if (!textToSend.trim() || session.isActive) return;
+        const cleanedSuggestions = selectedSuggestions.map(s =>
+            s.endsWith('...') ? s.slice(0, -3).trim() : s
+        );
+        const chipsPrefix = cleanedSuggestions.length
+            ? `${cleanedSuggestions.join(' ')} `
+            : '';
+        const fullContent = (chipsPrefix + textToSend).trim();
+        if (!fullContent || session.isActive) return;
 
         // Add user message
         const userMessage: Message = {
             id: `user_${Date.now()}`,
             role: 'user',
-            content: textToSend
+            content: fullContent
         };
         addMessage(userMessage);
         setInputValue('');
         setAttachments([]);
+        setSelectedSuggestions([]);
 
         // Start new run
         const runState = agentClient.startNewRun();
@@ -103,7 +114,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
 
     const handleSuggestionClick = (suggestion: string) => {
         setLastSuggestionClicked(suggestion);
-        setInputValue(suggestion);
+        setSelectedSuggestions([suggestion]);
         inputRef.current?.focus();
     };
 
@@ -127,9 +138,9 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         const showDynamicContent = messages.length === 0 && !session.isActive;
         onDynamicMetaChange?.({
             showDynamicContent,
-            lastQuestion: inputValue || lastSuggestionClicked
+            lastQuestion: inputValue || lastSuggestionClicked || selectedSuggestions[selectedSuggestions.length - 1]
         });
-    }, [messages, session.isActive, inputValue, lastSuggestionClicked, onDynamicMetaChange]);
+    }, [messages, session.isActive, inputValue, lastSuggestionClicked, selectedSuggestions, onDynamicMetaChange]);
 
     // Hide header when chat is open (has messages or typing)
     useEffect(() => {
@@ -165,17 +176,36 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                     className="attach-button"
                     aria-label="attach files"
                     onClick={openFilePicker}
-                    disabled={session.isActive}
+                    disabled={true} // temporarily disabled
                     size="large"
                 >
                     <Add />
                 </IconButton>
+
+                {selectedSuggestions.map(s => (
+                    <Chip
+                        key={s}
+                        label={s}
+                        size="medium"
+                        className="selected-chip"
+                        icon={<LabelIcon className="chip-leading-icon" />}
+                        deleteIcon={<CancelOutlinedIcon className="chip-delete-icon" />}
+                        onDelete={() =>
+                            setSelectedSuggestions(prev => prev.filter(x => x !== s))
+                        }
+                    />
+                ))}
+
                 <TextField
                     inputRef={inputRef}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => handleKeyPress(e as React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>)}
-                    placeholder="Ask questions, create content, schedule demos, or get account help - all through natural conversation..."
+                    placeholder={
+                        selectedSuggestions.length
+                            ? 'Add any additional details you want to ask...'
+                            : 'Ask questions, create content, schedule demos, or get account help - all through natural conversation...'
+                    }
                     variant="outlined"
                     fullWidth
                     className="input-field"
@@ -186,7 +216,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                 />
                 <Button
                     onClick={() => handleSendMessage()}
-                    disabled={!inputValue.trim() || session.isActive}
+                    disabled={(!inputValue.trim() && selectedSuggestions.length === 0) || session.isActive}
                     variant="contained"
                     color="primary"
                     className="send-button"
