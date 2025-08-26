@@ -79,19 +79,22 @@ export function SoCoOutlineView({ outline }: { outline: Outline }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1em', lineHeight: 1.3 }}>
         
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} >
+
+                <div>                    
+                    {outline.headerImagePath && <Box component="img" sx={{ maxWidth: { xs: '50%', sm: '300px' } }}  src={outline.headerImagePath} />}
+                </div>
+
                 <div style={{ display: 'flex', flexDirection: 'column' }} >                    
                     <Typography variant="h6">{outline.header}</Typography>
                     <Typography variant="body2" sx={{ flexGrow: 1, alignContent: 'center' }}>{outline.description}</Typography>                    
                 </div>
-                <div>                    
-                    {outline.headerImagePath && <Box component="img" sx={{ maxWidth: { xs: '50%', sm: '300px' } }}  src={outline.headerImagePath} />}
-                </div>
+                
                 
             </Stack>
             
             <div>                
-                <div>                
-                    <ul style={{ listStyle: 'none' }}>
+                <div>                                
+                    <ul>
                         {outline.modules.map((module, idx) => (
                             <li key={idx}>                                
                                 <p style={{ paddingTop: '0.5em' }}><Typography variant="subtitle2">{module.header}</Typography>
