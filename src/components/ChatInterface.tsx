@@ -100,8 +100,11 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
 
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
-        const chipsPrefix = selectedSuggestions.length
-            ? `${selectedSuggestions.map(s => `[${s}]`).join(' ')} `
+        const cleanedSuggestions = selectedSuggestions.map(s =>
+            s.endsWith('...') ? s.slice(0, -3).trim() : s
+        );
+        const chipsPrefix = cleanedSuggestions.length
+            ? `${cleanedSuggestions.join(' ')} `
             : '';
         const fullContent = (chipsPrefix + textToSend).trim();
         if (!fullContent || session.isActive) return;
