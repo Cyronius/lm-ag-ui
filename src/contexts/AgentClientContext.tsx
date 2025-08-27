@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AgentClient } from '../services/AgentClient';
-import { ToolDefinition, ToolCallBuffer, AgentSubscriber } from '../types/index';
+import { ToolDefinition, ToolCallBuffer, AgentSubscriber, RunAgentResult } from '../types/index';
 import { 
     Message,
     TextMessageContentEvent,
@@ -110,7 +110,7 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
     }, []);
 
     // Tool execution functions - now can reference the above functions
-    const executeFrontendTool = useCallback(async (toolName: string, argsJson: string | null = null, toolCallId: string | null = null) => {
+    const executeFrontendTool = useCallback((toolName: string, argsJson: string | null = null, toolCallId: string | null = null):Message|null => {
         if (!toolCallId) {
             toolCallId = uuidv4();
         }
@@ -118,35 +118,28 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
         try {
             const args = argsJson ? JSON.parse(argsJson) : null;
             const tool = frontEndTools[toolName];
-            if (tool?.handler) {
-                const result = tool.handler(args, updateState, getState);
-                
-                const toolMessage: Message = {
-                    id: `tool_${toolCallId}_${Date.now()}`,
-                    role: 'tool',
-                    content: result,
-                    toolCallId
-                };
-                addMessage(toolMessage);
-                
-                // TODO: submit tool result to server via agentClient
-            }
-        } catch (error) {            
-            console.error(`Tool execution error for ${toolName}:`, error);            
-            const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             
-            const errorToolMessage: Message = {
-                id: `tool_error_${toolCallId}_${Date.now()}`,
+            const result = tool.handler?.(args, updateState, getState);                        
+            const toolMessage: Message = {
+                id: `tool_${toolCallId}_${Date.now()}`,
                 role: 'tool',
-                content: errorMessage,
+                content: result || '{}',
                 toolCallId
             };
-            addMessage(errorToolMessage);
+            addMessage(toolMessage);             
+            return toolMessage
+            
+        } catch (error) {            
+            console.error(`Tool execution error for ${toolName}:`, error);            
+            const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;            
+            addErrorMessage(errorMessage)
+            return null
         }
     }, [frontEndTools, updateState, getState, addMessage]);
 
-    const executeBackendTool = useCallback(async (toolName: string, argsJson: string, toolCallId: string) => {
-        // Backend tool execution placeholder - same as original implementation
+    
+    const executeBackendTool = useCallback((toolName: string, argsJson: string, toolCallId: string):Message|null => {        
+        return null
     }, [agentClient]);
 
     // Event handlers
@@ -171,18 +164,18 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
         }
     }, []);
 
-    const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
-        const toolCall = toolCallBuffersRef.current.get(event.toolCallId);
-        if (toolCall) {
-            if (frontEndTools[toolCall.name]) {
-                executeFrontendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);                
-            } else {
-                executeBackendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
-            }
-            toolCallBuffersRef.current.delete(event.toolCallId);
-            forceUpdate(n => n + 1);
-        }
-    }, [frontEndTools, executeFrontendTool, executeBackendTool]);
+    // const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
+    //     const toolCall = toolCallBuffersRef.current.get(event.toolCallId);
+    //     if (toolCall) {
+    //         if (frontEndTools[toolCall.name]) {
+    //             executeFrontendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);                
+    //         } else {
+    //             executeBackendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
+    //         }
+    //         toolCallBuffersRef.current.delete(event.toolCallId);
+    //         forceUpdate(n => n + 1);
+    //     }
+    // }, [frontEndTools, executeFrontendTool, executeBackendTool]);
 
     const handleToolCallResult = useCallback((event: ToolCallResultEvent) => {
         try {
@@ -194,6 +187,9 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
             };
             console.log('adding tool call result to messages', toolResultMessage);
             addMessage(toolResultMessage);
+
+            // TODO: delete this tool call id from the ref, I think.
+            toolCallBuffersRef.current.delete(event.toolCallId);
         } catch (error) {
             console.error('Error creating tool result message:', error);
             const errorMessage: Message = {
@@ -261,7 +257,7 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
             console.error('Error creating assistant message:', error);
             const errorMessage: Message = {
                 id: `error_${Date.now()}`,
-                role: 'assistant', 
+                role: 'assistant',
                 content: 'Error processing assistant response'
             };
             addMessage(errorMessage);
@@ -270,7 +266,47 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
             setCurrentMessageId(null);
             agentClient.endRun();
         }
+
+        handlePendingToolCalls()
+            
     };
+
+    // adds an error message to the chat messages buffer
+    function addErrorMessage(error: any) {
+        const errorMessage: Message = {
+                    id: uuidv4(),
+                    role: 'assistant',
+                    content: `${error}`
+                };
+        addMessage(errorMessage)
+    }
+
+    function handlePendingToolCalls() {
+
+        // if we have existing tool calls, we need to submit them as a new run
+        let toolMessages:Message[] = []
+        try {
+            for (const [toolCallId, toolCall] of toolCallBuffersRef.current.entries()) {
+                let result;
+                if (frontEndTools[toolCall.name]) {
+                    result = executeFrontendTool(toolCall.name, toolCall.argsBuffer, toolCallId);
+                } else {
+                    result = executeBackendTool(toolCall.name, toolCall.argsBuffer, toolCallId);
+                }
+                if (result) {
+                    toolMessages.push(result)                    
+                }
+            }
+        } catch (error) {
+            addErrorMessage(error)
+        }
+        finally {
+            toolCallBuffersRef.current.clear()
+            if (toolMessages.length > 0) {
+                agentClient.submitToolResults(toolMessages, agentSubscriberRef.current);
+            }
+        }
+    }
     
     agentSubscriberRef.current.onRunErrorEvent = ({ event }: { event: RunErrorEvent }) => {
         setCurrentMessage('');
@@ -286,7 +322,7 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
     
     agentSubscriberRef.current.onToolCallStartEvent = ({ event }: { event: ToolCallStartEvent }) => handleToolCallStart(event);
     agentSubscriberRef.current.onToolCallArgsEvent = ({ event }: { event: ToolCallArgsEvent }) => handleToolCallArgs(event);
-    agentSubscriberRef.current.onToolCallEndEvent = ({ event }: { event: ToolCallEndEvent }) => handleToolCallEnd(event);
+    //agentSubscriberRef.current.onToolCallEndEvent = ({ event }: { event: ToolCallEndEvent }) => handleToolCallEnd(event);
     agentSubscriberRef.current.onToolCallResultEvent = ({ event }: { event: ToolCallResultEvent }) => handleToolCallResult(event);
 
     const contextValue: AgentClientContextValue = {

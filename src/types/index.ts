@@ -53,7 +53,7 @@ export interface ChatSuggestionsProps {
 export interface ToolCallBuffer {
     name: string;
     argsBuffer: string;
-    parentMessageId?: string;
+    parentMessageId?: string;    
 }
 
 export interface ArtifactData {

@@ -117,34 +117,36 @@ export class AgentClient {
         this.agent.setState(state)        
     }
 
-    // async submitToolResult(
-    //     toolMessage: Message,
-    //     subscriber: AgentSubscriber
-    // ): Promise<RunAgentResult> {
-    //     if (!this._session.threadId) {
-    //         throw new Error('Thread ID is required for tool result submission');
-    //     }
+    async submitToolResults(
+        toolMessages: Message[],
+        subscriber: AgentSubscriber
+    ): Promise<RunAgentResult> {
+        if (!this._session.threadId) {
+            throw new Error('Thread ID is required for tool result submission');
+        }
 
-    //     // Generate new run ID for continuation
-    //     const runId = this.generateRunId();
+        console.log('submitting tool results to backend', toolMessages)
 
-    //     try {
-    //         // Set the thread ID and messages on the agent
-    //         this.agent.threadId = this._session.threadId;            
-    //         this.agent.setMessages([toolMessage]);
-    //         const result = await this.agent.runAgent({
-    //             runId,
-    //             tools: [], // No new tools needed for continuation
-    //             context: [],
-    //             forwardedProps: {}
-    //         }, subscriber);
+        // Generate new run ID for continuation
+        const runId = this.generateRunId();
+        
+        try {
+            // Set the thread ID and messages on the agent
+            this.agent.threadId = this._session.threadId;            
+            this.agent.setMessages(toolMessages);
+            const result = await this.agent.runAgent({
+                runId,
+                tools: [], // No new tools needed for continuation
+                context: [],
+                forwardedProps: {}
+            }, subscriber);
 
-    //         return result;
-    //     } catch (error) {
-    //         console.error('Tool result submission error:', error);
-    //         throw error;
-    //     }
-    // }
+            return result;
+        } catch (error) {
+            console.error('Tool result submission error:', error);
+            throw error;
+        }
+    }
 
     // async executeBackendTool(
     //     toolCall: { toolCallId: string; toolName: string; args: any },
