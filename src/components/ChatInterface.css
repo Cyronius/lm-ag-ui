@@ -32,12 +32,9 @@
 }
 
 .input-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
     background: var(--background-color);
     border: 2px solid var(--border-color);
-    border-radius: 10px;
+    border-radius: 20px;
     padding: 8px 12px;
     margin-top: auto;
     position: sticky;
@@ -45,6 +42,14 @@
     z-index: 100;
     flex-wrap: wrap;
     box-shadow: 10px 6px 20px rgba(0, 0, 0, 0.1);
+}
+
+.input-container .text {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .input-field {
@@ -66,6 +71,7 @@
 }
 
 .input-field .MuiInputBase-root {
+    padding-top: 0;
     padding-bottom: 0;
     align-items: center;
     margin: 8px 0;
@@ -76,13 +82,10 @@
     padding-bottom: 6px;
 }
 
-.input-container .selected-chip {
-    align-self: center;
-}
-
 /* Multiline behavior: auto-grow, then scroll */
 .input-field .MuiInputBase-inputMultiline {
     overflow-y: auto !important;
+    height: 2rem;
     max-height: 25vh;
     resize: none;
 }
@@ -90,7 +93,6 @@
 .input-field .MuiInputBase-input::placeholder {
     color: var(--text-secondary) !important;
     opacity: 0.7;
-    font-size: 0.9rem;
     font-style: italic;
 }
 
@@ -103,6 +105,7 @@
     border-radius: 50%;
     border: 1px solid var(--border-color);
     background: transparent;
+    margin-top: -1.5rem !important;
 }
 
 .attach-button:hover {
@@ -119,13 +122,12 @@
 }
 
 button.send-button {
-    align-self: flex-start;
     min-width: 36px;
     width: 36px;
     height: 36px;
     border-radius: 50%;
     padding: 0;
-    margin: 2px;
+    margin: 8px 2px;
     box-shadow: none;
     background: #e01f28;
 }
@@ -168,7 +170,7 @@ button.send-button:hover {
 }
 
 .selected-chip {
-    margin: 4px 4px 0 0;
+    margin: .8rem 4px 0 0 !important;
 }
 
 [data-theme="light"] .selected-chip {

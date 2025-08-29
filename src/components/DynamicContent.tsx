@@ -96,7 +96,6 @@ const DynamicContent: React.FC<DynamicContentProps> = ({ lastQuestion, isVisible
                 {buttonLabel}
                 <KeyboardArrowUp
                     sx={{
-                        ml: 1,
                         transform: showContent ? 'rotate(0deg)' : 'rotate(180deg)',
                         transition: 'transform 0.3s ease'
                     }}

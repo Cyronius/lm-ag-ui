@@ -2,7 +2,13 @@ import React from 'react';
 import { Box, Typography, Card, CardContent } from '@mui/material';
 import { useThemeMode } from '../contexts/ThemeContext';
 
-const useCases = [
+export interface UseCase {
+    title: string,
+    image: string,
+    description: string
+}
+
+const defaultUseCases: UseCase[] = [
     {
         title: "I need to create an entire curriculum with courses that consists of 5 or more courses for a specific topic in a few days",
         image: "https://premiumlearnermobileblob.blob.core.windows.net/e840bd34-5281-40dc-afce-d4c43d9c4fa2/4492284f-8b0b-4aa8-ee56-10ce9a95bad4.png?timeStamp=638911458275554634",
@@ -20,7 +26,11 @@ const useCases = [
     }
 ];
 
-const UseCases: React.FC = () => {
+interface UseCaseProps {
+    useCases?: Array<UseCase>
+}
+
+const UseCases: React.FC<UseCaseProps> = ({ useCases = defaultUseCases }) => {
     const { mode } = useThemeMode();
     const isDark = mode === 'dark';
 
@@ -47,14 +57,14 @@ const UseCases: React.FC = () => {
                         key={index}
                         sx={{ border: 'none', boxShadow: 'none', background: 'none' }}
                     >
-                        <CardContent sx={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <CardContent sx={{ height: "100%", flex: 1, display: 'grid',  padding: 1.5 }}>
                             <Typography
                                 variant="body2"
                                 sx={{
                                     color: isDark ? '#e0e0e0' : '#666',
                                     lineHeight: 1.4,
-                                    fontSize: '0.8rem',
-                                    paddingBottom: 1,
+                                    fontSize: '1.1rem',
+                                    paddingBottom: 1.5,
                                 }}
                             >
                                 {useCase.title}
@@ -64,15 +74,16 @@ const UseCases: React.FC = () => {
                                 src={useCase.image}
                                 alt={useCase.description}
                                 sx={{
-                                    maxWidth: { xs: '180px', sm: '220px', md: '250px' },
                                     height: 'auto',
+                                    maxWidth: "100%",
                                     objectFit: 'cover',
                                     backgroundColor: isDark ? '#444' : '#f5f5f5',
-                                    borderRadius: '14px',
+                                    borderRadius: "var(--border-radius)",
                                     display: 'block',
                                     border: '1px solid',
                                     borderColor: isDark ? '#444' : '#aeaeaeff',
-                                    alignSelf: 'center'
+                                    alignSelf: 'end',
+                                    justifySelf: "center"
                                 }}
                             />
                         </CardContent>

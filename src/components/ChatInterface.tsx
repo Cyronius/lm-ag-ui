@@ -201,6 +201,71 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
             )}
 
             <div className="input-container">
+                <div className="text">
+                    {selectedSuggestions.map((s) => (
+                        <Chip
+                            key={s}
+                            label={s}
+                            size="medium"
+                            className="selected-chip"
+                            icon={<LabelIcon className="chip-leading-icon" />}
+                            deleteIcon={
+                                <CancelOutlinedIcon className="chip-delete-icon" />
+                            }
+                            onDelete={() =>
+                                setSelectedSuggestions((prev) =>
+                                    prev.filter((x) => x !== s)
+                                )
+                            }
+                        />
+                    ))}
+
+                    <TextField
+                        inputRef={inputRef}
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) =>
+                            handleKeyPress(
+                                e as React.KeyboardEvent<
+                                    HTMLInputElement | HTMLTextAreaElement
+                                >
+                            )
+                        }
+                        placeholder={
+                            selectedSuggestions.length
+                                ? "Add any additional details you want to ask..."
+                                : "Ask questions, create content, schedule demos, or get account help - all through natural conversation..."
+                        }
+                        variant="outlined"
+                        fullWidth
+                        className="input-field"
+                        disabled={session.isActive}
+                        multiline
+                        minRows={1}
+                        maxRows={6}
+                    />
+                    <Button
+                        onClick={() => handleSendMessage()}
+                        disabled={
+                            (!inputValue.trim() &&
+                                selectedSuggestions.length === 0) ||
+                            session.isActive
+                        }
+                        variant="contained"
+                        color="primary"
+                        className="send-button"
+                        aria-label="send button"
+                    >
+                        <ArrowUpwardIcon />
+                    </Button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        hidden
+                        onChange={handleFilesSelected}
+                    />
+                </div>
                 <IconButton
                     className="attach-button"
                     aria-label="attach files"
@@ -210,67 +275,26 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                 >
                     <Add />
                 </IconButton>
-
-                {selectedSuggestions.map(s => (
-                    <Chip
-                        key={s}
-                        label={s}
-                        size="medium"
-                        className="selected-chip"
-                        icon={<LabelIcon className="chip-leading-icon" />}
-                        deleteIcon={<CancelOutlinedIcon className="chip-delete-icon" />}
-                        onDelete={() =>
-                            setSelectedSuggestions(prev => prev.filter(x => x !== s))
-                        }
-                    />
-                ))}
-
-                <TextField
-                    inputRef={inputRef}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => handleKeyPress(e as React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>)}
-                    placeholder={
-                        selectedSuggestions.length
-                            ? 'Add any additional details you want to ask...'
-                            : 'Ask questions, create content, schedule demos, or get account help - all through natural conversation...'
-                    }
-                    variant="outlined"
-                    fullWidth
-                    className="input-field"
-                    disabled={session.isActive}
-                    multiline
-                    minRows={1}
-                    maxRows={6}
-                />
-                <Button
-                    onClick={() => handleSendMessage()}
-                    disabled={(!inputValue.trim() && selectedSuggestions.length === 0) || session.isActive}
-                    variant="contained"
-                    color="primary"
-                    className="send-button"
-                >
-                    <ArrowUpwardIcon />
-                </Button>
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    hidden
-                    onChange={handleFilesSelected}
-                />
             </div>
 
-
             {attachments.length > 0 && (
-                <div style={{ alignSelf: 'flex-start', marginTop: 8, fontSize: 12, opacity: 0.75 }}>
+                <div
+                    style={{
+                        alignSelf: "flex-start",
+                        marginTop: 8,
+                        fontSize: 12,
+                        opacity: 0.75,
+                    }}
+                >
                     {attachments.length} file(s) selected
                 </div>
             )}
 
             {showSuggestions && (
                 <Box className="suggestions-container">
-                    <ChatSuggestions onSuggestionClick={handleSuggestionClick} />
+                    <ChatSuggestions
+                        onSuggestionClick={handleSuggestionClick}
+                    />
                 </Box>
             )}
         </Box>

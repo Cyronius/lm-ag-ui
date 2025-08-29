@@ -6,6 +6,7 @@
     --text-primary: #222222;
     --text-secondary: #4a5568;
     --border-color: #e0e0e0;
+    --border-radius: 20px;
     --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.1);
     --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
@@ -45,7 +46,7 @@
     bottom: 2rem;
     width: clamp(420px, 90vw, 1200px);
     aspect-ratio: 1600 / 600;
-    background-image: url('https://premiumlearnermobileblob.blob.core.windows.net/e840bd34-5281-40dc-afce-d4c43d9c4fa2/9adc1ed5-4c4f-b1aa-5131-394495636182.png?timeStamp=638917564045359994');
+    background-image: url('/heart.png');
     background-repeat: no-repeat;
     background-size: contain;
     background-position: right bottom;
@@ -62,10 +63,34 @@
 /* Header section */
 .app-header {
     text-align: center;
-    margin: 80px auto 30px auto;
+    margin: 30px auto 30px auto;
     width: 100%;
+    max-width: 1000px;
 }
 
+.app-header .nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    margin-bottom: 6rem;
+    padding: 0;
+}
+
+.app-header .nav .logo {
+    max-width: 300px;
+}
+
+.app-header .nav .nav-links {
+    padding: 0;
+    display: flex;
+    gap: 2rem;
+    list-style: none;
+    font-size: 1.2rem;
+}
+
+.app-header .nav .nav-links li:hover {
+    color: #E01F28;
+}
 
 .main-title {
     font-size: clamp(2rem, 5vw, 3.1rem);
@@ -127,15 +152,6 @@
     max-height: 60vh;
     overflow-y: auto;
     background: var(--background-color);
-}
-
-/* Utility class for top-right toggle */
-.top-right-toggle {
-    position: fixed;
-    top: 12px;
-    right: 16px;
-    z-index: 1500;
-    padding-right: env(safe-area-inset-right);
 }
 
 /* Hide the header on chat screen (when chat is open) */
@@ -211,6 +227,14 @@
     .app-container {
         padding: 0 16px;
     }
+
+    .app-container::after {
+        content: none;
+    }
+
+    .app-header .nav .logo {
+        max-width: 200px;
+    }
 }
 
 @media (max-width: 768px) {
@@ -219,7 +243,20 @@
     }
 
     .app-header {
-        margin: 60px auto 40px auto;
+        margin: 10px auto 40px auto;
+    }
+
+    .app-header .nav {
+        align-items: center;
+        flex-direction: column;
+        gap: .5rem;
+        margin-bottom: 3rem;
+    }
+
+    .app-header .nav .nav-links {
+        gap: 1rem;
+        font-size: .9rem;
+        align-items: center;
     }
 
     .use-cases-content {
@@ -233,7 +270,7 @@
     }
 
     .app-header {
-        margin: 40px auto 32px auto;
+        margin: 10px auto 32px auto;
     }
 
     .use-cases-content {
@@ -241,7 +278,13 @@
     }
 }
 
+@media (max-height: 900px) {
+    .app-container::after {
+        content: none;
+    }
+}
+
 /* Ensure smooth transitions */
 * {
-    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
