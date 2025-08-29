@@ -161,7 +161,6 @@
 }
 
 .use-cases-toggle:hover {
-    transform: translateY(-1px);
     background-color: transparent;
     box-shadow: none;
 }

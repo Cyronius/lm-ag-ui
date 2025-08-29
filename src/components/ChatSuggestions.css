@@ -112,7 +112,6 @@
 .suggestion-button:hover {
     background-color: var(--background-color);
     border-color: var(--border-color);
-    transform: translateY(-1px);
     opacity: 0.8;
 }
 
@@ -194,6 +193,5 @@
     .suggestion-button {
         padding: 0 16px;
         font-size: 0.8rem;
-        height: 44px;
     }
 }

@@ -6,7 +6,7 @@ import { AgentClientProvider } from './contexts/AgentClientContext';
 import { createSmarketingTools } from './tools/smartketingTools';
 import { AppThemeProvider } from './contexts/ThemeContext';
 import DynamicContent from './components/DynamicContent';
-import React from 'react';
+import React, { useEffect } from 'react';
 
 const App = () => {
     const tools = createSmarketingTools();
@@ -26,7 +26,7 @@ const App = () => {
                     <Header />
                     <div className="main-content">
                         <ChatInterface onDynamicMetaChange={setDynMeta} />
-                        {dynMeta.showDynamicContent && (
+                        {/* {dynMeta.showDynamicContent && (
                             <div className="dynamic-content-page-bottom">
                                 <DynamicContent
                                     lastQuestion={dynMeta.lastQuestion}
@@ -34,7 +34,7 @@ const App = () => {
                                     onOpenChange={setIsDynOpen}
                                 />
                             </div>
-                        )}
+                        )} */}
                     </div>
                 </div>
             </AgentClientProvider>
