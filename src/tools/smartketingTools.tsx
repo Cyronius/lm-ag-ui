@@ -11,7 +11,7 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
         changeBackgroundColor: {
             definition: {
                 name: "changeBackgroundColor",
-                description: "Change the background color of the page",
+                description: "Change the background color of the page.",
                 parameters: {
                     type: "object",
                     properties: {
@@ -74,9 +74,9 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
             isFrontend: false
         },
 
-        approve_outline_tool: {
+        transition_to_signup_tool: {
             definition: {
-                "name": "approve_outline_tool",
+                "name": "transition_to_signup_tool",
                 "description": "Approves the previously generated course outline and proceeds with course creation. Should be invoked when the user affirms they want to proceed after receiving a soco_outline_tool message.",
                 "parameters": {
                     "type": "object",
@@ -87,9 +87,27 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
             renderer: (args: any, result?: string) => <SignupForm/>,
             handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
                 console.log('approval handled');
-                return 'Outline approved';
+                return `{ "message": "Outline approved" }`;                
             },
-            isFrontend: false,
+            isFrontend: false,            
+        },
+
+        create_account_tool: {
+            definition: {
+                "name": "create_account_tool",
+                "description": "invoke this tool when the user requests to try out learner mobile or create a learner mobile account",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            renderer: (args: any, result?: string) => <SignupForm/>,
+            handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {   
+                // TODO: should be able to return objects directly.
+                return JSON.stringify({ message: 'signup form invoked' })
+            },            
+            isFrontend: true,
         }
     };
 }

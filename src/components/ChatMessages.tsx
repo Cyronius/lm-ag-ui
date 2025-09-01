@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Typography, CircularProgress } from '@mui/material';
-import { User, Wrench, Settings, Code } from 'lucide-react';
+import { User, Settings, Code } from 'lucide-react';
 import './ChatInterface.css';
 import './ChatMessages.css';
 import Markdown from 'react-markdown'
@@ -8,15 +8,8 @@ import remarkGfm from 'remark-gfm'
 import { Message } from '@ag-ui/core';
 import { useAgentContext } from '../contexts/AgentClientContext';
 
-interface ChatMessagesProps {
-    messages: Message[];
-    isTyping: boolean;
-    currentMessage: string;
-    messagesEndRef: React.RefObject<HTMLDivElement | null>;
-    getToolNameFromCallId: (toolCallId: string) => string | undefined;
-}
 
-function renderMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) {
+function renderMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void) {
     switch (message.role) {
         case 'user':
             return (
@@ -41,7 +34,7 @@ function renderMessage(message: Message, tools: Record<string, any>, globalState
             );
             
         case 'tool':
-            return renderToolMessage(message, tools, globalState, getToolNameFromCallId, updateState, getState);
+            return renderToolMessage(message, tools, globalState, getToolNameFromCallId, updateState);
             
         case 'system':
             return (
@@ -64,7 +57,7 @@ function renderMessage(message: Message, tools: Record<string, any>, globalState
     }
 }
 
-function renderToolMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) {
+function renderToolMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void) {
     // Get the tool name from the toolCallId mapping
     let toolName = '';
     const toolCallId = (message.role === 'tool' && 'toolCallId' in message) ? (message as any).toolCallId : undefined;
@@ -76,9 +69,10 @@ function renderToolMessage(message: Message, tools: Record<string, any>, globalS
         console.error(`couldn't find tool with id ${toolCallId}, so skipping rendering`);
         return;
     }
-
+    
     const tool = tools[toolName];
-    // it is possible a tool is defined on the backend but not the frontend -- this is true for knowledge bases
+    
+    // tool not being found is not necessarily a problem -- the frontend doesn't know about every tool the backend has and vice versa
     if (!tool) {        
         return
     }
@@ -107,7 +101,7 @@ function renderToolMessage(message: Message, tools: Record<string, any>, globalS
     }
     
     // Call the tool's renderer with state management functions
-    const renderResult = tool.renderer(args, message.content || '', updateState, getState);
+    const renderResult = tool.renderer(args, message.content || '', updateState);
     
     // If the renderer returns JSX, render it
     if (!React.isValidElement(renderResult)) {
@@ -138,15 +132,44 @@ function getMessageIcon(role: string) {
     }
 }
 
-export default function ChatMessages({ messages, isTyping, currentMessage, messagesEndRef, getToolNameFromCallId }: ChatMessagesProps) {
-    const { tools, globalState, updateState, getState } = useAgentContext();
+export default function ChatMessages() {
     
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    
+    const { 
+        session, 
+        tools, 
+        messages, 
+        globalState,
+        updateState,
+        currentMessage: agentCurrentMessage,
+        getToolNameFromCallId
+    } = useAgentContext();
+    
+
+    const scrollToBottom = () => {
+        if (messagesEndRef.current) {
+            const container = messagesEndRef.current.parentElement;
+            if (container && container.classList.contains('chat-messages-container')) {
+                container.scrollTop = container.scrollHeight;
+            } else {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages, agentCurrentMessage]);
+
+    console.log('rerendering messages')
+
     return <>
         {
             
             messages.map((message, i) => {
                 
-                let results = renderMessage(message, tools, globalState, getToolNameFromCallId, updateState, getState)
+                let results = renderMessage(message, tools, globalState, getToolNameFromCallId, updateState)
                 if (!results) {
                     return null
                 }
@@ -163,16 +186,16 @@ export default function ChatMessages({ messages, isTyping, currentMessage, messa
             })
         }
         {
-            isTyping && (
+            session.isActive && (
                 <div className="message assistant">
                     <div className="bot-icon">
                         <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
                     </div>
                     <div className="message-content assistant">
                         <Typography variant="body2" component="div">
-                            {currentMessage ? (
+                            {agentCurrentMessage ? (
                                 <Markdown remarkPlugins={[remarkGfm]}>
-                                    {currentMessage}
+                                    {agentCurrentMessage}
                                 </Markdown>
                             ) : (
                                 <div className="typing-indicator">

@@ -10,7 +10,6 @@ import { useThemeMode } from '../contexts/ThemeContext';
 import './ChatInterface.css';
 import { Message } from '@ag-ui/core';
 import { useAgentContext } from '../contexts/AgentClientContext';
-import { useAgent } from '../hooks/useAgent';
 import { getAllToolDefinitions } from '../tools/toolUtils';
 
 // callback prop to lift dynamic content meta
@@ -20,55 +19,25 @@ type ChatInterfaceProps = {
 
 export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProps) {
     const { mode } = useThemeMode();
-    const [lastSuggestionClicked, setLastSuggestionClicked] = useState<string>();
-    // Listen for calendly chat message events from the frontend tool
-    useEffect(() => {
-        const handleCalendlyChatMessage = (e: CustomEvent) => {
-            const calendlyMsg = e.detail;
-            setMessages(prev => [...prev, calendlyMsg]);
-        };
-        window.addEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
-        return () => {
-            window.removeEventListener('addCalendlyChatMessage', handleCalendlyChatMessage as EventListener);
-        };
-    }, []);
-    const [messages, setMessages] = useState<Message[]>([]);
+    const [lastSuggestionClicked, setLastSuggestionClicked] = useState<string>();    
     const [inputValue, setInputValue] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
     const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
-
-    const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
     // Use the unified context
-    const { agentClient, session, tools } = useAgentContext();
-    const allTools = getAllToolDefinitions(tools);
-    // Use the new combined hook for Agent and Tool Subscribers
-    const {
+    const { 
+        agentClient, 
+        session, 
+        tools, 
+        messages, 
+        addMessage,
         agentSubscriber,
-        currentMessage: agentCurrentMessage,
-        getToolNameFromCallId
-    } = useAgent({
-        onMessageComplete: (completedMessage) => {
-            setMessages(prev => {
-                let prevMessages = [...prev];
-                let toAppend = prevMessages.find(pm => pm.id === completedMessage.id);
+    } = useAgentContext();
+    const allTools = getAllToolDefinitions(tools);
 
-                // When scheduling a demo, the followup response is returned in multiple chunks with the same id and React complains about duplicate keys.
-                // Group these chunks together to form one single response.
-                if (toAppend && toAppend.content) {
-                    toAppend.content += completedMessage.content;
-                    return prevMessages;
-                }
-
-                return [...prev, completedMessage]
-            }
-            );
-        },
-        onErrorMessage: (errorMessage) => setMessages(prev => [...prev, errorMessage]),
-        agentClient: agentClient
-    });
-
+    
     // Restore focus when agent session ends
     useEffect(() => {
         if (!session.isActive && inputRef.current && messages.length > 0) {
@@ -83,20 +52,6 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         }
     }, [session.isActive, messages.length]);
 
-    const scrollToBottom = () => {
-        if (messagesEndRef.current) {
-            const container = messagesEndRef.current.parentElement;
-            if (container && container.classList.contains('chat-messages-container')) {
-                container.scrollTop = container.scrollHeight;
-            } else {
-                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            }
-        }
-    };
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages, agentCurrentMessage]);
 
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
@@ -115,7 +70,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
             role: 'user',
             content: fullContent
         };
-        setMessages(prev => [...prev, userMessage]);
+        addMessage(userMessage);
         setInputValue('');
         setAttachments([]);
         setSelectedSuggestions([]);
@@ -135,8 +90,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                 agentSubscriber
             );
         } catch (error) {
-            console.error('Agent execution failed:', error);
-            // Error handling is now managed by the hook
+            console.error('Agent execution failed:', error);            
             throw error;
         }
     };
@@ -190,13 +144,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         <Box className="chat-interface">
             {messages.length > 0 && (
                 <div className="chat-messages-container">
-                    <ChatMessages
-                        messages={messages}
-                        isTyping={session.isActive}
-                        currentMessage={agentCurrentMessage}
-                        messagesEndRef={messagesEndRef}
-                        getToolNameFromCallId={getToolNameFromCallId}
-                    />
+                    <ChatMessages />                
                 </div>
             )}
 
