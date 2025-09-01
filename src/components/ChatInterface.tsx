@@ -23,10 +23,9 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
     const [inputValue, setInputValue] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
     const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
-
-    const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
     // Use the unified context
     const { 
         agentClient, 
@@ -35,8 +34,6 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         messages, 
         addMessage,
         agentSubscriber,
-        currentMessage: agentCurrentMessage,
-        getToolNameFromCallId
     } = useAgentContext();
     const allTools = getAllToolDefinitions(tools);
 
@@ -55,20 +52,6 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         }
     }, [session.isActive, messages.length]);
 
-    const scrollToBottom = () => {
-        if (messagesEndRef.current) {
-            const container = messagesEndRef.current.parentElement;
-            if (container && container.classList.contains('chat-messages-container')) {
-                container.scrollTop = container.scrollHeight;
-            } else {
-                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            }
-        }
-    };
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages, agentCurrentMessage]);
 
     const handleSendMessage = async (messageText?: string) => {
         const textToSend = messageText || inputValue;
@@ -161,13 +144,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         <Box className="chat-interface">
             {messages.length > 0 && (
                 <div className="chat-messages-container">
-                    <ChatMessages
-                        messages={messages}
-                        isTyping={session.isActive}
-                        currentMessage={agentCurrentMessage}
-                        messagesEndRef={messagesEndRef}
-                        getToolNameFromCallId={getToolNameFromCallId}
-                    />
+                    <ChatMessages />                
                 </div>
             )}
 

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Typography, CircularProgress } from '@mui/material';
-import { User, Wrench, Settings, Code } from 'lucide-react';
+import { User, Settings, Code } from 'lucide-react';
 import './ChatInterface.css';
 import './ChatMessages.css';
 import Markdown from 'react-markdown'
@@ -8,13 +8,6 @@ import remarkGfm from 'remark-gfm'
 import { Message } from '@ag-ui/core';
 import { useAgentContext } from '../contexts/AgentClientContext';
 
-interface ChatMessagesProps {
-    messages: Message[];
-    isTyping: boolean;
-    currentMessage: string;
-    messagesEndRef: React.RefObject<HTMLDivElement | null>;
-    getToolNameFromCallId: (toolCallId: string) => string | undefined;
-}
 
 function renderMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void) {
     switch (message.role) {
@@ -139,9 +132,38 @@ function getMessageIcon(role: string) {
     }
 }
 
-export default function ChatMessages({ messages, isTyping, currentMessage, messagesEndRef, getToolNameFromCallId }: ChatMessagesProps) {
-    const { tools, globalState, updateState } = useAgentContext();
+export default function ChatMessages() {
     
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    
+    const { 
+        session, 
+        tools, 
+        messages, 
+        globalState,
+        updateState,
+        currentMessage: agentCurrentMessage,
+        getToolNameFromCallId
+    } = useAgentContext();
+    
+
+    const scrollToBottom = () => {
+        if (messagesEndRef.current) {
+            const container = messagesEndRef.current.parentElement;
+            if (container && container.classList.contains('chat-messages-container')) {
+                container.scrollTop = container.scrollHeight;
+            } else {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages, agentCurrentMessage]);
+
+    console.log('rerendering messages')
+
     return <>
         {
             
@@ -164,16 +186,16 @@ export default function ChatMessages({ messages, isTyping, currentMessage, messa
             })
         }
         {
-            isTyping && (
+            session.isActive && (
                 <div className="message assistant">
                     <div className="bot-icon">
                         <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
                     </div>
                     <div className="message-content assistant">
                         <Typography variant="body2" component="div">
-                            {currentMessage ? (
+                            {agentCurrentMessage ? (
                                 <Markdown remarkPlugins={[remarkGfm]}>
-                                    {currentMessage}
+                                    {agentCurrentMessage}
                                 </Markdown>
                             ) : (
                                 <div className="typing-indicator">
