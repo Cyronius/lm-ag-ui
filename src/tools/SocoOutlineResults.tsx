@@ -66,8 +66,8 @@ export default function SocoOutlineSignupFlow({ outline }: { outline: Outline })
 
     return (
         <div>
-            <SoCoOutlineView outline={outline} />            
-            <Button variant="contained" sx={{ maxWidth: '20em', mt: '1em' }} onClick={doSignup}>Create this Course Now</Button>
+            <SoCoOutlineView outline={outline} />                        
+            <Button variant="contained" sx={{ maxWidth: '40em', mt: '1em' }} onClick={doSignup}>Would you like me to create this course now?</Button>
         </div>
     )
 }

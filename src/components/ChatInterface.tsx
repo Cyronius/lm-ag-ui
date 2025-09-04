@@ -108,12 +108,49 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
     };
 
     const openFilePicker = () => fileInputRef.current?.click();
-    const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
-        if (files.length) setAttachments(prev => [...prev, ...files]);
-        // allow selecting same file again
-        if (e.target) e.target.value = '';
+        if (!files.length) return;
+
+
+        setAttachments(prev => [...prev, ...files]);
+        
+        
+        
+         // Upload selected files to /fileupload        
+        try {
+
+            // ensure we have a thread id
+            let session = agentClient.startNewRun()
+            let threadId = session.threadId
+            
+            const formData = new FormData();
+            // Append all files under the same "files" field; most backends accept this as an array
+            files.forEach((file) => formData.append('files', file));
+            formData.append('thread_id', threadId! )
+            const response = await fetch(`${import.meta.env.VITE_PYTHON_SERVER_URL}/smarketing/upload`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const text = await response.text().catch(() => '');
+                throw new Error(`Upload failed (${response.status}): ${text}`);
+            }
+
+            // Try to parse JSON response if provided
+            let data: any = null;
+            try {
+                data = await response.json();
+            } catch {
+                // non-JSON response is fine
+            }
+            console.log('Files uploaded successfully', data ?? '(no response body)');
+        } catch (err) {
+            console.error('Error uploading files:', err);
+        }
     };
+    
 
     // Hide header when chat is open (has messages or typing)
     useEffect(() => {
@@ -131,14 +168,21 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
 
     return (
         <Box className="chat-interface">
-            {messages.length > 0 && (
-                <div className="chat-messages-container">
-                    <ChatMessages />                
-                </div>
+            {messages.length > 0 && (                
+                <ChatMessages />                                
             )}
 
             <div className="input-container">
                 <div className="text">
+
+                    {attachments.map((file) =>
+                        // TODO: put a preview here
+                        <div key={file.name} style={{ aspectRatio: 1, maxWidth: '100px', overflow: 'hidden' }}>
+                            {file.name}
+                        </div>
+                    )}
+
+                    
                     {selectedSuggestions.map((s) => (
                         <Chip
                             key={s}
@@ -206,15 +250,15 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                 <IconButton
                     className="attach-button"
                     aria-label="attach files"
-                    onClick={openFilePicker}
-                    disabled={true} // temporarily disabled
+                    onClick={openFilePicker}                    
                     size="large"
+                    disabled
                 >
                     <Add />
                 </IconButton>
             </div>
 
-            {attachments.length > 0 && (
+            {/* {attachments.length > 0 && (
                 <div
                     style={{
                         alignSelf: "flex-start",
@@ -225,7 +269,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                 >
                     {attachments.length} file(s) selected
                 </div>
-            )}
+            )} */}
 
             {showSuggestions && (
                 <Box className="suggestions-container">
