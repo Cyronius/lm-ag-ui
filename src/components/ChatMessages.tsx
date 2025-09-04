@@ -1,159 +1,39 @@
-import React, { useEffect, useRef } from 'react';
-import { Typography, CircularProgress } from '@mui/material';
-import { User, Settings, Code } from 'lucide-react';
-import './ChatInterface.css';
-import './ChatMessages.css';
-import Markdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Message } from '@ag-ui/core';
-import { useAgentContext } from '../contexts/AgentClientContext';
-
-
-function renderMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void) {
-    switch (message.role) {
-        case 'user':
-            return (
-                <div className="message-content user">
-                    <Typography variant="body2" component="div">
-                        <Markdown remarkPlugins={[remarkGfm]}>
-                            {message.content || ''}
-                        </Markdown>
-                    </Typography>
-                </div>
-            );
-            
-        case 'assistant':
-            return (
-                <div className="message-content assistant">
-                    <Typography variant="body2" component="div">
-                        <Markdown remarkPlugins={[remarkGfm]}>
-                            {message.content || ''}
-                        </Markdown>
-                    </Typography>
-                </div>
-            );
-            
-        case 'tool':
-            return renderToolMessage(message, tools, globalState, getToolNameFromCallId, updateState);
-            
-        case 'system':
-            return (
-                <div className="message-content system">
-                    <Typography variant="caption" component="div" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
-                        System: {message.content}
-                    </Typography>
-                </div>
-            );
-            
-        case 'developer':
-            return (
-                <div className="message-content developer">
-                    <Typography variant="caption" component="div" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>
-                        Dev: {message.content}
-                    </Typography>
-                </div>
-            );
-
-    }
-}
-
-function renderToolMessage(message: Message, tools: Record<string, any>, globalState: any, getToolNameFromCallId: (toolCallId: string) => string | undefined, updateState: (toolName: string, data: any) => void) {
-    // Get the tool name from the toolCallId mapping
-    let toolName = '';
-    const toolCallId = (message.role === 'tool' && 'toolCallId' in message) ? (message as any).toolCallId : undefined;
-    if (toolCallId) {
-        toolName = getToolNameFromCallId(toolCallId) || '';
-    }
-
-    if (!toolName) {
-        console.error(`couldn't find tool with id ${toolCallId}, so skipping rendering`);
-        return;
-    }
-    
-    const tool = tools[toolName];
-    
-    // tool not being found is not necessarily a problem -- the frontend doesn't know about every tool the backend has and vice versa
-    if (!tool) {        
-        return
-    }
-
-    // if this tool has no renderer -- no need to do anything
-    if (!tool.renderer) {
-        return
-    }
-
-    
-    // Parse args from message content, handling one level of result property
-    let args: any = {};    
-    try {
-        args = JSON.parse(message.content || '{}');
-        if (args.result !== undefined) {
-            // Try to parse result as JSON, otherwise use as is
-            try {
-                args = JSON.parse(args.result);
-            } catch {
-                args = args.result;
-            }
-        }
-    } catch {
-        // If content isn't JSON, use it as is. Probably just some text.
-        args = message.content;
-    }
-    
-    // Call the tool's renderer with state management functions
-    const renderResult = tool.renderer(args, message.content || '', updateState);
-    
-    // If the renderer returns JSX, render it
-    if (!React.isValidElement(renderResult)) {
-        return
-    }
-                
-    return (
-        <div className="message-content tool">
-            {renderResult}            
-        </div>
-    );
-}
-
-function getMessageIcon(role: string) {
-    switch (role) {
-        case 'assistant':
-            return <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />;
-        case 'user':
-            return <User className="icon" />;
-        case 'tool':
-            return null;
-        case 'system':
-            return <Settings className="icon" />;
-        case 'developer':
-            return <Code className="icon" />;
-        default:
-            return null;
-    }
-}
+import React, { useEffect, useRef } from "react";
+import { Typography, CircularProgress } from "@mui/material";
+import "./ChatInterface.css";
+import "./ChatMessages.css";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { useAgentContext } from "../contexts/AgentClientContext";
+import ChatMessage from "./ChatMessage";
 
 export default function ChatMessages() {
-    
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    
-    const { 
-        session, 
-        tools, 
-        messages, 
+
+    const {
+        session,
+        tools,
+        messages,
         globalState,
         updateState,
         currentMessage: agentCurrentMessage,
-        getToolNameFromCallId
+        getToolNameFromCallId,
     } = useAgentContext();
-    
 
     const scrollToBottom = () => {
         if (messagesEndRef.current) {
             const container = messagesEndRef.current.parentElement;
-            if (container && container.classList.contains('chat-messages-container')) {
-                container.scrollTop = container.scrollHeight;
+            if (
+                container &&
+                container.classList.contains("chat-messages-container")
+            ) {
+                // Since we set the chat container height to full height, there's some weirdness when calculating scroll height
+                // where it's initially 0 and it needs to be in a timeout.
+                setTimeout(() => {
+                    container.scrollTop = container.scrollHeight;
+                }, 1)
             } else {
-                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
             }
         }
     };
@@ -162,34 +42,28 @@ export default function ChatMessages() {
         scrollToBottom();
     }, [messages, agentCurrentMessage]);
 
-    console.log('rerendering messages')
-
-    return <>
-        {
-            
-            messages.map((message, i) => {
-                
-                let results = renderMessage(message, tools, globalState, getToolNameFromCallId, updateState)
-                if (!results) {
-                    return null
-                }
-                
-                return <div key={message.id || i} className={`message ${message.role}`}>                    
-                    {(message.role === 'assistant' || message.role === 'system' || message.role === 'developer') && (
-                        <div className="bot-icon">
-                            {getMessageIcon(message.role)}
-                        </div>
-                    )}
-                    {results}
-                </div>
-
-            })
-        }
-        {
-            session.isActive && (
+    return (
+        <>
+            {messages.map((message, i) => {
+                return (
+                    <ChatMessage
+                        key={message.id || i}
+                        message={message}
+                        tools={tools}
+                        globalState={globalState}
+                        getToolNameFromCallId={getToolNameFromCallId}
+                        updateState={updateState}
+                    />
+                );
+            })}
+            {session.isActive && (
                 <div className="message assistant">
                     <div className="bot-icon">
-                        <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
+                        <img
+                            src="gabe-bot.png"
+                            alt="Bot Icon"
+                            className="bot-icon"
+                        />
                     </div>
                     <div className="message-content assistant">
                         <Typography variant="body2" component="div">
@@ -205,8 +79,8 @@ export default function ChatMessages() {
                         </Typography>
                     </div>
                 </div>
-            )
-        }
-        <div ref={messagesEndRef} />
-    </>
+            )}
+            <div ref={messagesEndRef} />
+        </>
+    );
 }

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Player } from '@lottiefiles/react-lottie-player';
 import {
     Box,
     Button,
@@ -18,6 +20,7 @@ export default function SignupForm() {
     const [email, setEmail] = useState('');
     const [emailError, setEmailError] = useState(null);
     const [password, setPassword] = useState('');
+    const [passwordError, setPasswordError] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
 
@@ -33,6 +36,7 @@ export default function SignupForm() {
         globalState
     } = useAgentContext();
 
+    const [isLoading, setIsLoading] = useState(false);
 
     const validateEmail = async () => {
 
@@ -72,7 +76,16 @@ export default function SignupForm() {
         }
     }
 
+    const validatePassword = () => {
+        if (!!password && password.length < 6) {
+            setPasswordError("Error validating password");
+        } else {
+            setPasswordError(null);
+        }
+    }
+
     const handleSignUp = async (e) => {
+        setIsLoading(true);
         e.preventDefault();
 
         let signupForm = {
@@ -121,6 +134,7 @@ export default function SignupForm() {
             return accountId;
         }
         else {
+            setIsLoading(false);
             console.error(res)
             throw new Error(`Error creating account code=${res.status}, detail=${res.statusText}`)
         }
@@ -156,6 +170,7 @@ export default function SignupForm() {
         }
         
         if (!res.ok) {
+            setIsLoading(false);
             console.log('failed to create course with status and message', res.status, res.statusText)
             throw 'failed to create course'
         }
@@ -167,15 +182,43 @@ export default function SignupForm() {
     return (
         <Box
             sx={{
-                margin: '0 auto',
+                margin: "0 auto",
                 mt: 7,
                 p: 4,
                 borderRadius: 3,
                 boxShadow: 6,
             }}
         >
+            {createPortal(
+                <Box
+                    sx={{
+                        position: "absolute",
+                        top: "0",
+                        right: "0",
+                        left: "0",
+                        bottom: "0",
+                        background: "white",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        visibility: isLoading ? "visible" : "hidden",
+                        opacity: isLoading ? "1" : "0",
+                        transition: "visibility 0s, opacity 0.5s linear"
+                    }}
+                >
+                    <Player
+                        autoplay
+                        loop
+                        src="/lottie/SignUpLoading.json"
+                        style={{ width: "100%" }}
+                    ></Player>
+                </Box>,
+                document.body
+            )}
+
             <Typography variant="h6" sx={{ mb: 2 }}>
-                Great! We just need a few pieces of information first to get you started.
+                Great! We just need a few pieces of information first to get you
+                started.
             </Typography>
             <form onSubmit={handleSignUp}>
                 <TextField
@@ -195,7 +238,7 @@ export default function SignupForm() {
                     type="email"
                     margin="normal"
                     onChange={(e) => {
-                        setEmail(e.target.value)
+                        setEmail(e.target.value);
                     }}
                     onBlur={validateEmail}
                     error={!!emailError}
@@ -206,24 +249,38 @@ export default function SignupForm() {
                     variant="outlined"
                     fullWidth
                     required
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     margin="normal"
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {validatePassword(); setPassword(e.target.value)}}
                     error={!!password && password.length < 6}
-                    helperText={(password && password.length < 6) ? "Password must be at least 6 characters." : null}
+                    helperText={
+                        password && password.length < 6
+                            ? "Password must be at least 6 characters."
+                            : null
+                    }
                     InputProps={{
                         endAdornment: (
                             <InputAdornment position="end">
                                 <IconButton
-                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                    onClick={() => setShowPassword((prev) => !prev)}
+                                    aria-label={
+                                        showPassword
+                                            ? "Hide password"
+                                            : "Show password"
+                                    }
+                                    onClick={() =>
+                                        setShowPassword((prev) => !prev)
+                                    }
                                     edge="end"
                                     tabIndex={-1}
                                 >
-                                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                                    {showPassword ? (
+                                        <VisibilityOff />
+                                    ) : (
+                                        <Visibility />
+                                    )}
                                 </IconButton>
                             </InputAdornment>
-                        )
+                        ),
                     }}
                 />
 
@@ -235,8 +292,8 @@ export default function SignupForm() {
                         />
                     }
                     label={
-                        <Typography variant="body2" >
-                            I accept the{' '}
+                        <Typography variant="body2">
+                            I accept the{" "}
                             <Link
                                 href="https://learnermobile.com/terms-and-conditions/"
                                 target="_blank"
@@ -245,8 +302,8 @@ export default function SignupForm() {
                                 underline="hover"
                             >
                                 Terms of Service
-                            </Link>{' '}
-                            and{' '}
+                            </Link>{" "}
+                            and{" "}
                             <Link
                                 href="https://learnermobile.com/privacy-policy/"
                                 target="_blank"
@@ -266,14 +323,14 @@ export default function SignupForm() {
                     variant="contained"
                     color="error"
                     fullWidth
-                    sx={{ mt: 3, fontWeight: 700, fontSize: '1rem', py: 1.5 }}
-                    disabled={!acceptedTerms}
+                    sx={{ mt: 3, fontWeight: 700, fontSize: "1rem", py: 1.5 }}
+                    disabled={!acceptedTerms || emailError || passwordError}
                 >
                     Sign me up for free!
                 </Button>
             </form>
-            <Typography variant="body2" sx={{ mt: 3, textAlign: 'center' }}>
-                Already have an account?{' '}
+            <Typography variant="body2" sx={{ mt: 3, textAlign: "center" }}>
+                Already have an account?{" "}
                 <Link
                     href="https://admin.learnermobilelabs.com/"
                     target="_blank"
@@ -283,7 +340,7 @@ export default function SignupForm() {
                     sx={{ fontWeight: 500 }}
                 >
                     Log in
-                </Link>{' '}
+                </Link>{" "}
                 instead!
             </Typography>
         </Box>

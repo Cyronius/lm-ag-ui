@@ -68,19 +68,21 @@
     max-width: 1000px;
 }
 
-.app-header .nav {
+.nav {
     display: flex;
     justify-content: space-between;
     align-items: end;
-    margin-bottom: 6rem;
+    margin: 1rem auto 6rem auto;
+    width: 100%;
     padding: 0;
+    max-width: 1000px;
 }
 
-.app-header .nav .logo {
-    max-width: 300px;
+.nav .logo {
+    max-width: 250px;
 }
 
-.app-header .nav .nav-links {
+.nav .nav-links {
     padding: 0;
     display: flex;
     gap: 2rem;
@@ -88,7 +90,7 @@
     font-size: 1.2rem;
 }
 
-.app-header .nav .nav-links li:hover {
+.nav .nav-links li:hover {
     color: #E01F28;
 }
 
@@ -157,6 +159,14 @@
 /* Hide the header on chat screen (when chat is open) */
 [data-chat-open="true"] .app-header {
     display: none;
+}
+
+[data-chat-open="true"] .nav {
+    margin-bottom: 1rem;
+}
+
+[data-chat-open="true"] .chat-messages-container {
+    margin-top: 2rem;
 }
 
 /* Theme toggle switch styles */
@@ -232,7 +242,7 @@
         content: none;
     }
 
-    .app-header .nav .logo {
+    .nav .logo {
         max-width: 200px;
     }
 }
@@ -246,14 +256,14 @@
         margin: 10px auto 40px auto;
     }
 
-    .app-header .nav {
+    .nav {
         align-items: center;
         flex-direction: column;
         gap: .5rem;
         margin-bottom: 3rem;
     }
 
-    .app-header .nav .nav-links {
+    .nav .nav-links {
         gap: 1rem;
         font-size: .9rem;
         align-items: center;

@@ -37,7 +37,6 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
     } = useAgentContext();
     const allTools = getAllToolDefinitions(tools);
 
-    
     // Restore focus when agent session ends
     useEffect(() => {
         if (!session.isActive && inputRef.current && messages.length > 0) {
@@ -116,15 +115,6 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         if (e.target) e.target.value = '';
     };
 
-    // Lift visibility and label info to parent
-    useEffect(() => {
-        const showDynamicContent = messages.length === 0 && !session.isActive;
-        onDynamicMetaChange?.({
-            showDynamicContent,
-            lastQuestion: inputValue || lastSuggestionClicked || selectedSuggestions[selectedSuggestions.length - 1]
-        });
-    }, [messages, session.isActive, inputValue, lastSuggestionClicked, selectedSuggestions, onDynamicMetaChange]);
-
     // Hide header when chat is open (has messages or typing)
     useEffect(() => {
         const isChatOpen = messages.length > 0 || session.isActive;
@@ -138,7 +128,6 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
     }, [messages.length, session.isActive]);
 
     const showSuggestions = messages.length === 0 && !session.isActive;
-    // const showDynamicContent = messages.length === 0 && !session.isActive; // moved up
 
     return (
         <Box className="chat-interface">

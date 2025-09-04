@@ -3,17 +3,20 @@
 .chat-interface {
     width: 100%;
     max-width: 1000px;
-    margin: 0 auto;
     display: flex;
     flex-direction: column;
     min-height: 250px;
     position: relative;
 }
 
+[data-chat-open="true"] .chat-interface {
+    height: calc(100vh - 2rem - 85px); /* Leave some padding at the bottom, and room for the header. */
+}
+
 .chat-messages-container {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    height: clamp(480px, 70vh, 800px);
     overflow-y: auto;
     overflow-x: hidden;
     margin-bottom: 20px;
@@ -21,7 +24,6 @@
     background: var(--background-color);
     border: 1px solid var(--border-color);
     border-radius: 20px;
-    max-height: clamp(480px, 70vh, 700px);
     min-height: 300px;
     margin-top: 80px;
 }

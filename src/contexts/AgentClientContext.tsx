@@ -63,6 +63,10 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
     // Streaming state - centralized here
     const [currentMessage, setCurrentMessage] = useState<string>('');
     const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
+
+    // Maintain a buffer for the streaming text
+    const currentMessageRef = useRef<string>('');
+    
     const [isStreaming, setIsStreaming] = useState<boolean>(false);
     
     // Tool execution state (using refs to avoid stale closures)
@@ -223,33 +227,41 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
     };
     
     agentSubscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
+        currentMessageRef.current = '';
         setCurrentMessage('');
         setCurrentMessageId(null);
     };
     
     agentSubscriberRef.current.onTextMessageContentEvent = ({ event }: { event: TextMessageContentEvent }) => {
-        
         if (event.messageId !== currentMessageId) {
             setCurrentMessageId(event.messageId);            
         } 
 
-        setCurrentMessage(prev => prev + event.delta);
+        // Add message to buffer
+        currentMessageRef.current += event.delta
+
+        // Update UI
+        setCurrentMessage(currentMessageRef.current);
+        
     };
     
-    agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {        
+    agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {  
         setGlobalState(event.snapshot ?? {})        
     };
     
     agentSubscriberRef.current.onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }) => {
         try {
-            if (currentMessage.trim()) {
 
-                console.log('completed message', currentMessage)
+            // Get the final text from the ref buffer, which avoids a race condition 
+            // where the connection closes before all messages are received and processed.
+            const finalText = currentMessageRef.current.trim();
+            if (finalText) {
+                console.log('completed message', finalText)
 
                 const completedMessage: Message = {
                     id: currentMessageId || `msg_${Date.now()}`,
                     role: 'assistant',
-                    content: currentMessage
+                    content: finalText
                 };
                 addMessage(completedMessage);
             }
@@ -262,6 +274,7 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
             };
             addMessage(errorMessage);
         } finally {
+            currentMessageRef.current = '';
             setCurrentMessage('');
             setCurrentMessageId(null);
             agentClient.endRun();
