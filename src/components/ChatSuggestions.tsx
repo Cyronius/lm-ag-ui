@@ -10,10 +10,8 @@ interface ChatSuggestionsProps {
 }
 
 const suggestions = [
-    "Create a course about…",
     "Create onboarding training for the role of…",
     "What makes Learner Mobile different?",
-    "Schedule a demo with Learner Mobile.",
     "How does the authoring tool work?",
     "Start my free trial",
     "How does Learner Mobile support AI?",
@@ -45,6 +43,32 @@ const suggestions = [
     "How long are contracts?",
 ];
 
+const stickySuggestions = [
+    "Create a course about...",
+    "Schedule a demo with Learner Mobile.",
+];
+
+// Randomize the order of the suggestions, while keeping certain ones sticky.
+shuffle(suggestions);
+
+// Make sure the sticky ones are always at the front.
+suggestions.unshift(...stickySuggestions);
+
+function shuffle(array: string[]) {
+  let currentIndex = array.length;
+
+  // While there remain elements to shuffle...
+  while (currentIndex != 0) {
+
+    // Pick a remaining element...
+    let randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex], array[currentIndex]];
+  }
+}
 
 const ChatSuggestions: React.FC<ChatSuggestionsProps> = ({ onSuggestionClick }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
