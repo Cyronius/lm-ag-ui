@@ -42,7 +42,7 @@ export default function SocoOutlineSignupFlow({ outline }: { outline: Outline })
         const userMessage: Message = {
             id: `user_${Date.now()}`,
             role: 'user',
-            content: 'invoke the approve_outline_tool'
+            content: 'invoke the transition_to_signup_tool'
         };
         
         agentClient.startNewRun();
