@@ -76,7 +76,7 @@
 .user-icon {
     display: flex;
     align-items: center;
-    margin-top: auto;
+    margin-top: 0;
     margin-bottom: auto;
     margin-left: 10px;
     margin-right: 20px;
