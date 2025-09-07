@@ -179,7 +179,6 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         
     }
 
-
     // Hide header when chat is open (has messages or typing)
     useEffect(() => {
         const isChatOpen = messages.length > 0 || session.isActive;
@@ -203,12 +202,16 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
             <div className="input-container">
                 <div className="text">
 
-                    {attachments.map((file) =>
-                        // TODO: put a preview here
-                        <div key={file.name} style={{ aspectRatio: 1, maxWidth: '100px', overflow: 'hidden' }}>
-                            {file.name}
-                        </div>
-                    )}
+                    {/* TODO: put a preview here */}
+                    {/* {attachments.map((file, index) =>                                                
+                        <PreviewCard data={
+                            {
+                                id: file.name,
+                                file: file,
+                                kind: classify(file.type, file.name)
+                            }
+                        } onRemove={() => { setAttachments(attachments.splice(index, 1)) }} />
+                    )} */}
 
                     
                     {selectedSuggestions.map((s) => (
