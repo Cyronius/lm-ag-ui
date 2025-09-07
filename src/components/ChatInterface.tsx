@@ -146,7 +146,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
     };
 
     // after uploading files, automatically invoke outline creation
-    async function invokeSoCoTool(artifacts:string[]) {
+    async function invokeSoCoTool(artifacts:any[]) {
         
         // add a message to let the user know what's going here
         const assistantMessage: Message = {
@@ -160,7 +160,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         const systemMessage: Message = {
             id: `system_${Date.now()}`,
             role: 'system',
-            content: `invoke the soco_outline_tool tool for the course topic ${artifacts[0]}`
+            content: `invoke the soco_outline_tool tool for the course topic '${artifacts[0].filename}'`
         };
                 
         agentClient.startNewRun();
