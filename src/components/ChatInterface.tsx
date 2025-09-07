@@ -33,7 +33,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         tools, 
         messages, 
         addMessage,
-        agentSubscriber,
+        agentSubscriber,        
     } = useAgentContext();
     const allTools = getAllToolDefinitions(tools);
 
@@ -115,8 +115,6 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
 
         setAttachments(prev => [...prev, ...files]);
         
-        
-        
          // Upload selected files to /fileupload        
         try {
 
@@ -139,18 +137,48 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
             }
 
             // Try to parse JSON response if provided
-            let data: any = null;
-            try {
-                data = await response.json();
-            } catch {
-                // non-JSON response is fine
-            }
-            console.log('Files uploaded successfully', data ?? '(no response body)');
+            let uploadResponse = await response.json();            
+            console.log('Files uploaded successfully', uploadResponse);
+            await invokeSoCoTool(uploadResponse.artifacts);
         } catch (err) {
             console.error('Error uploading files:', err);
         }
     };
-    
+
+    // after uploading files, automatically invoke outline creation
+    async function invokeSoCoTool(artifacts:string[]) {
+        
+        // add a message to let the user know what's going here
+        const assistantMessage: Message = {
+            id: `user_${Date.now()}`,
+            role: 'assistant',
+            content: "Give us a sec — your course sample is being prepared."
+        };
+        addMessage(assistantMessage)
+
+        // Add user message
+        const systemMessage: Message = {
+            id: `system_${Date.now()}`,
+            role: 'system',
+            content: `invoke the soco_outline_tool tool for the course topic ${artifacts[0]}`
+        };
+                
+        agentClient.startNewRun();
+        try {
+
+            await agentClient.runAgent(
+                [...messages, systemMessage],
+                getAllToolDefinitions(tools),
+                agentSubscriber
+            );
+        } catch (error) {
+            console.error('Agent execution failed:', error);
+            // Error handling is now managed by the hook
+            throw error;
+        }
+        
+    }
+
 
     // Hide header when chat is open (has messages or typing)
     useEffect(() => {
@@ -242,7 +270,8 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                     <input
                         ref={fileInputRef}
                         type="file"
-                        multiple
+                        // TODO: this only supports one file right now
+                        multiple={false}
                         hidden
                         onChange={handleFilesSelected}
                     />
@@ -251,8 +280,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                     className="attach-button"
                     aria-label="attach files"
                     onClick={openFilePicker}                    
-                    size="large"
-                    disabled
+                    size="large"                    
                 >
                     <Add />
                 </IconButton>
@@ -281,3 +309,4 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         </Box>
     );
 }
+

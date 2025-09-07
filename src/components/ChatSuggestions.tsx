@@ -13,7 +13,7 @@ const suggestions = [
     "Create onboarding training for the role of…",
     "What makes Learner Mobile different?",
     "How does the authoring tool work?",
-    "Start my free trial",
+    "Start my free trial",    
     "How does Learner Mobile support AI?",
     "What’s Source-to-Course?",
     "How do I set up badges and certificates?",
@@ -41,6 +41,7 @@ const suggestions = [
     "Do AI features cost extra?",
     "How much does it cost?",
     "How long are contracts?",
+    "What is Learner Mobile?"
 ];
 
 const stickySuggestions = [
