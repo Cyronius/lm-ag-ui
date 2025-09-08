@@ -9,6 +9,10 @@
     --border-radius: 20px;
     --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.1);
     --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+    --ui-color-buttons: rgb(72, 162, 159);
+    --ui-color-buttons-lighter:rgb(102,204,204);
+    --ui-color-buttons-text: white;
 }
 
 [data-theme="dark"] {

@@ -11,6 +11,9 @@ import { Message } from '@ag-ui/core';
 import { useAgentContext } from '../contexts/AgentClientContext';
 import { getAllToolDefinitions } from '../tools/toolUtils';
 
+// list of valid file extensions for upload
+const EXTENSIONS:string[] = ['.css', '.csv', '.docx', '.html', '.json', '.md', '.pdf', '.pptx', '.txt', '.xlsx', '.xml']
+
 // callback prop to lift dynamic content meta
 type ChatInterfaceProps = {
     onDynamicMetaChange?: (meta: { showDynamicContent: boolean; lastQuestion?: string }) => void;
@@ -32,7 +35,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         tools, 
         messages, 
         addMessage,
-        agentSubscriber,
+        agentSubscriber,        
     } = useAgentContext();
     const allTools = getAllToolDefinitions(tools);
 
@@ -107,12 +110,81 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
     };
 
     const openFilePicker = () => fileInputRef.current?.click();
-    const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
-        if (files.length) setAttachments(prev => [...prev, ...files]);
-        // allow selecting same file again
-        if (e.target) e.target.value = '';
+        if (!files.length) return;
+
+
+        setAttachments(prev => [...prev, ...files]);
+
+        // add a message to let the user know what's going here
+        const assistantMessage: Message = {
+            id: `user_${Date.now()}`,
+            role: 'assistant',
+            content: "Give us a sec — your course sample is being prepared."
+        };
+        addMessage(assistantMessage)
+        
+         // Upload selected files to /fileupload        
+        try {
+
+            // ensure we have a thread id
+            let session = agentClient.startNewRun()
+            let threadId = session.threadId
+            
+            const formData = new FormData();
+            // Append all files under the same "files" field; most backends accept this as an array
+            files.forEach((file) => formData.append('files', file));
+            formData.append('thread_id', threadId! )
+            const response = await fetch(`${import.meta.env.VITE_PYTHON_SERVER_URL}/smarketing/upload`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const text = await response.text().catch(() => '');
+                throw new Error(`Upload failed (${response.status}): ${text}`);
+            }
+
+            // Try to parse JSON response if provided
+            let uploadResponse = await response.json();            
+            console.log('Files uploaded successfully', uploadResponse);
+            await invokeSoCoTool(uploadResponse.artifacts);
+        } catch (err) {
+            console.error('Error uploading files:', err);
+        }
     };
+
+    // after uploading files, automatically invoke outline creation
+    async function invokeSoCoTool(artifacts:any[]) {
+        
+        // Add user message
+        const systemMessage: Message = {
+            id: `system_${Date.now()}`,
+            role: 'system',            
+            content: `
+                You must call the soco_outline_tool with the following JSON:
+                { "course_topic": "${artifacts[0].filename}" }
+                Do not generate the outline yourself. Only call the tool.
+            `
+        };
+                
+        agentClient.startNewRun();
+        try {
+
+            await agentClient.runAgent(
+                [...messages, systemMessage],
+                // explicitly pass in just this one tool.
+                getAllToolDefinitions({soco_outline_tool: tools.soco_outline_tool}),
+                agentSubscriber
+            );
+        } catch (error) {
+            console.error('Agent execution failed:', error);
+            // Error handling is now managed by the hook
+            throw error;
+        }
+        
+    }
 
     // Hide header when chat is open (has messages or typing)
     useEffect(() => {
@@ -130,14 +202,25 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
 
     return (
         <Box className="chat-interface">
-            {messages.length > 0 && (
-                <div className="chat-messages-container">
-                    <ChatMessages />                
-                </div>
+            {messages.length > 0 && (                
+                <ChatMessages />                                
             )}
 
             <div className="input-container">
                 <div className="text">
+
+                    {/* TODO: put a preview here */}
+                    {/* {attachments.map((file, index) =>                                                
+                        <PreviewCard data={
+                            {
+                                id: file.name,
+                                file: file,
+                                kind: classify(file.type, file.name)
+                            }
+                        } onRemove={() => { setAttachments(attachments.splice(index, 1)) }} />
+                    )} */}
+
+                    
                     {selectedSuggestions.map((s) => (
                         <Chip
                             key={s}
@@ -196,34 +279,22 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                     <input
                         ref={fileInputRef}
                         type="file"
-                        multiple
+                        // TODO: this only supports one file right now
+                        multiple={false}
                         hidden
                         onChange={handleFilesSelected}
+                        accept={EXTENSIONS}
                     />
                 </div>
                 <IconButton
                     className="attach-button"
                     aria-label="attach files"
-                    onClick={openFilePicker}
-                    disabled={true} // temporarily disabled
-                    size="large"
+                    onClick={openFilePicker}                    
+                    size="large"                    
                 >
                     <Add />
                 </IconButton>
             </div>
-
-            {attachments.length > 0 && (
-                <div
-                    style={{
-                        alignSelf: "flex-start",
-                        marginTop: 8,
-                        fontSize: 12,
-                        opacity: 0.75,
-                    }}
-                >
-                    {attachments.length} file(s) selected
-                </div>
-            )}
 
             {showSuggestions && (
                 <Box className="suggestions-container">
@@ -235,3 +306,4 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         </Box>
     );
 }
+

@@ -6,14 +6,19 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAgentContext } from "../contexts/AgentClientContext";
 import ChatMessage from "./ChatMessage";
+import CancelIcon from '@mui/icons-material/Cancel'
+import IconButton from '@mui/material/IconButton'
 
 export default function ChatMessages() {
+    
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const {
+        agentClient,
         session,
         tools,
         messages,
+        clearMessages,
         globalState,
         updateState,
         currentMessage: agentCurrentMessage,
@@ -38,12 +43,23 @@ export default function ChatMessages() {
         }
     };
 
+    const onClose = () => {        
+        agentClient.endSession();      
+        clearMessages();        
+    }    
+
     useEffect(() => {
         scrollToBottom();
     }, [messages, agentCurrentMessage]);
 
-    return (
-        <>
+    return <>
+        
+        {/* close icon */}
+        <IconButton id="cancel-btn" onClick={onClose} aria-label="cancel run" size="small" color="primary">
+            <CancelIcon />
+        </IconButton>
+
+        <div className="chat-messages-container">
             {messages.map((message, i) => {
                 return (
                     <ChatMessage
@@ -81,6 +97,6 @@ export default function ChatMessages() {
                 </div>
             )}
             <div ref={messagesEndRef} />
-        </>
-    );
+        </div>
+    </>    
 }

@@ -60,10 +60,13 @@ export const createAppTheme = (mode: 'light' | 'dark') => {
                         }
                     },
                     contained: {
-                        backgroundColor: isDark ? '#2462ad' : '#2462ad',
-                        color: '#ffffff',
+                        fontSize: '16px',
+                        backgroundColor: 'var(--ui-color-buttons)',
+                        color: 'var(--ui-color-buttons-text)',
+                        paddingLeft: '1.5em',
+                        paddingRight: '1.5em',
                         '&:hover': {
-                            backgroundColor: isDark ? '#1a4582' : '#1a4582'
+                            backgroundColor: 'var(--ui-color-buttons-lighter)',
                         }
                     },
                     outlined: {

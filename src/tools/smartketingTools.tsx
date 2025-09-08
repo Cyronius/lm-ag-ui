@@ -2,7 +2,7 @@ import React from 'react';
 import { ToolDefinition } from '../types/index';
 import SocoOutlineSignupFlow from './SocoOutlineResults'
 import SignupForm from './SignupForm'
-import { CalendlyArtifact } from './CalendlyArtifact';
+import { CalendarArtifact } from './CalendarArtifact';
 
 export function createSmarketingTools(): Record<string, ToolDefinition> {
     return {
@@ -32,10 +32,10 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
             isFrontend: true
         },
         
-        showCalendlyWidget: {
+        showCalendarWidget: {
             definition: {
-                name: "showCalendlyWidget",
-                description: "Book a demo with our sales team via Calendly. Displays a Calendly widget.",
+                name: "showCalendarWidget",
+                description: "Book a demo with our sales team via a calendar. Displays the Calendar widget.",
                 parameters: {
                     type: "object",
                     properties: {
@@ -45,9 +45,9 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
                 }
             },
             handler: (args: any) => {                
-                return `Calendly widget displayed`;
+                return `Calendar widget displayed`;
             },
-            renderer: (args: any, result?: string) =>  <CalendlyArtifact url="https://meetings-na2.hubspot.com/sheryl-porter" />,
+            renderer: (args: any, result?: string) =>  <CalendarArtifact url="https://meetings-na2.hubspot.com/sheryl-porter" />,
             isFrontend: true
         },
                 
@@ -66,8 +66,7 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
                     },
                     required: ["course_topic"]
                 }
-            },
-            // No handler - this is executed by backend
+            },                        
             renderer: (args: any, result?: string) => {
                 return <SocoOutlineSignupFlow outline={ args } />
             },

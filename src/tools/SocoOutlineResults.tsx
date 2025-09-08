@@ -66,8 +66,8 @@ export default function SocoOutlineSignupFlow({ outline }: { outline: Outline })
 
     return (
         <div>
-            <SoCoOutlineView outline={outline} />            
-            <Button variant="contained" sx={{ maxWidth: '20em', mt: '2em' }} onClick={doSignup}>Create this Course Now</Button>
+            <SoCoOutlineView outline={outline} />                        
+            <Button variant="contained" sx={{ maxWidth: '40em', mt: '2em' }} onClick={doSignup}>Would you like me to create this course now?</Button>
         </div>
     )
 }
@@ -97,9 +97,10 @@ export function SoCoOutlineView({ outline }: { outline: Outline }) {
                     <ul>
                         {outline.modules.map((module, idx) => (
                             <li key={idx}>                                
-                                <p style={{ paddingTop: '0.5em' }}><Typography variant="subtitle2">{module.header}</Typography>
-                                   <Typography variant="body2">{module.description}</Typography>
-                                </p>                                
+                                <div style={{ paddingTop: '0.5em' }}>
+                                    <Typography variant="subtitle2">{module.header}</Typography>
+                                    <Typography variant="body2">{module.description}</Typography>
+                                </div>                                
                             </li>
                         ))}
                     </ul>

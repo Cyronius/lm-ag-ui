@@ -9,15 +9,66 @@ interface ChatSuggestionsProps {
 }
 
 const suggestions = [
-  "Create a course about...",
-  "Create safety training for the role of...",
-  "Ask about microlearning",
-  "Inquire about compliance training",
-  "What integrations does your system have?",
-  "Schedule a demo",
-  "Training questions"
+    "Create onboarding training for the role of…",
+    "What makes Learner Mobile different?",
+    "How does the authoring tool work?",
+    "Start my free trial",    
+    "How does Learner Mobile support AI?",
+    "What’s Source-to-Course?",
+    "How do I set up badges and certificates?",
+    "Does Learner Mobile support SCORM?",
+    "How do I create role-based learning paths?",
+    "What industries use Learner Mobile?",
+    "How do you support frontline workers?",
+    "Can it deliver video training?",
+    "Can I customize the site’s look?",
+    "What reports and analytics are included?",
+    "How do you make training engaging?",
+    "What’s microlearning all about?",
+    "Can it integrate with other systems?",
+    "What support is offered after launch?",
+    "Can it scale as my company grows?",
+    "How fast can I build training?",
+    "What does onboarding and support look like?",
+    "Does it work offline?",
+    "What awards have you won?",
+    "How does it boost employee retention?",
+    "What makes it easy for admins?",
+    "What content works best here?",
+    "What size companies do you serve?",
+    "Can nonprofits use Learner Mobile?",
+    "Do AI features cost extra?",
+    "How much does it cost?",
+    "How long are contracts?",
+    "What is Learner Mobile?"
 ];
 
+const stickySuggestions = [
+    "Create a course about...",
+    "Schedule a demo with Learner Mobile.",
+];
+
+// Randomize the order of the suggestions, while keeping certain ones sticky.
+shuffle(suggestions);
+
+// Make sure the sticky ones are always at the front.
+suggestions.unshift(...stickySuggestions);
+
+function shuffle(array: string[]) {
+  let currentIndex = array.length;
+
+  // While there remain elements to shuffle...
+  while (currentIndex != 0) {
+
+    // Pick a remaining element...
+    let randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex], array[currentIndex]];
+  }
+}
 
 const ChatSuggestions: React.FC<ChatSuggestionsProps> = ({ onSuggestionClick }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);

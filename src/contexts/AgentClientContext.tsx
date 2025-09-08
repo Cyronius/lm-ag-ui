@@ -143,6 +143,7 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
 
     
     const executeBackendTool = useCallback((toolName: string, argsJson: string, toolCallId: string):Message|null => {        
+        // TODO: we should allow frontend handler calls for backend tools.
         return null
     }, [agentClient]);
 
