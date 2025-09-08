@@ -160,7 +160,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         const systemMessage: Message = {
             id: `system_${Date.now()}`,
             role: 'system',
-            content: `invoke the soco_outline_tool tool for the course topic '${artifacts[0].filename}'`
+            content: `create a course outline by invoking the 'soco_outline_tool' tool using the topic '${artifacts[0].filename}'`
         };
                 
         agentClient.startNewRun();
