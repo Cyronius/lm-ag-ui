@@ -11,6 +11,9 @@ import { Message } from '@ag-ui/core';
 import { useAgentContext } from '../contexts/AgentClientContext';
 import { getAllToolDefinitions } from '../tools/toolUtils';
 
+// list of valid file extensions for upload
+const EXTENSIONS:string[] = ['.css', '.csv', '.docx', '.html', '.json', '.md', '.pdf', '.pptx', '.txt', '.xlsx', '.xml']
+
 // callback prop to lift dynamic content meta
 type ChatInterfaceProps = {
     onDynamicMetaChange?: (meta: { showDynamicContent: boolean; lastQuestion?: string }) => void;
@@ -280,6 +283,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                         multiple={false}
                         hidden
                         onChange={handleFilesSelected}
+                        accept={EXTENSIONS}
                     />
                 </div>
                 <IconButton
