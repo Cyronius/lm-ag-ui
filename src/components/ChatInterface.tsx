@@ -114,6 +114,14 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
 
 
         setAttachments(prev => [...prev, ...files]);
+
+        // add a message to let the user know what's going here
+        const assistantMessage: Message = {
+            id: `user_${Date.now()}`,
+            role: 'assistant',
+            content: "Give us a sec — your course sample is being prepared."
+        };
+        addMessage(assistantMessage)
         
          // Upload selected files to /fileupload        
         try {
@@ -148,14 +156,6 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
     // after uploading files, automatically invoke outline creation
     async function invokeSoCoTool(artifacts:any[]) {
         
-        // add a message to let the user know what's going here
-        const assistantMessage: Message = {
-            id: `user_${Date.now()}`,
-            role: 'assistant',
-            content: "Give us a sec — your course sample is being prepared."
-        };
-        addMessage(assistantMessage)
-
         // Add user message
         const systemMessage: Message = {
             id: `system_${Date.now()}`,
