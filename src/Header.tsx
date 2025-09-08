@@ -16,15 +16,15 @@ export function Header() {
         return (
             <ul className={`nav-links ${isMobile ? "mobile" : "default"}`}>
                 <li>
-                    <a href="https://learnermobile.com/product/">
+                    <a href="https://training.learnermobile.com/">
                         Training Platform
                     </a>
                 </li>
                 <li>
-                    <a href="https://learnermobile.com/pricing/">Pricing</a>
+                    <a href="https://training.learnermobile.com/pricing/">Pricing</a>
                 </li>
                 <li>
-                    <a href="https://learnermobile.com/contact-us/">
+                    <a href="https://training.learnermobile.com/contact-us/">
                         Contact Us
                     </a>
                 </li>
