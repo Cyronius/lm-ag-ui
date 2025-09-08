@@ -28,10 +28,18 @@ export default function SignupForm() {
 
     const [isLoading, setIsLoading] = useState(false);
 
-    const validateEmail = async () => {
+    const validateEmail = async (e) => {
 
+        let email = e.target.value
         if (!email) {
+            setEmailError("Email is required");
             return
+        }
+
+        // check if email is formatted as "_@_._"
+        if (!/\S+@\S+\.\S+/.test(email)) {
+            setEmailError("Invalid Email Format");
+            return;
         }
 
         var validateParams = new URLSearchParams();
