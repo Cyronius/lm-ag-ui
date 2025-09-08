@@ -12,7 +12,7 @@
 
     --ui-color-buttons: rgb(72, 162, 159);
     --ui-color-buttons-lighter:rgb(102,204,204);
-    --ui-color-buttons-text: rgb(240, 240, 240);
+    --ui-color-buttons-text: white;
 }
 
 [data-theme="dark"] {

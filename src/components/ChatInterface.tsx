@@ -158,8 +158,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         // Add user message
         const systemMessage: Message = {
             id: `system_${Date.now()}`,
-            role: 'system',
-            //content: `create a course outline by invoking the 'soco_outline_tool' tool using the topic '${artifacts[0].filename}'`
+            role: 'system',            
             content: `
                 You must call the soco_outline_tool with the following JSON:
                 { "course_topic": "${artifacts[0].filename}" }
@@ -292,19 +291,6 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                     <Add />
                 </IconButton>
             </div>
-
-            {/* {attachments.length > 0 && (
-                <div
-                    style={{
-                        alignSelf: "flex-start",
-                        marginTop: 8,
-                        fontSize: 12,
-                        opacity: 0.75,
-                    }}
-                >
-                    {attachments.length} file(s) selected
-                </div>
-            )} */}
 
             {showSuggestions && (
                 <Box className="suggestions-container">
