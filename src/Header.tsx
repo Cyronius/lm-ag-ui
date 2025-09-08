@@ -43,11 +43,13 @@ export function Header() {
     return (
         <>
             <nav className="nav">
-                <img
-                    className="logo"
-                    src={lmLogoPath}
-                    alt="Learner Mobile logo"
-                />
+                <a href="https://learnermobile.com">
+                    <img
+                        className="logo"
+                        src={lmLogoPath}
+                        alt="Learner Mobile logo"
+                    />
+                </a>
                 {renderNavLinks(false)}
                 <div className="mobile-menu-container">
                     <IconButton
