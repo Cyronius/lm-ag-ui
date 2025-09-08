@@ -62,6 +62,8 @@ export const createAppTheme = (mode: 'light' | 'dark') => {
                         fontSize: '16px',
                         backgroundColor: 'var(--ui-color-buttons)',
                         color: 'var(--ui-color-buttons-text)',
+                        paddingLeft: '1.5em',
+                        paddingRight: '1.5em',
                         '&:hover': {
                             backgroundColor: 'var(--ui-color-buttons-lighter)',
                         }
