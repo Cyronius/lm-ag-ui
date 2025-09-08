@@ -1,62 +1,72 @@
-import { Box } from '@mui/material';
-import { LightMode, DarkMode } from '@mui/icons-material';
-import { useThemeMode } from './contexts/ThemeContext';
+import { useState } from "react";
+import MenuIcon from "@mui/icons-material/Menu";
+import CloseIcon from "@mui/icons-material/Close";
+import IconButton from "@mui/material/IconButton";
+import { useThemeMode } from "./contexts/ThemeContext";
 
 export function Header() {
     const { mode, toggleTheme } = useThemeMode();
-    const isDark = mode === 'dark';
+
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+    const isDark = mode === "dark";
     const lmLogoPath = `lm-logo-${isDark ? "dark" : "light"}.png`;
+
+    function renderNavLinks(isMobile: boolean) {
+        return (
+            <ul className={`nav-links ${isMobile ? "mobile" : "default"}`}>
+                <li>
+                    <a href="https://learnermobile.com/product/">
+                        Training Platform
+                    </a>
+                </li>
+                <li>
+                    <a href="https://learnermobile.com/pricing/">Pricing</a>
+                </li>
+                <li>
+                    <a href="https://learnermobile.com/contact-us/">
+                        Contact Us
+                    </a>
+                </li>
+                <li>
+                    <a href="https://app.learnermobile.com/">Login</a>
+                </li>
+                <li>
+                    <a href="https://admin.learnermobile.com/Account/SignUp/">
+                        Get started
+                    </a>
+                </li>
+            </ul>
+        );
+    }
 
     return (
         <>
-            <nav
-                className="nav"
-            >
-                <img className="logo" src={lmLogoPath} alt="Learner Mobile logo" />
-                <ul className="nav-links">
-                    <li>
-                        <a href="https://learnermobile.com/pricing/" style={{ textDecoration: "none", color: "unset" }}>Pricing</a>
-                    </li>
-                    <li>
-                        <a href="https://learnermobile.com/contact-us/" style={{ textDecoration: "none", color: "unset" }}>Contact Us</a>
-                    </li>
-                    <li>
-                        <a href="https://app.learnermobile.com/" style={{ textDecoration: "none", color: "unset" }}>Login</a>
-                    </li>
-                    <li>
-                        <a href="https://admin.learnermobile.com/Account/SignUp/" style={{ textDecoration: "none", color: "unset" }}>Get started</a>
-                    </li>
-                    <li>
-                        <div className="top-right-toggle">
-                            <Box className="theme-toggle-switch">
-                                <Box
-                                    className={`theme-toggle-switch__icon theme-toggle-switch__icon--left${
-                                        !isDark ? " selected" : ""
-                                    }`}
-                                    onClick={() => {
-                                        toggleTheme();
-                                    }}
-                                >
-                                    <LightMode />
-                                </Box>
-                                <Box
-                                    className={`theme-toggle-switch__icon theme-toggle-switch__icon--right${
-                                        isDark ? " selected" : ""
-                                    }`}
-                                    onClick={() => {
-                                        toggleTheme();
-                                    }}
-                                >
-                                    <DarkMode />
-                                </Box>
-                            </Box>
+            <nav className="nav">
+                <img
+                    className="logo"
+                    src={lmLogoPath}
+                    alt="Learner Mobile logo"
+                />
+                {renderNavLinks(false)}
+                <div className="mobile-menu-container">
+                    <IconButton
+                        aria-label="Mobile Menu"
+                        sx={{ color: "black" }}
+                        onClick={() => setMobileMenuOpen((prev) => !prev)}
+                    >
+                        {!mobileMenuOpen ? <MenuIcon /> : <CloseIcon />}
+                    </IconButton>
+                    {mobileMenuOpen && (
+                        <div className="mobile-menu">
+                            {renderNavLinks(true)}
                         </div>
-                    </li>
-                </ul>
+                    )}
+                </div>
             </nav>
             <header className="app-header">
                 <h1 className="main-title">
-                    Hello, how can we help your training needs?
+                    Hi there! What training problems can we help you with today?
                 </h1>
             </header>
         </>

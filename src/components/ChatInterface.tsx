@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Box, TextField, Button, IconButton, Chip } from '@mui/material';
 import { Add } from '@mui/icons-material';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import LabelIcon from '@mui/icons-material/Label';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import ChatMessages from './ChatMessages';
 import ChatSuggestions from './ChatSuggestions';
@@ -145,7 +144,6 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                             label={s}
                             size="medium"
                             className="selected-chip"
-                            icon={<LabelIcon className="chip-leading-icon" />}
                             deleteIcon={
                                 <CancelOutlinedIcon className="chip-delete-icon" />
                             }
@@ -171,7 +169,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                         placeholder={
                             selectedSuggestions.length
                                 ? "Add any additional details you want to ask..."
-                                : "Ask questions, create content, schedule demos, or get account help - all through natural conversation..."
+                                : "Ask questions, create content, schedule a demo - you get the picture!"
                         }
                         variant="outlined"
                         fullWidth

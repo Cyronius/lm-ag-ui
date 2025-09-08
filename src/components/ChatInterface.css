@@ -23,7 +23,7 @@
     padding: 12px 16px;
     background: var(--background-color);
     border: 1px solid var(--border-color);
-    border-radius: 20px;
+    border-radius: var(--border-radius);
     min-height: 300px;
     margin-top: 80px;
 }

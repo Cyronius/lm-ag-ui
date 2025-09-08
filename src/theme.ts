@@ -25,9 +25,10 @@ export const createAppTheme = (mode: 'light' | 'dark') => {
             divider: isDark ? '#333333' : '#e0e0e0'
         },
         typography: {
-            fontFamily: '"Rubik", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
             allVariants: {
-                color: isDark ? '#ffffff' : '#222222'
+                color: isDark ? '#ffffff' : '#222222',
+                lineHeight: 1.5
             },
             h1: {
                 fontWeight: 700,
