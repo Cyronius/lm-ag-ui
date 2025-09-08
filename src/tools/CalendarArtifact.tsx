@@ -2,12 +2,12 @@ import { Box } from '@mui/material';
 import React from 'react';
 import { Typography } from '@mui/material';
 
-interface CalendlyArtifactProps {
+interface CalendarArtifactProps {
     url: string;
     height?: number;
 }
 
-export const CalendlyArtifact: React.FC<CalendlyArtifactProps> = ({ url, height = 1000 }) => {
+export const CalendarArtifact: React.FC<CalendarArtifactProps> = ({ url, height = 1000 }) => {
     const [visible, setVisible] = React.useState(true);
     if (!visible) return null;
     return (
