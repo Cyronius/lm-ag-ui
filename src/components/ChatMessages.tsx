@@ -76,8 +76,8 @@ export default function ChatMessages() {
                 <div className="message assistant">
                     <div className="bot-icon">
                         <img
-                            src="gabe-bot.png"
-                            alt="Bot Icon"
+                            src="lm-chat-icon.png"
+                            alt="Learner Mobile Chat Avatar"
                             className="bot-icon"
                         />
                     </div>

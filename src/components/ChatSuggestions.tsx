@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 import { Box, Button, IconButton } from '@mui/material';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import ArrowBackIosIcon from '@mui/icons-material/ArrowBackIos';
-import LabelIcon from '@mui/icons-material/Label';
 import './ChatSuggestions.css';
 
 interface ChatSuggestionsProps {
@@ -131,7 +130,7 @@ const ChatSuggestions: React.FC<ChatSuggestionsProps> = ({ onSuggestionClick }) 
             onClick={() => onSuggestionClick(suggestion)}
             variant="outlined"
             className="suggestion-button"
-            startIcon={<LabelIcon />}
+            sx={{ borderRadius: "16px"}}
           >
             <span className="suggestion-text">{suggestion}</span>
           </Button>

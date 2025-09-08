@@ -9,11 +9,11 @@ import { Message } from "@ag-ui/core";
 import { ToolDefinition } from "../types";
 
 interface ChatMessageProps {
-    message: Message,
-    tools: Record<string, ToolDefinition>
-    globalState: any, 
-    getToolNameFromCallId: (toolCallId: string) => string | undefined,
-    updateState: (toolName: string, data: any) => void
+    message: Message;
+    tools: Record<string, ToolDefinition>;
+    globalState: any;
+    getToolNameFromCallId: (toolCallId: string) => string | undefined;
+    updateState: (toolName: string, data: any) => void;
 }
 
 function renderMessage(
@@ -158,7 +158,7 @@ function getMessageIcon(role: string) {
     switch (role) {
         case "assistant":
             return (
-                <img src="gabe-bot.png" alt="Bot Icon" className="bot-icon" />
+                <img src="lm-chat-icon.png" alt="Learner Mobile Chat Avatar" className="bot-icon" />
             );
         case "user":
             return <User className="icon" />;
@@ -173,28 +173,38 @@ function getMessageIcon(role: string) {
     }
 }
 
-const ChatMessage = React.memo(({ message, tools, globalState, getToolNameFromCallId, updateState }: ChatMessageProps) => {
-    let results = renderMessage(
+const ChatMessage = React.memo(
+    ({
         message,
         tools,
         globalState,
         getToolNameFromCallId,
-        updateState
-    );
-    if (!results) {
-        return null;
-    }
+        updateState,
+    }: ChatMessageProps) => {
+        let results = renderMessage(
+            message,
+            tools,
+            globalState,
+            getToolNameFromCallId,
+            updateState
+        );
+        if (!results) {
+            return null;
+        }
 
-    return (
-        <div className={`message ${message.role}`}>
-            {(message.role === "assistant" ||
-                message.role === "system" ||
-                message.role === "developer") && (
-                <div className="bot-icon">{getMessageIcon(message.role)}</div>
-            )}
-            {results}
-        </div>
-    );
-});
+        return (
+            <div className={`message ${message.role}`}>
+                {(message.role === "assistant" ||
+                    message.role === "system" ||
+                    message.role === "developer") && (
+                    <div className="bot-icon">
+                        {getMessageIcon(message.role)}
+                    </div>
+                )}
+                {results}
+            </div>
+        );
+    }
+);
 
 export default ChatMessage;

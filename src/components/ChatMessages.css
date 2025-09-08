@@ -23,11 +23,15 @@
     max-width: 100%;
 }
 
+.message:not(:first-child) {
+    margin-top: 24px;
+}
+
 .message.user {
-    background: #fbd2d4;
+    background: #B3E6E6;
     color: #fff;
     align-self: flex-end;
-    border: 1px solid #e1abae;
+    border: 1px solid #B3E6E6;
     border-bottom-right-radius: 8px;
 }
 
@@ -47,6 +51,7 @@
     gap: 4px;
     min-width: 0;
     flex: 1;
+    line-height: 1.5;
 }
 
 /* this lets the paragraphs in the chat messages breathe a little */
@@ -83,6 +88,16 @@
     width: 2.5em;
     aspect-ratio: 1;
     flex-shrink: 0;
+}
+
+.bot-icon {
+    margin-left: 10px;
+    margin-right: 20px;
+}
+
+img.bot-icon {
+    border-radius: 50%;
+    background-color: #EFEFEF;
 }
 
 .typing-indicator {

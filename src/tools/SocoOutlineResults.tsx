@@ -42,7 +42,7 @@ export default function SocoOutlineSignupFlow({ outline }: { outline: Outline })
         const userMessage: Message = {
             id: `user_${Date.now()}`,
             role: 'user',
-            content: 'invoke the approve_outline_tool'
+            content: 'invoke the transition_to_signup_tool'
         };
         
         agentClient.startNewRun();
@@ -67,7 +67,7 @@ export default function SocoOutlineSignupFlow({ outline }: { outline: Outline })
     return (
         <div>
             <SoCoOutlineView outline={outline} />                        
-            <Button variant="contained" sx={{ maxWidth: '40em', mt: '1em' }} onClick={doSignup}>Would you like me to create this course now?</Button>
+            <Button variant="contained" sx={{ maxWidth: '40em', mt: '2em' }} onClick={doSignup}>Would you like me to create this course now?</Button>
         </div>
     )
 }
