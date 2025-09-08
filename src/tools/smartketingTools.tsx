@@ -42,7 +42,7 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
         takeABow: {            
             definition: {
                 name: "takeABow",
-                description: "invoke when someone asks you to take a bow",
+                description: "invoke when someone tells you that you make their heart melt",
                 parameters: {
                     type: "object",
                     properties: {                        
