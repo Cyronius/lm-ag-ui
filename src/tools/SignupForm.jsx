@@ -24,17 +24,7 @@ export default function SignupForm() {
     const [showPassword, setShowPassword] = useState(false);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
 
-    const {
-        // agentClient, 
-        // session, 
-        // tools, 
-        // messages, 
-        // addMessage,
-        // agentSubscriber,
-        // currentMessage: agentCurrentMessage,
-        // getToolNameFromCallId
-        globalState
-    } = useAgentContext();
+    const { globalState } = useAgentContext();
 
     const [isLoading, setIsLoading] = useState(false);
 
@@ -76,12 +66,13 @@ export default function SignupForm() {
         }
     }
 
-    const validatePassword = () => {
-        if (!!password && password.length < 6) {
+    const validatePassword = (e) => {
+        let password = e.target.value        
+        if (!password || password.length < 6) {
             setPasswordError("Error validating password");
         } else {
             setPasswordError(null);
-        }
+        }        
     }
 
     const handleSignUp = async (e) => {
@@ -251,7 +242,7 @@ export default function SignupForm() {
                     required
                     type={showPassword ? "text" : "password"}
                     margin="normal"
-                    onChange={(e) => {validatePassword(); setPassword(e.target.value)}}
+                    onChange={(e) => {validatePassword(e); setPassword(e.target.value)}}
                     error={!!password && password.length < 6}
                     helperText={
                         password && password.length < 6
