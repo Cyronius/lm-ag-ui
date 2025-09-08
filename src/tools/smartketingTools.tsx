@@ -3,6 +3,7 @@ import { ToolDefinition } from '../types/index';
 import SocoOutlineSignupFlow from './SocoOutlineResults'
 import SignupForm from './SignupForm'
 import { CalendarArtifact } from './CalendarArtifact';
+import ScreenMelt from './take_a_bow_tool';
 
 export function createSmarketingTools(): Record<string, ToolDefinition> {
     return {
@@ -24,7 +25,13 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
                 }
             },
             handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {
-                document.body.style.backgroundColor = args.color;
+                
+                //document.body.style.backgroundColor = args.color;
+                let el = document.querySelector('.app-container')                
+                if (el instanceof HTMLElement) {
+                    el.style.backgroundColor = args.color;
+                    console.log('bg color changed to', args.color)
+                }
                 // Optionally store state
                 updateState('changeBackgroundColor', { color: args.color, timestamp: Date.now() });
                 return `Background color changed to ${args.color}`;
@@ -32,6 +39,25 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
             isFrontend: true
         },
         
+        takeABow: {            
+            definition: {
+                name: "takeABow",
+                description: "invoke when someone asks you to take a bow",
+                parameters: {
+                    type: "object",
+                    properties: {                        
+                    },
+                    required: []
+                }
+            },
+            handler: (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => {                
+                console.log('taking a bow')
+                return `Taking a bow`;
+            },
+            renderer: (args: any, result?: string) => <ScreenMelt />,
+            isFrontend: true
+        },
+
         showCalendarWidget: {
             definition: {
                 name: "showCalendarWidget",
