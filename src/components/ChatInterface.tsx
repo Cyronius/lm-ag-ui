@@ -160,7 +160,12 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         const systemMessage: Message = {
             id: `system_${Date.now()}`,
             role: 'system',
-            content: `create a course outline by invoking the 'soco_outline_tool' tool using the topic '${artifacts[0].filename}'`
+            //content: `create a course outline by invoking the 'soco_outline_tool' tool using the topic '${artifacts[0].filename}'`
+            content: `
+                You must call the soco_outline_tool with the following JSON:
+                { "course_topic": "${artifacts[0].filename}" }
+                Do not generate the outline yourself. Only call the tool.
+            `
         };
                 
         agentClient.startNewRun();
@@ -168,7 +173,8 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
 
             await agentClient.runAgent(
                 [...messages, systemMessage],
-                getAllToolDefinitions(tools),
+                // explicitly pass in just this one tool.
+                getAllToolDefinitions({soco_outline_tool: tools.soco_outline_tool}),
                 agentSubscriber
             );
         } catch (error) {
