@@ -275,6 +275,7 @@
 @media (max-width: 1600px) {
     .app-container::after {
         max-width: 800px;
+        width: 100%;
     }
 }
 
@@ -312,7 +313,19 @@
     }
 }
 
-@media (max-height: 650px) {
+@media (max-height: 800px) {
+    .app-container::after {
+        max-width: 800px;
+    }
+}
+
+@media (max-height: 700px) {
+    .app-container::after {
+        max-width: 400px;
+    }
+}
+
+@media (max-height: 615px) {
     .app-container::after {
         content: none;
     }
