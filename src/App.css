@@ -272,13 +272,15 @@
     color: #bbb;
 }
 
+@media (max-width: 1600px) {
+    .app-container::after {
+        max-width: 800px;
+    }
+}
+
 @media (max-width: 1024px) {
     .app-container {
         padding: 0 16px;
-    }
-
-    .app-container::after {
-        content: none;
     }
 }
 
@@ -310,11 +312,11 @@
     }
 }
 
-@media (max-height: 900px) {
+/* @media (max-height: 900px) {
     .app-container::after {
         content: none;
     }
-}
+} */
 
 /* Ensure smooth transitions */
 * {
