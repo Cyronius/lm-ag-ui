@@ -202,7 +202,8 @@ export default function SignupForm() {
                         justifyContent: "center",
                         visibility: isLoading ? "visible" : "hidden",
                         opacity: isLoading ? "1" : "0",
-                        transition: "visibility 0s, opacity 0.5s linear"
+                        transition: "visibility 0s, opacity 0.5s linear",
+                        zIndex: 100
                     }}
                 >
                     <Player
