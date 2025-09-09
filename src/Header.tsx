@@ -68,7 +68,7 @@ export function Header() {
             </nav>
             <header className="app-header">
                 <h1 className="main-title">
-                    Hi there! What training problems can we help you with today?
+                    Hi there! What training challenges can we help you with today?
                 </h1>
             </header>
         </>
