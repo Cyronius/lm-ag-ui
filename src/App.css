@@ -70,7 +70,7 @@
 /* Header section */
 .app-header {
     text-align: center;
-    margin: 45px auto 30px auto;
+    margin: 30px auto 30px auto;
     width: 100%;
     max-width: 1000px;
 }
@@ -139,7 +139,7 @@
 }
 
 .main-title {
-    font-size: clamp(2rem, 5vw, 3rem);
+    font-size: clamp(2rem, 5vw, 2.25rem);
     font-weight: 500;
     margin: 0 0 16px 0;
     color: var(--text-primary);
@@ -272,13 +272,16 @@
     color: #bbb;
 }
 
+@media (max-width: 1600px) {
+    .app-container::after {
+        max-width: 800px;
+        width: 100%;
+    }
+}
+
 @media (max-width: 1024px) {
     .app-container {
         padding: 0 16px;
-    }
-
-    .app-container::after {
-        content: none;
     }
 }
 
@@ -310,7 +313,19 @@
     }
 }
 
-@media (max-height: 900px) {
+@media (max-height: 800px) {
+    .app-container::after {
+        max-width: 800px;
+    }
+}
+
+@media (max-height: 700px) {
+    .app-container::after {
+        max-width: 400px;
+    }
+}
+
+@media (max-height: 615px) {
     .app-container::after {
         content: none;
     }
