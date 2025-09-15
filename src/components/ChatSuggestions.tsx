@@ -12,7 +12,7 @@ const suggestions = [
     "Create onboarding training for the role of…",
     "What makes Learner Mobile different?",
     "How does the authoring tool work?",
-    "Start my free trial",    
+    "Start my free trial.",    
     "How does Learner Mobile support AI?",
     "What’s Source-to-Course?",
     "How do I set up badges and certificates?",
