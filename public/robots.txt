@@ -12,3 +12,6 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+Sitemap: https://www.learnermobile.com/sitemap.xml
+Sitemap: https://training.learnermobile.com/sitemap.xml
