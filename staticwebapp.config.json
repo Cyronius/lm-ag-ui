@@ -1,0 +1,12 @@
+{
+  "routes": [
+    {
+      "route": "/privacy-policy",
+      "methods": [
+        "get"
+      ],
+      "redirect": "https://training.learnermobile.com",
+      "statusCode": 301
+    }
+  ]
+}
