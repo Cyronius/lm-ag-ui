@@ -295,7 +295,7 @@ export default function SignupForm() {
                         <Typography variant="body2">
                             I accept the{" "}
                             <Link
-                                href="https://learnermobile.com/terms-and-conditions/"
+                                href="https://training.learnermobile.com/terms/"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 color="primary"
@@ -305,7 +305,7 @@ export default function SignupForm() {
                             </Link>{" "}
                             and{" "}
                             <Link
-                                href="https://learnermobile.com/privacy-policy/"
+                                href="https://training.learnermobile.com/privacy-policy/"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 color="primary"
