@@ -15,6 +15,7 @@ import {
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useAgentContext } from '../contexts/AgentClientContext';
 
+
 export default function SignupForm() {
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
@@ -130,6 +131,10 @@ export default function SignupForm() {
         if (res.ok) {
             let { accountId } = await res.json()
             console.log('account id is', accountId)
+            TagManager.dataLayer({ dataLayer: { event: 'signup', value: signupForm.signupValues.email.trim() } });
+            if (window.gtag_report_conversion) {
+                window.gtag_report_conversion(signupForm.urlHostName);
+            }
             return accountId;
         }
         else {
