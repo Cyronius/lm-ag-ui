@@ -15,7 +15,6 @@ import {
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useAgentContext } from '../contexts/AgentClientContext';
 
-
 export default function SignupForm() {
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
