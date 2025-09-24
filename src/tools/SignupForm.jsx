@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useAgentContext } from '../contexts/AgentClientContext';
+import TagManager from 'react-gtm-module'
 
 export default function SignupForm() {
     const [fullName, setFullName] = useState('');
@@ -129,8 +130,10 @@ export default function SignupForm() {
 
         if (res.ok) {
             let { accountId } = await res.json()
+            let {email} = signupForm.signupValues.find(v => v.name === 'email').value
             console.log('account id is', accountId)
-            TagManager.dataLayer({ dataLayer: { event: 'signup', value: signupForm.signupValues.email.trim() } });
+            console.log('signup form', email)
+            TagManager.dataLayer({ dataLayer: { event: 'signup', value: email?.trim() } });
             if (window.gtag_report_conversion) {
                 window.gtag_report_conversion(signupForm.urlHostName);
             }
