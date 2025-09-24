@@ -135,7 +135,7 @@ export default function SignupForm() {
             console.log('signup form', email)
             TagManager.dataLayer({ dataLayer: { event: 'signup', value: email?.trim() } });
             if (window.gtag_report_conversion) {
-                window.gtag_report_conversion(signupForm.urlHostName);
+                window.gtag_report_conversion();
             }
             return accountId;
         }
