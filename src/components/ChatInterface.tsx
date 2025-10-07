@@ -261,6 +261,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                         multiline
                         minRows={1}
                         maxRows={6}
+                        autoFocus
                     />
                     <Button
                         onClick={() => handleSendMessage()}
