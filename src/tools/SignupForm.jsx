@@ -105,6 +105,7 @@ export default function SignupForm() {
         const accountIdFromState = globalState['soco_outline']?.account_id;
         if (accountIdFromState) {
             signupForm.signupValues.push({ name: "accountId", value: accountIdFromState });
+            globalState['account_id'] = accountIdFromState;
         }
 
         let accountId = await createAccount(signupForm)
