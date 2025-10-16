@@ -1,4 +1,4 @@
-import { StandardTool, ToolDefinition, ToolHandler, ToolRenderer } from '../types/index';
+import { StandardTool, ToolDefinition, ToolHandler, ToolRenderer } from './index';
 
 
 // Helper functions

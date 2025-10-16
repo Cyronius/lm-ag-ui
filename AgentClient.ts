@@ -1,13 +1,7 @@
 import { HttpAgent } from '@ag-ui/client';
 import { Message, State, Tool } from '@ag-ui/core';
-import { AgentSubscriber, RunAgentResult } from '../types/index';
+import { AgentSubscriber, RunAgentResult, Session } from './index';
 import { v4 as uuidv4 } from 'uuid';
-
-interface Session {
-    threadId: string | null;
-    runId: string | null;
-    isActive: boolean;
-}
 
 export class AgentClient {
     private agent: HttpAgent;
@@ -19,6 +13,7 @@ export class AgentClient {
     private onSessionChange?: (session: Session) => void;
 
     constructor() {
+        // TODO: change endpoint? let it be passed in?
         this.baseUrl = `${import.meta.env.VITE_PYTHON_SERVER_URL || 'http://localhost:8000'}/smarketing`;
         this.timeout = parseInt(import.meta.env.VITE_STREAM_TIMEOUT || '30000');
 

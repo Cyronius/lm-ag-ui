@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { AgentClient } from '../services/AgentClient';
-import { ToolDefinition, ToolCallBuffer, AgentSubscriber, RunAgentResult } from '../types/index';
+import { AgentClient } from './AgentClient';
+import { ToolDefinition, ToolCallBuffer, AgentSubscriber, RunAgentResult, Session, AgentClientContextValue, AgentClientProviderProps } from './index';
 import { 
     Message,
     TextMessageContentEvent,
@@ -14,38 +14,10 @@ import {
     StateSnapshotEvent
 } from '@ag-ui/core';
 import { v4 as uuidv4 } from 'uuid';
-import { getFrontEndTools } from '../tools/toolUtils';
+import { getFrontEndTools } from './toolUtils';
 
-// Import Session type from AgentClient since it's now defined there
-type Session = {
-    threadId: string | null;
-    runId: string | null;
-    isActive: boolean;
-};
-
-interface AgentClientContextValue {
-    agentClient: AgentClient;
-    session: Session;
-    tools: Record<string, ToolDefinition>;
-    globalState: any;
-    messages: Message[];
-    addMessage: (message: Message) => void;
-    clearMessages: () => void;
-    updateState: (toolName: string, data: any) => void;    
-    // Streaming state
-    currentMessage: string;
-    currentMessageId: string | null;
-    isStreaming: boolean;    
-    getToolNameFromCallId: (toolCallId: string) => string | undefined;    
-    agentSubscriber: AgentSubscriber;
-}
 
 const AgentClientContext = createContext<AgentClientContextValue | null>(null);
-
-interface AgentClientProviderProps {
-    children: React.ReactNode;
-    tools: Record<string, ToolDefinition>;
-}
 
 export function AgentClientProvider({ children, tools }: AgentClientProviderProps) {
     // Create a single AgentClient instance
