@@ -339,7 +339,7 @@ export default function SignupForm() {
             <Typography variant="body2" sx={{ mt: 3, textAlign: "center" }}>
                 Already have an account?{" "}
                 <Link
-                    href="https://admin.learnermobilelabs.com/"
+                    href={`${import.meta.env.VITE_ADMIN_URL}/`}
                     target="_blank"
                     rel="noopener noreferrer"
                     color="primary"
