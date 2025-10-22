@@ -133,7 +133,8 @@ export interface AgentClientContextValue {
 
 export interface AgentClientProviderProps {
     children: React.ReactNode;
-    tools: Record<string, ToolDefinition>;
+    tools?: Record<string, ToolDefinition>;
+    baseUrl?: string;
 }
 
 export { AgentClient, AgentClientProvider, useAgentContext };

@@ -19,16 +19,16 @@ import { getFrontEndTools } from './toolUtils';
 
 const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 
-export function AgentClientProvider({ children, tools }: AgentClientProviderProps) {
+export function AgentClientProvider({ children, tools = {}, baseUrl }: AgentClientProviderProps) {
     // Create a single AgentClient instance
-    const [agentClient] = useState(() => new AgentClient());
-    
+    const [agentClient] = useState(() => new AgentClient(baseUrl));
+
     // Track session for React re-renders
     const [session, setSession] = useState<Session>(agentClient.session);
-    
+
     // Global AG-UI state management
     const [globalState, setGlobalState] = useState<any>({});
-    
+
     // Messages state management
     const [messages, setMessages] = useState<Message[]>([]);
 
@@ -38,9 +38,9 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
 
     // Maintain a buffer for the streaming text
     const currentMessageRef = useRef<string>('');
-    
+
     const [isStreaming, setIsStreaming] = useState<boolean>(false);
-    
+
     // Tool execution state (using refs to avoid stale closures)
     const toolCallBuffersRef = useRef<Map<string, ToolCallBuffer>>(new Map());
     const toolCallIdToNameRef = useRef<Map<string, string>>(new Map());
@@ -57,7 +57,7 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
         setIsStreaming(session.isActive);
     }, [session.isActive]);
 
-    // Get frontend tools
+    // Get frontend tools (empty object if no tools provided)
     const frontEndTools = useMemo(() => getFrontEndTools(tools), [tools]);
 
     // TODO: not sure state management by toolname is necessary -- could just expose set and get for global state

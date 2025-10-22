@@ -3,6 +3,8 @@ import { Message, State, Tool } from '@ag-ui/core';
 import { AgentSubscriber, RunAgentResult, Session } from './index';
 import { v4 as uuidv4 } from 'uuid';
 
+const STREAM_TIMEOUT_MS = 30000;
+
 export class AgentClient {
     private agent: HttpAgent;
     private baseUrl: string;
@@ -12,10 +14,9 @@ export class AgentClient {
     // Session change callback for React integration
     private onSessionChange?: (session: Session) => void;
 
-    constructor() {
-        // TODO: change endpoint? let it be passed in?
-        this.baseUrl = `${import.meta.env.VITE_PYTHON_SERVER_URL || 'http://localhost:8000'}/smarketing`;
-        this.timeout = parseInt(import.meta.env.VITE_STREAM_TIMEOUT || '30000');
+    constructor(baseUrl: string = 'http://localhost:8000/smarketing') {
+        this.baseUrl = baseUrl;
+        this.timeout = STREAM_TIMEOUT_MS;
 
         this.agent = new HttpAgent({
             url: this.baseUrl,
