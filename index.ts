@@ -135,6 +135,7 @@ export interface AgentClientProviderProps {
     children: React.ReactNode;
     tools?: Record<string, ToolDefinition>;
     baseUrl?: string;
+    agentId?: string;
 }
 
 export { AgentClient, AgentClientProvider, useAgentContext };

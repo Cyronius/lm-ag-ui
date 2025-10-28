@@ -19,9 +19,9 @@ import { getFrontEndTools } from './toolUtils';
 
 const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 
-export function AgentClientProvider({ children, tools = {}, baseUrl }: AgentClientProviderProps) {
+export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = 'smarketing' }: AgentClientProviderProps) {
     // Create a single AgentClient instance
-    const [agentClient] = useState(() => new AgentClient(baseUrl));
+    const [agentClient] = useState(() => new AgentClient(baseUrl, agentId));
 
     // Track session for React re-renders
     const [session, setSession] = useState<Session>(agentClient.session);
