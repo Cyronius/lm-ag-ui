@@ -33,7 +33,7 @@ export function Header() {
                 </li>
                 <li>
                     <a href="https://admin.learnermobile.com/Account/SignUp/">
-                        Get started
+                        Get Started
                     </a>
                 </li>
             </ul>
