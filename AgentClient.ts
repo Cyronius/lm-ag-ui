@@ -25,7 +25,7 @@ export class AgentClient {
 
         // Construct URL based on agentId (agentId might be a guid, but
         // could be system-defined string like 'smarketing')        
-        console.log('agent', agentId)
+        console.log('Creating AgentClient for agent', agentId)
         // TODO: remove the legacy option later
         //const agentUrl = `${baseUrl}/agent/${agentId}`;
         const agentUrl = agentId === 'smarketing' ? `${baseUrl}/${agentId}` : `${baseUrl}/agent/${agentId}`;

@@ -138,4 +138,11 @@ export interface AgentClientProviderProps {
     agentId?: string;
 }
 
+export interface AgentConfig {
+    tools?: Record<string, ToolDefinition>;
+    suggestions: string[];
+    defaultPlaceholder?: string;
+    allowUpload?: boolean;
+}
+
 export { AgentClient, AgentClientProvider, useAgentContext };
