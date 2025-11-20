@@ -232,7 +232,7 @@ export class AgentClient {
 
         // TODO: remove legacy path later
         // const response = await fetch(`${this.baseUrl}/agent/upload`, {
-        const url = this.agentId === 'smarketing' ? `${this.baseUrl}/upload` : `${this.baseUrl}/agent/upload`
+        const url = this.agentId === 'smarketing' ? `${this.baseUrl}/smarketing/upload` : `${this.baseUrl}/agent/upload`
         const response = await fetch(url, {
             method: 'POST',
             body: formData,
