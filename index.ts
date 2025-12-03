@@ -138,9 +138,14 @@ export interface AgentClientProviderProps {
     agentId?: string;
 }
 
+export interface Suggestion {
+	isPriority: boolean;
+	suggestion: string;
+}
+
 export interface AgentConfig {
     tools?: Record<string, ToolDefinition>;
-    suggestions: string[];
+    suggestions: Suggestion[];
     defaultPlaceholder?: string;
     allowUpload?: boolean;
 }
