@@ -18,7 +18,8 @@ import type {
     RunErrorEvent,
     StateSnapshotEvent
 } from '@ag-ui/core';
-
+import { AgentClient } from './AgentClient';
+import { AgentClientProvider, useAgentContext } from './AgentClientContext';
 
 // AG-UI Types - Re-export from @ag-ui/core (which is re-exported by @ag-ui/client)
 export type {
@@ -38,6 +39,12 @@ export type {
     RunErrorEvent
 } from '@ag-ui/core';
 export { EventType } from '@ag-ui/core';
+export interface Session {
+    threadId: string | null;
+    runId: string | null;
+    isActive: boolean;
+}
+
 export { HttpAgent } from '@ag-ui/client';
 
 // Custom types for our application
@@ -103,3 +110,39 @@ export interface ToolDefinition {
     renderer?: ToolRenderer; // For tools that need special rendering
     isFrontend: boolean;
 }
+
+
+export interface AgentClientContextValue {
+    agentClient: AgentClient;
+    session: Session;
+    tools: Record<string, ToolDefinition>;
+    globalState: any;
+    messages: Message[];
+    addMessage: (message: Message) => void;
+    clearMessages: () => void;
+    updateState: (toolName: string, data: any) => void;    
+    // Streaming state
+    currentMessage: string;
+    currentMessageId: string | null;
+    isStreaming: boolean;    
+    getToolNameFromCallId: (toolCallId: string) => string | undefined;    
+    agentSubscriber: AgentSubscriber;
+}
+
+
+
+export interface AgentClientProviderProps {
+    children: React.ReactNode;
+    tools?: Record<string, ToolDefinition>;
+    baseUrl?: string;
+    agentId?: string;
+}
+
+export interface AgentConfig {
+    tools?: Record<string, ToolDefinition>;
+    suggestions: string[];
+    defaultPlaceholder?: string;
+    allowUpload?: boolean;
+}
+
+export { AgentClient, AgentClientProvider, useAgentContext };

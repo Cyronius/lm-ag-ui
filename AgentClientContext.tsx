@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { AgentClient } from '../services/AgentClient';
-import { ToolDefinition, ToolCallBuffer, AgentSubscriber, RunAgentResult } from '../types/index';
+import { AgentClient } from './AgentClient';
+import { ToolDefinition, ToolCallBuffer, AgentSubscriber, RunAgentResult, Session, AgentClientContextValue, AgentClientProviderProps } from './index';
 import { 
     Message,
     TextMessageContentEvent,
@@ -14,7 +14,7 @@ import {
     StateSnapshotEvent
 } from '@ag-ui/core';
 import { v4 as uuidv4 } from 'uuid';
-import { getFrontEndTools } from '../tools/toolUtils';
+import { getFrontEndTools } from './toolUtils';
 
 // Import Session type from AgentClient since it's now defined there
 type Session = {
@@ -45,17 +45,13 @@ interface AgentClientContextValue {
 
 const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 
-interface AgentClientProviderProps {
-    children: React.ReactNode;
-    tools: Record<string, ToolDefinition>;
-}
-
-export function AgentClientProvider({ children, tools }: AgentClientProviderProps) {
+export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = 'smarketing' }: AgentClientProviderProps) {
     // Create a single AgentClient instance
-    const [agentClient] = useState(() => new AgentClient());
-    
+    const [agentClient] = useState(() => new AgentClient(baseUrl, agentId));
+
     // Track session for React re-renders
     const [session, setSession] = useState<Session>(agentClient.session);
+
 
     // Global AG-UI state management
     const [globalState, setGlobalState] = useState<any>({});
@@ -72,9 +68,9 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
 
     // Maintain a buffer for the streaming text
     const currentMessageRef = useRef<string>('');
-    
+
     const [isStreaming, setIsStreaming] = useState<boolean>(false);
-    
+
     // Tool execution state (using refs to avoid stale closures)
     const toolCallBuffersRef = useRef<Map<string, ToolCallBuffer>>(new Map());
     const toolCallIdToNameRef = useRef<Map<string, string>>(new Map());
@@ -91,7 +87,7 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
         setIsStreaming(session.isActive);
     }, [session.isActive]);
 
-    // Get frontend tools
+    // Get frontend tools (empty object if no tools provided)
     const frontEndTools = useMemo(() => getFrontEndTools(tools), [tools]);
 
     // TODO: not sure state management by toolname is necessary -- could just expose set and get for global state

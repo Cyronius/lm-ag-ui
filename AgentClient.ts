@@ -1,29 +1,37 @@
 import { HttpAgent } from '@ag-ui/client';
 import { Message, State, Tool } from '@ag-ui/core';
-import { AgentSubscriber, RunAgentResult } from '../types/index';
+import { AgentSubscriber, RunAgentResult, Session } from './index';
 import { v4 as uuidv4 } from 'uuid';
 
-interface Session {
-    threadId: string | null;
-    runId: string | null;
-    isActive: boolean;
-}
+const STREAM_TIMEOUT_MS = 30000;
 
 export class AgentClient {
     private agent: HttpAgent;
     private baseUrl: string;
+    private agentId: string;
     private timeout: number;
     private _session: Session;
 
     // Session change callback for React integration
     private onSessionChange?: (session: Session) => void;
 
-    constructor() {
-        this.baseUrl = `${import.meta.env.VITE_PYTHON_SERVER_URL || 'http://localhost:8000'}/smarketing`;
-        this.timeout = parseInt(import.meta.env.VITE_STREAM_TIMEOUT || '30000');
+    constructor(
+        baseUrl: string = 'http://localhost:8000',
+        agentId: string = 'smarketing'
+    ) {
+        this.baseUrl = baseUrl;
+        this.agentId = agentId;
+        this.timeout = STREAM_TIMEOUT_MS;
+
+        // Construct URL based on agentId (agentId might be a guid, but
+        // could be system-defined string like 'smarketing')        
+        console.log('Creating AgentClient for agent', agentId)
+        // TODO: remove the legacy option later
+        //const agentUrl = `${baseUrl}/agent/${agentId}`;
+        const agentUrl = agentId === 'smarketing' ? `${baseUrl}/${agentId}` : `${baseUrl}/agent/${agentId}`;
 
         this.agent = new HttpAgent({
-            url: this.baseUrl,
+            url: agentUrl,
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'text/event-stream'
@@ -197,8 +205,49 @@ export class AgentClient {
     getConfig() {
         return {
             baseUrl: this.baseUrl,
+            agentId: this.agentId,
             timeout: this.timeout
         };
+    }
+
+    /**
+     * Upload files to the agent's upload endpoint
+     * @param files Array of File objects to upload
+     * @param threadId Optional thread ID (will use current session or generate new one)
+     * @returns Upload response with artifacts
+     */
+    async uploadFile(files: File[], threadId?: string): Promise<{ artifacts: any[]; thread_id: string }> {
+        // Ensure we have a thread ID
+        const uploadThreadId = threadId || this._session.threadId || this.generateThreadId();
+
+        // Update session with thread ID if not already set
+        if (!this._session.threadId) {
+            this.updateSession({ threadId: uploadThreadId });
+        }
+
+        const formData = new FormData();
+        // Append all files under the same "files" field; most backends accept this as an array
+        files.forEach((file) => formData.append('files', file));
+        formData.append('thread_id', uploadThreadId);
+
+        // TODO: remove legacy path later
+        // const response = await fetch(`${this.baseUrl}/agent/upload`, {
+        const url = this.agentId === 'smarketing' ? `${this.baseUrl}/smarketing/upload` : `${this.baseUrl}/agent/upload`
+        const response = await fetch(url, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const text = await response.text().catch(() => '');
+            throw new Error(`Upload failed (${response.status}): ${text}`);
+        }
+
+        // Parse JSON response
+        const uploadResponse = await response.json();
+        console.log('Files uploaded successfully', uploadResponse);
+
+        return uploadResponse;
     }
 
 }
