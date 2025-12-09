@@ -14,6 +14,8 @@ interface ChatMessageProps {
     globalState: any;
     getToolNameFromCallId: (toolCallId: string) => string | undefined;
     updateState: (toolName: string, data: any) => void;
+    allMessages?: Message[];
+    currentIndex?: number;
 }
 
 function renderMessage(
@@ -180,7 +182,44 @@ const ChatMessage = React.memo(
         globalState,
         getToolNameFromCallId,
         updateState,
+        allMessages = [],
+        currentIndex = -1,
     }: ChatMessageProps) => {
+        // Check if this is a course outline tool message that should be hidden
+        if (message.role === "tool" && currentIndex >= 0 && allMessages.length > 0) {
+            const toolCallId =
+                "toolCallId" in message ? (message as any).toolCallId : undefined;
+            const toolName = toolCallId ? getToolNameFromCallId(toolCallId) : "";
+
+            // If this is an outline tool message
+            if (toolName === "soco_outline_tool" || toolName === "soco_multiple_outlines_tool") {
+                // Check if there's a more recent outline tool message after this one
+                const hasMoreRecentOutline = allMessages.slice(currentIndex + 1).some((laterMsg) => {
+                    if (laterMsg.role !== "tool") return false;
+                    const laterToolCallId =
+                        "toolCallId" in laterMsg ? (laterMsg as any).toolCallId : undefined;
+                    const laterToolName = laterToolCallId
+                        ? getToolNameFromCallId(laterToolCallId)
+                        : "";
+                    return (
+                        laterToolName === "soco_outline_tool" ||
+                        laterToolName === "soco_multiple_outlines_tool"
+                    );
+                });
+
+                // If there's a more recent outline, hide this one with CSS (keep component mounted)
+                if (hasMoreRecentOutline) {
+                    return <div style={{ display: 'none' }}>{renderMessage(
+                        message,
+                        tools,
+                        globalState,
+                        getToolNameFromCallId,
+                        updateState
+                    )}</div>;
+                }
+            }
+        }
+
         let results = renderMessage(
             message,
             tools,

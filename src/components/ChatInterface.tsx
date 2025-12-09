@@ -121,7 +121,9 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
         const assistantMessage: Message = {
             id: `user_${Date.now()}`,
             role: 'assistant',
-            content: "Give us a sec — your course sample is being prepared."
+            content: files.length > 1
+                ? `Give us a sec — your ${files.length} course samples are being prepared.`
+                : "Give us a sec — your course sample is being prepared."
         };
         addMessage(assistantMessage)
         
@@ -157,33 +159,57 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
 
     // after uploading files, automatically invoke outline creation
     async function invokeSoCoTool(artifacts:any[]) {
-        
-        // Add user message
-        const systemMessage: Message = {
-            id: `system_${Date.now()}`,
-            role: 'system',            
-            content: `
-                You must call the soco_outline_tool with the following JSON:
-                { "course_topic": "${artifacts[0].filename}" }
-                Do not generate the outline yourself. Only call the tool.
-            `
-        };
-                
-        agentClient.startNewRun();
-        try {
 
-            await agentClient.runAgent(
-                [...messages, systemMessage],
-                // explicitly pass in just this one tool.
-                getAllToolDefinitions({soco_outline_tool: tools.soco_outline_tool}),
-                agentSubscriber
-            );
-        } catch (error) {
-            console.error('Agent execution failed:', error);
-            // Error handling is now managed by the hook
-            throw error;
+        if (artifacts.length > 1) {
+            // Use MULTIPLE outlines tool for multiple files
+            const topics = artifacts.map(a => a.filename);
+            const systemMessage: Message = {
+                id: `system_${Date.now()}`,
+                role: 'system',
+                content: `
+                    You must call the soco_multiple_outlines_tool with the following JSON:
+                    { "course_topics": ${JSON.stringify(topics)} }
+                    Do not generate the outlines yourself. Only call the tool.
+                `
+            };
+
+            agentClient.startNewRun();
+            try {
+                await agentClient.runAgent(
+                    [...messages, systemMessage],
+                    getAllToolDefinitions({soco_multiple_outlines_tool: tools.soco_multiple_outlines_tool}),
+                    agentSubscriber
+                );
+            } catch (error) {
+                console.error('Agent execution failed:', error);
+                throw error;
+            }
+        } else {
+            // Use EXISTING single outline tool (backward compatible)
+            const systemMessage: Message = {
+                id: `system_${Date.now()}`,
+                role: 'system',
+                content: `
+                    You must call the soco_outline_tool with the following JSON:
+                    { "course_topic": "${artifacts[0].filename}" }
+                    Do not generate the outline yourself. Only call the tool.
+                `
+            };
+
+            agentClient.startNewRun();
+            try {
+                await agentClient.runAgent(
+                    [...messages, systemMessage],
+                    // explicitly pass in just this one tool.
+                    getAllToolDefinitions({soco_outline_tool: tools.soco_outline_tool}),
+                    agentSubscriber
+                );
+            } catch (error) {
+                console.error('Agent execution failed:', error);
+                // Error handling is now managed by the hook
+                throw error;
+            }
         }
-        
     }
 
     // Hide header when chat is open (has messages or typing)
@@ -280,8 +306,7 @@ export default function ChatInterface({ onDynamicMetaChange }: ChatInterfaceProp
                     <input
                         ref={fileInputRef}
                         type="file"
-                        // TODO: this only supports one file right now
-                        multiple={false}
+                        multiple={true}
                         hidden
                         onChange={handleFilesSelected}
                         accept={EXTENSIONS}

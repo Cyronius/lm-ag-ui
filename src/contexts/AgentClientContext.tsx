@@ -31,12 +31,15 @@ interface AgentClientContextValue {
     messages: Message[];
     addMessage: (message: Message) => void;
     clearMessages: () => void;
-    updateState: (toolName: string, data: any) => void;    
+    updateState: (toolName: string, data: any) => void;
     // Streaming state
     currentMessage: string;
     currentMessageId: string | null;
-    isStreaming: boolean;    
-    getToolNameFromCallId: (toolCallId: string) => string | undefined;    
+    isStreaming: boolean;
+    // Course outline accumulation
+    accumulatedOutlines: any[];
+    clearAccumulatedOutlines: () => void;
+    getToolNameFromCallId: (toolCallId: string) => string | undefined;
     agentSubscriber: AgentSubscriber;
 }
 
@@ -53,9 +56,12 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
     
     // Track session for React re-renders
     const [session, setSession] = useState<Session>(agentClient.session);
-    
+
     // Global AG-UI state management
     const [globalState, setGlobalState] = useState<any>({});
+
+    // Accumulated course outlines for sequential generation
+    const [accumulatedOutlines, setAccumulatedOutlines] = useState<any[]>([]);
     
     // Messages state management
     const [messages, setMessages] = useState<Message[]>([]);
@@ -192,6 +198,44 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
             };
             console.log('adding tool call result to messages', toolResultMessage);
             addMessage(toolResultMessage);
+
+            // Accumulate course outlines
+            const toolName = toolCallIdToNameRef.current.get(event.toolCallId);
+            if (toolName === 'soco_outline_tool' || toolName === 'soco_multiple_outlines_tool') {
+                try {
+                    const parsed = JSON.parse(event.content || '{}');
+
+                    if (toolName === 'soco_outline_tool' && parsed.header) {
+                        // Single outline
+                        setAccumulatedOutlines(prev => {
+                            const isDuplicate = prev.some((o: any) => o.header === parsed.header);
+                            if (isDuplicate) {
+                                console.log('[Context] Duplicate outline detected, skipping:', parsed.header);
+                                return prev;
+                            }
+                            console.log('[Context] Adding outline:', parsed.header);
+                            console.log('[Context] Total outlines:', prev.length + 1);
+                            return [...prev, parsed];
+                        });
+                    } else if (toolName === 'soco_multiple_outlines_tool' && parsed.outlines) {
+                        // Multiple outlines
+                        setAccumulatedOutlines(prev => {
+                            const newOutlines = parsed.outlines.filter((newOutline: any) =>
+                                !prev.some((existing: any) => existing.header === newOutline.header)
+                            );
+                            if (newOutlines.length === 0) {
+                                console.log('[Context] All outlines are duplicates, skipping');
+                                return prev;
+                            }
+                            console.log('[Context] Adding outlines:', newOutlines.map((o: any) => o.header));
+                            console.log('[Context] Total outlines:', prev.length + newOutlines.length);
+                            return [...prev, ...newOutlines];
+                        });
+                    }
+                } catch (e) {
+                    // Not JSON or not an outline - ignore
+                }
+            }
 
             // TODO: delete this tool call id from the ref, I think.
             toolCallBuffersRef.current.delete(event.toolCallId);
@@ -347,10 +391,12 @@ export function AgentClientProvider({ children, tools }: AgentClientProviderProp
         messages,
         addMessage,
         clearMessages,
-        updateState,        
+        updateState,
         currentMessage,
         currentMessageId,
-        isStreaming,        
+        isStreaming,
+        accumulatedOutlines,
+        clearAccumulatedOutlines: () => setAccumulatedOutlines([]),        
         getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),        
         agentSubscriber: agentSubscriberRef.current
     };

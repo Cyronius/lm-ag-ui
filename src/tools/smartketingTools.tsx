@@ -1,9 +1,10 @@
-import React from 'react';
 import { ToolDefinition } from '../types/index';
 import SocoOutlineSignupFlow from './SocoOutlineResults'
 import SignupForm from './SignupForm'
 import { CalendarArtifact } from './CalendarArtifact';
 import ScreenMelt from './take_a_bow_tool';
+import MultipleOutlineResults from './MultipleOutlineResults';
+import { useAgentContext } from '../contexts/AgentClientContext';
 
 export function createSmarketingTools(): Record<string, ToolDefinition> {
     return {
@@ -92,9 +93,53 @@ export function createSmarketingTools(): Record<string, ToolDefinition> {
                     },
                     required: ["course_topic"]
                 }
-            },                        
+            },
             renderer: (args: any, result?: string) => {
-                return <SocoOutlineSignupFlow outline={ args } />
+                const { accumulatedOutlines } = useAgentContext();
+
+                console.log('[soco_outline_tool RENDERER] Displaying accumulated outlines:', accumulatedOutlines.length);
+
+                return <MultipleOutlineResults
+                    outlines={accumulatedOutlines}
+                    metadata={{
+                        totalRequested: accumulatedOutlines.length,
+                        totalGenerated: accumulatedOutlines.length,
+                        failedTopics: []
+                    }}
+                />
+            },
+            isFrontend: false
+        },
+
+        soco_multiple_outlines_tool: {
+            definition: {
+                name: "soco_multiple_outlines_tool",
+                description: "Generates multiple course outlines based on provided topics. Use this when the user requests multiple courses, provides comma-separated topics, or uploads multiple files. Maximum 5 topics per request.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        course_topics: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Array of course topics (max 5, each max 200 chars recommended)"
+                        }
+                    },
+                    required: ["course_topics"]
+                }
+            },
+            renderer: (args: any) => {
+                const { accumulatedOutlines } = useAgentContext();
+
+                console.log('[soco_multiple_outlines_tool RENDERER] Displaying accumulated outlines:', accumulatedOutlines.length);
+
+                return <MultipleOutlineResults
+                    outlines={accumulatedOutlines}
+                    metadata={{
+                        totalRequested: args.total_requested,
+                        totalGenerated: args.total_generated,
+                        failedTopics: args.failed_topics || []
+                    }}
+                />
             },
             isFrontend: false
         },

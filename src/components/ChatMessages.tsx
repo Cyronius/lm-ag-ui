@@ -69,6 +69,8 @@ export default function ChatMessages() {
                         globalState={globalState}
                         getToolNameFromCallId={getToolNameFromCallId}
                         updateState={updateState}
+                        allMessages={messages}
+                        currentIndex={i}
                     />
                 );
             })}

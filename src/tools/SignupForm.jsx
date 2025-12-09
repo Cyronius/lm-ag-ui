@@ -69,6 +69,10 @@ export default function SignupForm() {
                 setEmailError("Invalid Email");
             }
         }
+        else if (res.status === 404) {
+            // Endpoint doesn't exist - accept email if format is valid
+            setEmailError(null);
+        }
         else {
             // some kind of server error
             setEmailError("Error validating email");
@@ -103,13 +107,19 @@ export default function SignupForm() {
         };
 
         let accountId = await createAccount(signupForm)
-        let versionId = await createSocoCourseFromOutline(accountId)
+        let result = await createSocoCourseFromOutline(accountId)
 
-        // redirect to either admin cbiv or admin landing dpeending on if a soco was created
+        // redirect to either admin content (channel view) or admin landing depending on if courses were created
         let redirectUrl = `${import.meta.env.VITE_ADMIN_URL}`
-        if (versionId) {
-           redirectUrl = `${redirectUrl}/course/Edit/${versionId}`
-        }        
+
+        // ALWAYS redirect to grid view (channel view) when courses are created
+        if (result) {
+            // Set view preference to grid (channel view)
+            localStorage.setItem('view', 'grid');
+            redirectUrl = `${redirectUrl}/Content`;
+        }
+        // else: No courses created, redirect to admin landing
+
         window.top.location.replace(redirectUrl);
     }
 
@@ -147,8 +157,95 @@ export default function SignupForm() {
 
     }
 
-    /** write the generated soco outline to cards/course tables */
+    /** write the generated soco outline(s) to cards/course tables */
     async function createSocoCourseFromOutline(accountId) {
+        // NEW: Check unified course_outlines array first
+        let courseOutlines = globalState['course_outlines'];
+        let discardedHeaders = globalState['discarded_outline_headers'] || [];
+
+        if (courseOutlines && Array.isArray(courseOutlines) && courseOutlines.length > 0) {
+
+            // Filter out discarded outlines
+            const activeOutlines = courseOutlines.filter(
+                outline => !discardedHeaders.includes(outline.header)
+            );
+
+            if (activeOutlines.length === 0) {
+                console.log('No active outlines to create (all discarded)');
+                return null;
+            }
+
+            console.log('Creating', activeOutlines.length, 'active courses');
+
+            // Create all courses in parallel
+            const createPromises = activeOutlines.map(async (outline) => {
+                let req = {
+                    course_outline: outline,
+                    account_id: accountId,
+                    user_id: ""
+                };
+
+                let res = await fetch(`${import.meta.env.VITE_PYTHON_SERVER_URL}/soco/outline`, {
+                    body: JSON.stringify(req),
+                    headers: { "Content-Type": 'application/json' },
+                    method: "POST",
+                });
+
+                if (!res || !res.ok) {
+                    console.log('Failed to create course:', outline.header);
+                    return null;
+                }
+
+                let { VersionId } = await res.json();
+                return VersionId;
+            });
+
+            const versionIds = await Promise.all(createPromises);
+            const validVersionIds = versionIds.filter(id => id != null);
+
+            // NEW: Return ALL version IDs, not just the first
+            return validVersionIds.length > 0 ? validVersionIds : null;
+        }
+
+        // BACKWARD COMPATIBILITY: Check old keys
+        let socoOutlines = globalState['soco_outlines']
+
+        if (socoOutlines && Array.isArray(socoOutlines) && socoOutlines.length > 0) {
+            console.log('Creating multiple courses (legacy):', socoOutlines.length)
+
+            // Create all courses in parallel
+            const createPromises = socoOutlines.map(async (outline) => {
+                let req = {
+                    course_outline: outline,
+                    account_id: accountId,
+                    user_id: ""
+                }
+
+                let res = await fetch(`${import.meta.env.VITE_PYTHON_SERVER_URL}/soco/outline`, {
+                    body: JSON.stringify(req),
+                    headers: {
+                        "Content-Type": 'application/json'
+                    },
+                    method: "POST",
+                });
+
+                if (!res || !res.ok) {
+                    console.log('Failed to create course:', outline.header)
+                    return null
+                }
+
+                let { VersionId } = await res.json()
+                return VersionId
+            })
+
+            const versionIds = await Promise.all(createPromises)
+            const validVersionIds = versionIds.filter(id => id != null)
+
+            // NEW: Return array instead of first ID
+            return validVersionIds.length > 0 ? validVersionIds : null
+        }
+
+        // Handle single outline (backward compatible)
         let socoOutline = globalState['soco_outline']
         console.log('outline', socoOutline)
 
@@ -169,20 +266,20 @@ export default function SignupForm() {
             },
             method: "POST",
         });
-        
+
         // raced response
         if (!res) {
-            return null            
+            return null
         }
-        
+
         if (!res.ok) {
             setIsLoading(false);
             console.log('failed to create course with status and message', res.status, res.statusText)
             throw 'failed to create course'
         }
-        
-        let { VersionId } = await res.json()        
-        return VersionId
+
+        let { VersionId } = await res.json()
+        return VersionId  // Single ID as string (backward compat)
     }
 
     return (
