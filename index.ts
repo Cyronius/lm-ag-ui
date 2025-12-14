@@ -148,6 +148,7 @@ export interface AgentConfig {
     suggestions: Suggestion[];
     defaultPlaceholder?: string;
     allowUpload?: boolean;
+    config?: Record<string, string>;
 }
 
 export { AgentClient, AgentClientProvider, useAgentContext };
