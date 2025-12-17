@@ -148,6 +148,7 @@ export interface AgentConfig {
     suggestions: Suggestion[];
     defaultPlaceholder?: string;
     allowUpload?: boolean;
+    config?: Record<string, string | null>;  // Agent config key-value pairs from backend
 }
 
 export { AgentClient, AgentClientProvider, useAgentContext };
