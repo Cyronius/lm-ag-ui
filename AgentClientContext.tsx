@@ -108,8 +108,8 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
 
         } catch (error) {
             console.error(`Tool execution error for ${toolName}:`, error);
-            const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
-            addErrorMessage(errorMessage)
+            const errorDetail = error instanceof Error ? error.message : String(error);
+            addErrorMessage(`Error executing tool '${toolName}': ${errorDetail}`)
             return null
         }
     }, [frontEndTools, updateState, getState, addMessage]);
@@ -170,10 +170,11 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
             toolCallBuffersRef.current.delete(event.toolCallId);
         } catch (error) {
             console.error('Error creating tool result message:', error);
+            const errorDetail = error instanceof Error ? error.message : String(error);
             const errorMessage: Message = {
                 id: `error_tool_${event.toolCallId}_${Date.now()}`,
                 role: 'assistant',
-                content: 'Error processing tool result'
+                content: `Error processing tool result: ${errorDetail}`
             };
             addMessage(errorMessage);
         }
@@ -241,10 +242,11 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
             }
         } catch (error) {
             console.error('Error creating assistant message:', error);
+            const errorDetail = error instanceof Error ? error.message : String(error);
             const errorMessage: Message = {
                 id: `error_${Date.now()}`,
                 role: 'assistant',
-                content: 'Error processing assistant response'
+                content: `Error processing assistant response: ${errorDetail}`
             };
             addMessage(errorMessage);
         } finally {
