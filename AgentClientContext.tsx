@@ -90,24 +90,25 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         if (!toolCallId) {
             toolCallId = uuidv4();
         }
-        
+
         try {
             const args = argsJson ? JSON.parse(argsJson) : null;
             const tool = frontEndTools[toolName];
-            
-            const result = tool.handler?.(args, updateState, getState);                        
+
+            // Pass configJson directly as 4th parameter
+            const result = tool.handler?.(args, updateState, getState, tool.configJson);
             const toolMessage: Message = {
                 id: `tool_${toolCallId}_${Date.now()}`,
                 role: 'tool',
                 content: result || '{}',
                 toolCallId
             };
-            addMessage(toolMessage);             
+            addMessage(toolMessage);
             return toolMessage
-            
-        } catch (error) {            
-            console.error(`Tool execution error for ${toolName}:`, error);            
-            const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;            
+
+        } catch (error) {
+            console.error(`Tool execution error for ${toolName}:`, error);
+            const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             addErrorMessage(errorMessage)
             return null
         }
