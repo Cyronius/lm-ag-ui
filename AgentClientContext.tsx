@@ -171,7 +171,6 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
                 content: event.content || '',
                 toolCallId: event.toolCallId
             };
-            console.log('adding tool call result to messages', toolResultMessage);
             addMessage(toolResultMessage);
 
             // Call tool's onResult callback for side effects (e.g., accumulation)
