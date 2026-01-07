@@ -120,13 +120,18 @@ export interface AgentClientContextValue {
     messages: Message[];
     addMessage: (message: Message) => void;
     clearMessages: () => void;
-    updateState: (toolName: string, data: any) => void;    
+    updateState: (toolName: string, data: any) => void;
     // Streaming state
     currentMessage: string;
     currentMessageId: string | null;
-    isStreaming: boolean;    
-    getToolNameFromCallId: (toolCallId: string) => string | undefined;    
+    isStreaming: boolean;
+    getToolNameFromCallId: (toolCallId: string) => string | undefined;
     agentSubscriber: AgentSubscriber;
+    // HubSpot context
+    hutk?: string | null;
+    source?: string | null;
+    pageUrl?: string | null;
+    visitorContext?: any;
 }
 
 
@@ -136,6 +141,9 @@ export interface AgentClientProviderProps {
     tools?: Record<string, ToolDefinition>;
     baseUrl?: string;
     agentId?: string;
+    hutk?: string | null;
+    source?: string | null;
+    pageUrl?: string | null;
 }
 
 export interface AgentConfig {

@@ -11,6 +11,7 @@ export class AgentClient {
     private agentId: string;
     private timeout: number;
     private _session: Session;
+    private userEmail?: string; // HubSpot visitor email for tracking
 
     // Session change callback for React integration
     private onSessionChange?: (session: Session) => void;
@@ -62,6 +63,12 @@ export class AgentClient {
         this.onSessionChange = callback;
     }
 
+    // Set user email for tracking (used when HubSpot visitor context is loaded)
+    setUserEmail(email: string | undefined) {
+        this.userEmail = email;
+        console.log('[AgentClient] User email set for tracking:', email);
+    }
+
     // Session management methods
     startNewRun(): Session {
         const newRunId = this.generateRunId();
@@ -106,11 +113,18 @@ export class AgentClient {
             // Set the thread ID and messages on the agent
             this.agent.threadId = threadId;
             this.agent.setMessages(messages);
+
+            // Forward user email for AI usage tracking
+            const forwardedProps: Record<string, any> = {};
+            if (this.userEmail) {
+                forwardedProps.user_email = this.userEmail;
+            }
+
             const result = await this.agent.runAgent({
                 runId,
                 tools,
                 context: [],
-                forwardedProps: {}
+                forwardedProps
             }, subscriber);
 
             return result;

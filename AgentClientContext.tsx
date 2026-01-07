@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AgentClient } from './AgentClient';
 import { ToolDefinition, ToolCallBuffer, AgentSubscriber, RunAgentResult, Session, AgentClientContextValue, AgentClientProviderProps } from './index';
-import { 
+import {
     Message,
     TextMessageContentEvent,
     RunStartedEvent,
@@ -15,11 +15,12 @@ import {
 } from '@ag-ui/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getFrontEndTools } from './toolUtils';
+import { getVisitorContext, logPowerBarInteraction, type VisitorContext } from '../services/hubspotService';
 
 
 const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 
-export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = 'smarketing' }: AgentClientProviderProps) {
+export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = 'smarketing', hutk = null, source = null, pageUrl = null }: AgentClientProviderProps) {
     // Create a single AgentClient instance
     const [agentClient] = useState(() => new AgentClient(baseUrl, agentId));
 
@@ -28,6 +29,13 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
 
     // Global AG-UI state management
     const [globalState, setGlobalState] = useState<any>({});
+
+    // HubSpot visitor context
+    const [visitorContext, setVisitorContext] = useState<VisitorContext | null>(null);
+
+    // Track interaction start time for duration calculation
+    const interactionStartTime = useRef<number>(Date.now());
+    const topicsDiscussed = useRef<Set<string>>(new Set());
 
     // Messages state management
     const [messages, setMessages] = useState<Message[]>([]);
@@ -51,6 +59,34 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         agentClient.setSessionChangeCallback(setSession);
         setIsStreaming(agentClient.session.isActive);
     }, [agentClient]);
+
+    // Load HubSpot visitor context on mount
+    useEffect(() => {
+        if (hutk) {
+            console.log('[HubSpot] Loading visitor context for hutk:', hutk);
+            getVisitorContext(hutk)
+                .then(context => {
+                    setVisitorContext(context);
+                    console.log('[HubSpot] Visitor context loaded:', context);
+
+                    // Set user email on agent client for AI usage tracking
+                    if (context.email) {
+                        agentClient.setUserEmail(context.email);
+                    }
+
+                    // Post visitor context to parent window (for test environment)
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'powerbar_visitor_context',
+                            context: context
+                        }, '*');
+                    }
+                })
+                .catch(error => {
+                    console.error('[HubSpot] Failed to load visitor context:', error);
+                });
+        }
+    }, [hutk, agentClient]);
 
     // Update streaming state when session changes
     useEffect(() => {
@@ -225,7 +261,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
     agentSubscriberRef.current.onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }) => {
         try {
 
-            // Get the final text from the ref buffer, which avoids a race condition 
+            // Get the final text from the ref buffer, which avoids a race condition
             // where the connection closes before all messages are received and processed.
             const finalText = currentMessageRef.current.trim();
             if (finalText) {
@@ -237,6 +273,13 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
                     content: finalText
                 };
                 addMessage(completedMessage);
+
+                // Track topics discussed for HubSpot logging
+                // Extract key topics from the message (simple keyword extraction)
+                const keywords = finalText.toLowerCase().match(/\b(course|soco|outline|signup|content|learning|training|powerbar)\b/g);
+                if (keywords) {
+                    keywords.forEach(kw => topicsDiscussed.current.add(kw));
+                }
             }
         } catch (error) {
             console.error('Error creating assistant message:', error);
@@ -251,10 +294,29 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
             setCurrentMessage('');
             setCurrentMessageId(null);
             agentClient.endRun();
+
+            // Log HubSpot activity if we have a known contact
+            if (visitorContext?.known && visitorContext.contactId) {
+                const durationMins = Math.round((Date.now() - interactionStartTime.current) / 60000);
+                const topics = Array.from(topicsDiscussed.current);
+
+                if (topics.length > 0) {
+                    logPowerBarInteraction(
+                        visitorContext.contactId,
+                        pageUrl || window.location.href,
+                        topics,
+                        durationMins
+                    ).then(result => {
+                        console.log('[HubSpot] Logged interaction:', result);
+                    }).catch(error => {
+                        console.error('[HubSpot] Failed to log interaction:', error);
+                    });
+                }
+            }
         }
 
         handlePendingToolCalls()
-            
+
     };
 
     // adds an error message to the chat messages buffer
@@ -319,12 +381,16 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         messages,
         addMessage,
         clearMessages,
-        updateState,        
+        updateState,
         currentMessage,
         currentMessageId,
-        isStreaming,        
-        getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),        
-        agentSubscriber: agentSubscriberRef.current
+        isStreaming,
+        getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),
+        agentSubscriber: agentSubscriberRef.current,
+        hutk,
+        source,
+        pageUrl,
+        visitorContext
     };
 
     return (
