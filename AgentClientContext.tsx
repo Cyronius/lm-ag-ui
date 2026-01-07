@@ -17,7 +17,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { getFrontEndTools } from './toolUtils';
 import { getVisitorContext, logPowerBarInteraction, type VisitorContext } from '../services/hubspotService';
 
-
 const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 
 export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = 'smarketing', hutk = null, source = null, pageUrl = null }: AgentClientProviderProps) {
@@ -26,6 +25,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
 
     // Track session for React re-renders
     const [session, setSession] = useState<Session>(agentClient.session);
+
 
     // Global AG-UI state management
     const [globalState, setGlobalState] = useState<any>({});
@@ -93,8 +93,15 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         setIsStreaming(session.isActive);
     }, [session.isActive]);
 
+
     // Get frontend tools (empty object if no tools provided)
     const frontEndTools = useMemo(() => getFrontEndTools(tools), [tools]);
+
+    // Keep a ref to the latest globalState to avoid stale closures in getState
+    const globalStateRef = useRef(globalState);
+    useEffect(() => {
+        globalStateRef.current = globalState;
+    }, [globalState]);
 
     // TODO: not sure state management by toolname is necessary -- could just expose set and get for global state
     // State management functions - need to be defined first
@@ -104,13 +111,14 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
             [toolName]: data
         }));
     }, []);
-    
+
     const getState = useCallback((toolName?: string) => {
+        // Read from ref to always get the latest state
         if (toolName) {
-            return globalState[toolName];
+            return globalStateRef.current[toolName];
         }
-        return globalState;
-    }, [globalState]);
+        return globalStateRef.current;
+    }, []); // No dependencies - always reads from ref
     
     // Message management functions
     const addMessage = useCallback((message: Message) => {
@@ -201,6 +209,20 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
             console.log('adding tool call result to messages', toolResultMessage);
             addMessage(toolResultMessage);
 
+            // Call tool's onResult callback for side effects (e.g., accumulation)
+            const toolCall = toolCallBuffersRef.current.get(event.toolCallId);
+            if (toolCall) {
+                const tool = tools[toolCall.name];
+                if (tool?.onResult) {
+                    try {
+                        const args = JSON.parse(toolCall.argsBuffer || '{}');
+                        tool.onResult(args, event.content || '', updateState, getState);
+                    } catch (error) {
+                        console.error(`Error calling onResult for tool ${toolCall.name}:`, error);
+                    }
+                }
+            }
+
             // TODO: delete this tool call id from the ref, I think.
             toolCallBuffersRef.current.delete(event.toolCallId);
         } catch (error) {
@@ -254,8 +276,21 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         
     };
     
-    agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {  
-        setGlobalState(event.snapshot ?? {})        
+    agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {
+        // Merge the snapshot with existing state, but preserve frontend-managed keys
+        // Frontend-managed keys start with underscore (e.g., _soco_accumulated_outlines)
+        setGlobalState((prev: any) => {
+            const merged = { ...prev, ...event.snapshot };
+
+            // Preserve any frontend-managed keys (starting with _) from prev state
+            Object.keys(prev).forEach(key => {
+                if (key.startsWith('_')) {
+                    merged[key] = prev[key];
+                }
+            });
+
+            return merged;
+        });
     };
     
     agentSubscriberRef.current.onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }) => {
