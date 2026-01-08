@@ -107,7 +107,13 @@ export type ToolHandler = (
 ) => string | null;
 
 // Tool renderer handles display/artifacts for the tool result (both frontend and backend)
-export type ToolRenderer = (args: any, result: string, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => React.ReactElement | void;
+export type ToolRenderer = (
+    args: any,
+    result: string,
+    updateState: (toolName: string, data: any) => void,
+    getState: (toolName?: string) => any,
+    configJson?: Record<string, any>
+) => React.ReactElement | void;
 
 // Tool onResult callback for side effects when tool result is received (e.g., state accumulation)
 export type ToolOnResult = (args: any, result: string, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => void;
