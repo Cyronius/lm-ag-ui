@@ -136,13 +136,14 @@ export interface AgentClientContextValue {
     messages: Message[];
     addMessage: (message: Message) => void;
     clearMessages: () => void;
-    updateState: (toolName: string, data: any) => void;    
+    updateState: (toolName: string, data: any) => void;
     // Streaming state
     currentMessage: string;
     currentMessageId: string | null;
-    isStreaming: boolean;    
-    getToolNameFromCallId: (toolCallId: string) => string | undefined;    
+    isStreaming: boolean;
+    getToolNameFromCallId: (toolCallId: string) => string | undefined;
     agentSubscriber: AgentSubscriber;
+    invokeToolByName: (toolName: string, stateUpdates?: Record<string, any>) => Promise<void>;
 }
 
 

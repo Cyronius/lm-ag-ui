@@ -122,11 +122,65 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         }
     }, [frontEndTools, updateState, getState, addMessage]);
 
-    
-    const executeBackendTool = useCallback((toolName: string, argsJson: string, toolCallId: string):Message|null => {        
+
+    const executeBackendTool = useCallback((toolName: string, argsJson: string, toolCallId: string):Message|null => {
         // TODO: we should allow frontend handler calls for backend tools.
         return null
     }, [agentClient]);
+
+    const invokeToolByName = useCallback(async (
+        toolName: string,
+        stateUpdates?: Record<string, any>
+    ): Promise<void> => {
+        // Validate tool exists
+        const tool = tools[toolName];
+        if (!tool) {
+            console.error(`Tool ${toolName} not found`);
+            const errorMessage: Message = {
+                id: `error_${Date.now()}`,
+                role: 'assistant',
+                content: `Error: Tool '${toolName}' not found`
+            };
+            addMessage(errorMessage);
+            return;
+        }
+
+        // Create user message requesting tool invocation
+        const userMessage: Message = {
+            id: `user_${Date.now()}`,
+            role: 'user',
+            content: `invoke the ${toolName} tool`
+        };
+
+        // Start new run
+        agentClient.startNewRun();
+
+        try {
+            // Apply state updates if provided
+            if (stateUpdates) {
+                agentClient.setState({
+                    ...globalState,
+                    ...stateUpdates
+                });
+            }
+
+            // Execute agent with ONLY the specific tool being invoked
+            await agentClient.runAgent(
+                [...messages, userMessage],
+                [tool.definition], // Only pass the specific tool
+                agentSubscriberRef.current
+            );
+        } catch (error) {
+            console.error('Agent execution failed:', error);
+            const errorMessage: Message = {
+                id: `error_${Date.now()}`,
+                role: 'assistant',
+                content: `Error executing tool '${toolName}': ${error instanceof Error ? error.message : String(error)}`
+            };
+            addMessage(errorMessage);
+            throw error;
+        }
+    }, [agentClient, tools, messages, globalState, addMessage]);
 
     // Event handlers
     const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
@@ -361,7 +415,8 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         currentMessageId,
         isStreaming,
         getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),
-        agentSubscriber: agentSubscriberRef.current
+        agentSubscriber: agentSubscriberRef.current,
+        invokeToolByName
     };
 
     return (
