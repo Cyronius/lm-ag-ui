@@ -134,34 +134,89 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         if (!toolCallId) {
             toolCallId = uuidv4();
         }
-        
+
         try {
             const args = argsJson ? JSON.parse(argsJson) : null;
             const tool = frontEndTools[toolName];
-            
-            const result = tool.handler?.(args, updateState, getState);                        
+
+            // Pass configJson directly as 4th parameter
+            const result = tool.handler?.(args, updateState, getState, tool.configJson);
             const toolMessage: Message = {
                 id: `tool_${toolCallId}_${Date.now()}`,
                 role: 'tool',
                 content: result || '{}',
                 toolCallId
             };
-            addMessage(toolMessage);             
+            addMessage(toolMessage);
             return toolMessage
-            
-        } catch (error) {            
-            console.error(`Tool execution error for ${toolName}:`, error);            
-            const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;            
-            addErrorMessage(errorMessage)
+
+        } catch (error) {
+            console.error(`Tool execution error for ${toolName}:`, error);
+            const errorDetail = error instanceof Error ? error.message : String(error);
+            addErrorMessage(`Error executing tool '${toolName}': ${errorDetail}`)
             return null
         }
     }, [frontEndTools, updateState, getState, addMessage]);
 
-    
-    const executeBackendTool = useCallback((toolName: string, argsJson: string, toolCallId: string):Message|null => {        
+
+    const executeBackendTool = useCallback((toolName: string, argsJson: string, toolCallId: string):Message|null => {
         // TODO: we should allow frontend handler calls for backend tools.
         return null
     }, [agentClient]);
+
+    const invokeToolByName = useCallback(async (
+        toolName: string,
+        stateUpdates?: Record<string, any>
+    ): Promise<void> => {
+        // Validate tool exists
+        const tool = tools[toolName];
+        if (!tool) {
+            console.error(`Tool ${toolName} not found`);
+            const errorMessage: Message = {
+                id: `error_${Date.now()}`,
+                role: 'assistant',
+                content: `Error: Tool '${toolName}' not found`
+            };
+            addMessage(errorMessage);
+            return;
+        }
+
+        // Create user message requesting tool invocation
+        const userMessage: Message = {
+            id: `user_${Date.now()}`,
+            role: 'user',
+            content: `invoke the ${toolName} tool`
+        };
+
+        // Start new run
+        agentClient.startNewRun();
+
+        try {
+            // Apply state updates if provided
+            if (stateUpdates) {
+                agentClient.setState({
+                    ...globalState,
+                    ...stateUpdates
+                });
+            }
+
+            // Execute agent with ONLY the specific tool being invoked
+            await agentClient.runAgent(
+                [...messages, userMessage],
+                [tool.definition], // Only pass the specific tool
+                agentSubscriberRef.current
+            );
+        } catch (error) {
+            console.error('Agent execution failed:', error);
+            const errorMessage: Message = {
+                id: `error_${Date.now()}`,
+                role: 'assistant',
+                content: `Error executing tool '${toolName}': ${error instanceof Error ? error.message : String(error)}`
+            };
+            addMessage(errorMessage);
+            throw error;
+        }
+    }, [agentClient, tools, messages, globalState, addMessage]);
 
     // Event handlers
     const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
@@ -206,7 +261,6 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
                 content: event.content || '',
                 toolCallId: event.toolCallId
             };
-            console.log('adding tool call result to messages', toolResultMessage);
             addMessage(toolResultMessage);
 
             // Call tool's onResult callback for side effects (e.g., accumulation)
@@ -227,10 +281,11 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
             toolCallBuffersRef.current.delete(event.toolCallId);
         } catch (error) {
             console.error('Error creating tool result message:', error);
+            const errorDetail = error instanceof Error ? error.message : String(error);
             const errorMessage: Message = {
                 id: `error_tool_${event.toolCallId}_${Date.now()}`,
                 role: 'assistant',
-                content: 'Error processing tool result'
+                content: `Error processing tool result: ${errorDetail}`
             };
             addMessage(errorMessage);
         }
@@ -318,10 +373,11 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
             }
         } catch (error) {
             console.error('Error creating assistant message:', error);
+            const errorDetail = error instanceof Error ? error.message : String(error);
             const errorMessage: Message = {
                 id: `error_${Date.now()}`,
                 role: 'assistant',
-                content: 'Error processing assistant response'
+                content: `Error processing assistant response: ${errorDetail}`
             };
             addMessage(errorMessage);
         } finally {
@@ -421,6 +477,8 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         currentMessageId,
         isStreaming,
         getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),
+        agentSubscriber: agentSubscriberRef.current,
+        invokeToolByName
         agentSubscriber: agentSubscriberRef.current,
         hutk,
         source,

@@ -99,10 +99,21 @@ export interface AgentSubscriber {
 }
 
 // Tool handler executes the tool's logic (frontend tools only)
-export type ToolHandler = (args: any, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => string;
+export type ToolHandler = (
+    args: any,
+    updateState: (toolName: string, data: any) => void,
+    getState: (toolName?: string) => any,
+    configJson?: Record<string, any>
+) => string | null;
 
 // Tool renderer handles display/artifacts for the tool result (both frontend and backend)
-export type ToolRenderer = (args: any, result: string, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => React.ReactElement | void;
+export type ToolRenderer = (
+    args: any,
+    result: string,
+    updateState: (toolName: string, data: any) => void,
+    getState: (toolName?: string) => any,
+    configJson?: Record<string, any>
+) => React.ReactElement | void;
 
 // Tool onResult callback for side effects when tool result is received (e.g., state accumulation)
 export type ToolOnResult = (args: any, result: string, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => void;
@@ -113,6 +124,7 @@ export interface ToolDefinition {
     renderer?: ToolRenderer; // For tools that need special rendering
     onResult?: ToolOnResult; // For side effects when result is received (e.g., accumulation)
     isFrontend: boolean;
+    configJson?: Record<string, any>;  // Tool configuration from database
 }
 
 
@@ -136,6 +148,7 @@ export interface AgentClientContextValue {
     source?: string | null;
     pageUrl?: string | null;
     visitorContext?: any;
+    invokeToolByName: (toolName: string, stateUpdates?: Record<string, any>) => Promise<void>;
 }
 
 
@@ -155,12 +168,26 @@ export interface Suggestion {
 	suggestion: string;
 }
 
+export interface ToolConfigResponse {
+    name: string;
+    displayName?: string;
+    description?: string;
+    isFrontend?: boolean;
+    configJson?: Record<string, any>;
+    parameters?: {
+        type: string;
+        properties: Record<string, any>;
+        required: string[];
+    };
+}
+
 export interface AgentConfig {
     tools?: Record<string, ToolDefinition>;
+    toolConfigs?: ToolConfigResponse[];  // Raw tool configs from API
     suggestions: Suggestion[];
     defaultPlaceholder?: string;
     allowUpload?: boolean;
-    config?: Record<string, string>;
+    config?: Record<string, string | null>;  // Agent config key-value pairs from backend
 }
 
 export { AgentClient, AgentClientProvider, useAgentContext };
