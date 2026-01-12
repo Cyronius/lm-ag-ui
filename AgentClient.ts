@@ -18,14 +18,14 @@ export class AgentClient {
 
     constructor(
         baseUrl: string = 'http://localhost:8000',
-        agentId: string = 'smarketing'
+        agentId: string = '6f6ceaa3-31ca-43ad-a302-2a25bbd8bba9'
     ) {
         this.baseUrl = baseUrl;
         this.agentId = agentId;
         this.timeout = STREAM_TIMEOUT_MS;
 
         // Construct URL based on agentId (agentId might be a guid, but
-        // could be system-defined string like 'smarketing')        
+        // could be system-defined string like 'smarketing')
         console.log('Creating AgentClient for agent', agentId)
         // TODO: remove the legacy option later
         //const agentUrl = `${baseUrl}/agent/${agentId}`;
@@ -246,7 +246,7 @@ export class AgentClient {
 
         // TODO: remove legacy path later
         // const response = await fetch(`${this.baseUrl}/agent/upload`, {
-        const url = this.agentId === 'smarketing' ? `${this.baseUrl}/smarketing/upload` : `${this.baseUrl}/agent/upload`
+        const url = this.agentId === '6f6ceaa3-31ca-43ad-a302-2a25bbd8bba9' ? `${this.baseUrl}/smarketing/upload` : `${this.baseUrl}/agent/upload`
         const response = await fetch(url, {
             method: 'POST',
             body: formData,
