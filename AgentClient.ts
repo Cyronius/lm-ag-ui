@@ -124,7 +124,7 @@ export class AgentClient {
                 runId,
                 tools,
                 context: [],
-                forwardedProps
+                forwardedProps: {}
             }, subscriber);
 
             return result;
