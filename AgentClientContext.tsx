@@ -17,9 +17,23 @@ import { v4 as uuidv4 } from 'uuid';
 import { getFrontEndTools } from './toolUtils';
 import { getVisitorContext, logPowerBarInteraction, type VisitorContext } from '../services/hubspotService';
 
-const AgentClientContext = createContext<AgentClientContextValue | null>(null);
+// Smarketing-specific extensions to the base interfaces
+interface SmarketingContextValue extends AgentClientContextValue {
+    hutk?: string | null;
+    source?: string | null;
+    pageUrl?: string | null;
+    visitorContext?: VisitorContext | null;
+}
 
-export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hutk = null, source = null, pageUrl = null }: AgentClientProviderProps) {
+interface SmarketingProviderProps extends AgentClientProviderProps {
+    hutk?: string | null;
+    source?: string | null;
+    pageUrl?: string | null;
+}
+
+const AgentClientContext = createContext<SmarketingContextValue | null>(null);
+
+export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hutk = null, source = null, pageUrl = null }: SmarketingProviderProps) {
     // Create a single AgentClient instance
     const [agentClient] = useState(() => new AgentClient(baseUrl, agentId));
 
@@ -32,6 +46,9 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
 
     // HubSpot visitor context
     const [visitorContext, setVisitorContext] = useState<VisitorContext | null>(null);
+
+    // User email for tracking (set from HubSpot visitor context)
+    const userEmailRef = useRef<string | undefined>(undefined);
 
     // Track interaction start time for duration calculation
     const interactionStartTime = useRef<number>(Date.now());
@@ -69,9 +86,9 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
                     setVisitorContext(context);
                     console.log('[HubSpot] Visitor context loaded:', context);
 
-                    // Set user email on agent client for AI usage tracking
+                    // Store user email for AI usage tracking
                     if (context.email) {
-                        agentClient.setUserEmail(context.email);
+                        userEmailRef.current = context.email;
                     }
 
                     // Post visitor context to parent window (for test environment)
@@ -86,7 +103,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
                     console.error('[HubSpot] Failed to load visitor context:', error);
                 });
         }
-    }, [hutk, agentClient]);
+    }, [hutk]);
 
     // Update streaming state when session changes
     useEffect(() => {
@@ -201,10 +218,15 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
             }
 
             // Execute agent with ONLY the specific tool being invoked
+            const forwardedProps: Record<string, any> = {};
+            if (userEmailRef.current) {
+                forwardedProps.user_email = userEmailRef.current;
+            }
             await agentClient.runAgent(
                 [...messages, userMessage],
                 [tool.definition], // Only pass the specific tool
-                agentSubscriberRef.current
+                agentSubscriberRef.current,
+                forwardedProps
             );
         } catch (error) {
             console.error('Agent execution failed:', error);
@@ -464,7 +486,16 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
     //agentSubscriberRef.current.onToolCallEndEvent = ({ event }: { event: ToolCallEndEvent }) => handleToolCallEnd(event);
     agentSubscriberRef.current.onToolCallResultEvent = ({ event }: { event: ToolCallResultEvent }) => handleToolCallResult(event);
 
-    const contextValue: AgentClientContextValue = {
+    // Build forwardedProps for agent calls (includes user email for tracking)
+    const getForwardedProps = useCallback((): Record<string, any> => {
+        const props: Record<string, any> = {};
+        if (userEmailRef.current) {
+            props.user_email = userEmailRef.current;
+        }
+        return props;
+    }, []);
+
+    const contextValue: SmarketingContextValue = {
         agentClient,
         session,
         tools,
@@ -479,6 +510,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),
         agentSubscriber: agentSubscriberRef.current,
         invokeToolByName,
+        getForwardedProps,
         hutk,
         source,
         pageUrl,

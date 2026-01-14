@@ -143,12 +143,8 @@ export interface AgentClientContextValue {
     isStreaming: boolean;
     getToolNameFromCallId: (toolCallId: string) => string | undefined;
     agentSubscriber: AgentSubscriber;
-    // HubSpot context
-    hutk?: string | null;
-    source?: string | null;
-    pageUrl?: string | null;
-    visitorContext?: any;
     invokeToolByName: (toolName: string, stateUpdates?: Record<string, any>) => Promise<void>;
+    getForwardedProps: () => Record<string, any>;
 }
 
 
@@ -158,9 +154,6 @@ export interface AgentClientProviderProps {
     tools?: Record<string, ToolDefinition>;
     baseUrl?: string;
     agentId: string;
-    hutk?: string | null;
-    source?: string | null;
-    pageUrl?: string | null;
 }
 
 export interface Suggestion {
