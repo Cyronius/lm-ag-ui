@@ -15,7 +15,7 @@ import {
 } from '@ag-ui/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getFrontEndTools } from './toolUtils';
-import { getVisitorContext, logPowerBarInteraction, type VisitorContext } from '../services/hubspotService';
+import { getVisitorContext, logPowerBarInteraction, logPowerBarInteractionBeacon, type VisitorContext } from '../services/hubspotService';
 
 // Smarketing-specific extensions to the base interfaces
 interface SmarketingContextValue extends AgentClientContextValue {
@@ -23,6 +23,7 @@ interface SmarketingContextValue extends AgentClientContextValue {
     source?: string | null;
     pageUrl?: string | null;
     visitorContext?: VisitorContext | null;
+    logSessionToHubSpot: (useBeacon?: boolean) => void;
 }
 
 interface SmarketingProviderProps extends AgentClientProviderProps {
@@ -50,9 +51,10 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
     // User email for tracking (set from HubSpot visitor context)
     const userEmailRef = useRef<string | undefined>(undefined);
 
-    // Track interaction start time for duration calculation
-    const interactionStartTime = useRef<number>(Date.now());
+    // Track interaction start time for duration calculation (null until first message)
+    const interactionStartTime = useRef<number | null>(null);
     const topicsDiscussed = useRef<Set<string>>(new Set());
+    const hasLoggedSession = useRef<boolean>(false);
 
     // Messages state management
     const [messages, setMessages] = useState<Message[]>([]);
@@ -104,6 +106,61 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
                 });
         }
     }, [hutk]);
+
+    // Function to log session interaction to HubSpot (called once per session)
+    const logSessionToHubSpot = useCallback((useBeacon: boolean = false) => {
+        if (hasLoggedSession.current) {
+            return; // Already logged this session
+        }
+
+        // Only log if we have a known contact and interaction actually started
+        if (visitorContext?.known && visitorContext.contactId && interactionStartTime.current) {
+            const topics = Array.from(topicsDiscussed.current);
+
+            if (topics.length > 0) {
+                hasLoggedSession.current = true;
+                const durationMins = Math.round((Date.now() - interactionStartTime.current) / 60000);
+
+                if (useBeacon) {
+                    // Use sendBeacon for page unload (fire-and-forget)
+                    logPowerBarInteractionBeacon(
+                        visitorContext.contactId,
+                        pageUrl || window.location.href,
+                        topics,
+                        durationMins
+                    );
+                } else {
+                    // Use fetch for normal logging (with response handling)
+                    logPowerBarInteraction(
+                        visitorContext.contactId,
+                        pageUrl || window.location.href,
+                        topics,
+                        durationMins
+                    ).then(result => {
+                        console.log('[HubSpot] Logged session interaction:', result);
+                    }).catch(error => {
+                        console.error('[HubSpot] Failed to log session interaction:', error);
+                        hasLoggedSession.current = false; // Allow retry on error
+                    });
+                }
+            }
+        }
+    }, [visitorContext, pageUrl]);
+
+    // Log to HubSpot when user leaves the page (using sendBeacon for reliability)
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            logSessionToHubSpot(true); // Use beacon for page unload
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            // Also log on component unmount (use regular fetch)
+            logSessionToHubSpot(false);
+        };
+    }, [logSessionToHubSpot]);
 
     // Update streaming state when session changes
     useEffect(() => {
@@ -335,6 +392,10 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
     };
     
     agentSubscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
+        // Start timing the session from the first interaction
+        if (!interactionStartTime.current) {
+            interactionStartTime.current = Date.now();
+        }
         currentMessageRef.current = '';
         setCurrentMessage('');
         setCurrentMessageId(null);
@@ -407,25 +468,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
             setCurrentMessage('');
             setCurrentMessageId(null);
             agentClient.endRun();
-
-            // Log HubSpot activity if we have a known contact
-            if (visitorContext?.known && visitorContext.contactId) {
-                const durationMins = Math.round((Date.now() - interactionStartTime.current) / 60000);
-                const topics = Array.from(topicsDiscussed.current);
-
-                if (topics.length > 0) {
-                    logPowerBarInteraction(
-                        visitorContext.contactId,
-                        pageUrl || window.location.href,
-                        topics,
-                        durationMins
-                    ).then(result => {
-                        console.log('[HubSpot] Logged interaction:', result);
-                    }).catch(error => {
-                        console.error('[HubSpot] Failed to log interaction:', error);
-                    });
-                }
-            }
+            // Topics are collected above; HubSpot logging happens once on session end (beforeunload/unmount)
         }
 
         handlePendingToolCalls()
@@ -514,7 +557,8 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         hutk,
         source,
         pageUrl,
-        visitorContext
+        visitorContext,
+        logSessionToHubSpot
     };
 
     return (
