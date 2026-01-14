@@ -157,7 +157,7 @@ export interface AgentClientProviderProps {
     children: React.ReactNode;
     tools?: Record<string, ToolDefinition>;
     baseUrl?: string;
-    agentId?: string;
+    agentId: string;
     hutk?: string | null;
     source?: string | null;
     pageUrl?: string | null;

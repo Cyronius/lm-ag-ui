@@ -19,7 +19,7 @@ import { getVisitorContext, logPowerBarInteraction, type VisitorContext } from '
 
 const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 
-export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '6f6ceaa3-31ca-43ad-a302-2a25bbd8bba9', hutk = null, source = null, pageUrl = null }: AgentClientProviderProps) {
+export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hutk = null, source = null, pageUrl = null }: AgentClientProviderProps) {
     // Create a single AgentClient instance
     const [agentClient] = useState(() => new AgentClient(baseUrl, agentId));
 

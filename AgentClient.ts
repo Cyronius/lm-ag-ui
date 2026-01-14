@@ -18,7 +18,7 @@ export class AgentClient {
 
     constructor(
         baseUrl: string = 'http://localhost:8000',
-        agentId: string = '6f6ceaa3-31ca-43ad-a302-2a25bbd8bba9'
+        agentId: string
     ) {
         this.baseUrl = baseUrl;
         this.agentId = agentId;
@@ -29,7 +29,8 @@ export class AgentClient {
         console.log('Creating AgentClient for agent', agentId)
         // TODO: remove the legacy option later
         //const agentUrl = `${baseUrl}/agent/${agentId}`;
-        const agentUrl = agentId === 'smarketing' ? `${baseUrl}/${agentId}` : `${baseUrl}/agent/${agentId}`;
+        const smarketingAgentId = import.meta.env.VITE_SMARKETING_AGENT_ID;
+        const agentUrl = agentId === smarketingAgentId ? `${baseUrl}/smarketing` : `${baseUrl}/agent/${agentId}`;
 
         this.agent = new HttpAgent({
             url: agentUrl,
@@ -246,7 +247,8 @@ export class AgentClient {
 
         // TODO: remove legacy path later
         // const response = await fetch(`${this.baseUrl}/agent/upload`, {
-        const url = this.agentId === '6f6ceaa3-31ca-43ad-a302-2a25bbd8bba9' ? `${this.baseUrl}/smarketing/upload` : `${this.baseUrl}/agent/upload`
+        const smarketingAgentId = import.meta.env.VITE_SMARKETING_AGENT_ID;
+        const url = this.agentId === smarketingAgentId ? `${this.baseUrl}/smarketing/upload` : `${this.baseUrl}/agent/upload`
         const response = await fetch(url, {
             method: 'POST',
             body: formData,
