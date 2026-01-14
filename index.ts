@@ -147,6 +147,7 @@ export interface AgentClientContextValue {
     // Debug mode for LLM input capture
     debug: boolean;
     setDebug: (enabled: boolean) => void;
+    getForwardedProps: () => Record<string, any>;
 }
 
 
@@ -155,7 +156,7 @@ export interface AgentClientProviderProps {
     children: React.ReactNode;
     tools?: Record<string, ToolDefinition>;
     baseUrl?: string;
-    agentId?: string;
+    agentId: string;
 }
 
 export interface Suggestion {

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AgentClient } from './AgentClient';
 import { ToolDefinition, ToolCallBuffer, AgentSubscriber, RunAgentResult, Session, AgentClientContextValue, AgentClientProviderProps } from './index';
-import { 
+import {
     Message,
     TextMessageContentEvent,
     RunStartedEvent,
@@ -15,10 +15,26 @@ import {
 } from '@ag-ui/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getFrontEndTools } from './toolUtils';
+import { getVisitorContext, logPowerBarInteraction, logPowerBarInteractionBeacon, type VisitorContext } from '../services/hubspotService';
 
-const AgentClientContext = createContext<AgentClientContextValue | null>(null);
+// Smarketing-specific extensions to the base interfaces
+interface SmarketingContextValue extends AgentClientContextValue {
+    hutk?: string | null;
+    source?: string | null;
+    pageUrl?: string | null;
+    visitorContext?: VisitorContext | null;
+    logSessionToHubSpot: (useBeacon?: boolean) => void;
+}
 
-export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = 'smarketing' }: AgentClientProviderProps) {
+interface SmarketingProviderProps extends AgentClientProviderProps {
+    hutk?: string | null;
+    source?: string | null;
+    pageUrl?: string | null;
+}
+
+const AgentClientContext = createContext<SmarketingContextValue | null>(null);
+
+export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hutk = null, source = null, pageUrl = null }: SmarketingProviderProps) {
     // Create a single AgentClient instance
     const [agentClient] = useState(() => new AgentClient(baseUrl, agentId));
 
@@ -28,6 +44,17 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
 
     // Global AG-UI state management
     const [globalState, setGlobalState] = useState<any>({});
+
+    // HubSpot visitor context
+    const [visitorContext, setVisitorContext] = useState<VisitorContext | null>(null);
+
+    // User email for tracking (set from HubSpot visitor context)
+    const userEmailRef = useRef<string | undefined>(undefined);
+
+    // Track interaction start time for duration calculation (null until first message)
+    const interactionStartTime = useRef<number | null>(null);
+    const topicsDiscussed = useRef<Set<string>>(new Set());
+    const hasLoggedSession = useRef<boolean>(false);
 
     // Messages state management
     const [messages, setMessages] = useState<Message[]>([]);
@@ -59,6 +86,89 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         agentClient.setSessionChangeCallback(setSession);
         setIsStreaming(agentClient.session.isActive);
     }, [agentClient]);
+
+    // Load HubSpot visitor context on mount
+    useEffect(() => {
+        if (hutk) {
+            console.log('[HubSpot] Loading visitor context for hutk:', hutk);
+            getVisitorContext(hutk)
+                .then(context => {
+                    setVisitorContext(context);
+                    console.log('[HubSpot] Visitor context loaded:', context);
+
+                    // Store user email for AI usage tracking
+                    if (context.email) {
+                        userEmailRef.current = context.email;
+                    }
+
+                    // Post visitor context to parent window (for test environment)
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'powerbar_visitor_context',
+                            context: context
+                        }, '*');
+                    }
+                })
+                .catch(error => {
+                    console.error('[HubSpot] Failed to load visitor context:', error);
+                });
+        }
+    }, [hutk]);
+
+    // Function to log session interaction to HubSpot (called once per session)
+    const logSessionToHubSpot = useCallback((useBeacon: boolean = false) => {
+        if (hasLoggedSession.current) {
+            return; // Already logged this session
+        }
+
+        // Only log if we have a known contact and interaction actually started
+        if (visitorContext?.known && visitorContext.contactId && interactionStartTime.current) {
+            const topics = Array.from(topicsDiscussed.current);
+
+            if (topics.length > 0) {
+                hasLoggedSession.current = true;
+                const durationMins = Math.round((Date.now() - interactionStartTime.current) / 60000);
+
+                if (useBeacon) {
+                    // Use sendBeacon for page unload (fire-and-forget)
+                    logPowerBarInteractionBeacon(
+                        visitorContext.contactId,
+                        pageUrl || window.location.href,
+                        topics,
+                        durationMins
+                    );
+                } else {
+                    // Use fetch for normal logging (with response handling)
+                    logPowerBarInteraction(
+                        visitorContext.contactId,
+                        pageUrl || window.location.href,
+                        topics,
+                        durationMins
+                    ).then(result => {
+                        console.log('[HubSpot] Logged session interaction:', result);
+                    }).catch(error => {
+                        console.error('[HubSpot] Failed to log session interaction:', error);
+                        hasLoggedSession.current = false; // Allow retry on error
+                    });
+                }
+            }
+        }
+    }, [visitorContext, pageUrl]);
+
+    // Log to HubSpot when user leaves the page (using sendBeacon for reliability)
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            logSessionToHubSpot(true); // Use beacon for page unload
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            // Also log on component unmount (use regular fetch)
+            logSessionToHubSpot(false);
+        };
+    }, [logSessionToHubSpot]);
 
     // Update streaming state when session changes
     useEffect(() => {
@@ -173,10 +283,15 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
             }
 
             // Execute agent with ONLY the specific tool being invoked
+            const forwardedProps: Record<string, any> = {};
+            if (userEmailRef.current) {
+                forwardedProps.user_email = userEmailRef.current;
+            }
             await agentClient.runAgent(
                 [...messages, userMessage],
                 [tool.definition], // Only pass the specific tool
-                agentSubscriberRef.current
+                agentSubscriberRef.current,
+                forwardedProps
             );
         } catch (error) {
             console.error('Agent execution failed:', error);
@@ -285,6 +400,10 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
     };
     
     agentSubscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
+        // Start timing the session from the first interaction
+        if (!interactionStartTime.current) {
+            interactionStartTime.current = Date.now();
+        }
         currentMessageRef.current = '';
         setCurrentMessage('');
         setCurrentMessageId(null);
@@ -323,7 +442,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
     agentSubscriberRef.current.onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }) => {
         try {
 
-            // Get the final text from the ref buffer, which avoids a race condition 
+            // Get the final text from the ref buffer, which avoids a race condition
             // where the connection closes before all messages are received and processed.
             const finalText = currentMessageRef.current.trim();
             if (finalText) {
@@ -335,6 +454,13 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
                     content: finalText
                 };
                 addMessage(completedMessage);
+
+                // Track topics discussed for HubSpot logging
+                // Extract key topics from the message (simple keyword extraction)
+                const keywords = finalText.toLowerCase().match(/\b(course|soco|outline|signup|content|learning|training|powerbar)\b/g);
+                if (keywords) {
+                    keywords.forEach(kw => topicsDiscussed.current.add(kw));
+                }
             }
         } catch (error) {
             console.error('Error creating assistant message:', error);
@@ -350,10 +476,11 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
             setCurrentMessage('');
             setCurrentMessageId(null);
             agentClient.endRun();
+            // Topics are collected above; HubSpot logging happens once on session end (beforeunload/unmount)
         }
 
         handlePendingToolCalls()
-            
+
     };
 
     // adds an error message to the chat messages buffer
@@ -410,7 +537,16 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
     //agentSubscriberRef.current.onToolCallEndEvent = ({ event }: { event: ToolCallEndEvent }) => handleToolCallEnd(event);
     agentSubscriberRef.current.onToolCallResultEvent = ({ event }: { event: ToolCallResultEvent }) => handleToolCallResult(event);
 
-    const contextValue: AgentClientContextValue = {
+    // Build forwardedProps for agent calls (includes user email for tracking)
+    const getForwardedProps = useCallback((): Record<string, any> => {
+        const props: Record<string, any> = {};
+        if (userEmailRef.current) {
+            props.user_email = userEmailRef.current;
+        }
+        return props;
+    }, []);
+
+    const contextValue: SmarketingContextValue = {
         agentClient,
         session,
         tools,
@@ -426,7 +562,13 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         agentSubscriber: agentSubscriberRef.current,
         invokeToolByName,
         debug,
-        setDebug
+        setDebug,
+        getForwardedProps,
+        hutk,
+        source,
+        pageUrl,
+        visitorContext,
+        logSessionToHubSpot
     };
 
     return (

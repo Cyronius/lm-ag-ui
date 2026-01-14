@@ -18,7 +18,7 @@ export class AgentClient {
 
     constructor(
         baseUrl: string = 'http://localhost:8000',
-        agentId: string = 'smarketing'
+        agentId: string
     ) {
         this.baseUrl = baseUrl;
         this.agentId = agentId;
@@ -117,7 +117,8 @@ export class AgentClient {
     async runAgent(
         messages: Message[],
         tools: Tool[],
-        subscriber: AgentSubscriber
+        subscriber: AgentSubscriber,
+        forwardedProps: Record<string, any> = {}
     ): Promise<RunAgentResult> {
         // Use current session (always fresh)
         const threadId = this._session.threadId || this.generateThreadId();
@@ -127,11 +128,12 @@ export class AgentClient {
             // Set the thread ID and messages on the agent
             this.agent.threadId = threadId;
             this.agent.setMessages(messages);
+
             const result = await this.agent.runAgent({
                 runId,
                 tools,
                 context: [],
-                forwardedProps: {}
+                forwardedProps
             }, subscriber);
 
             return result;
@@ -253,7 +255,8 @@ export class AgentClient {
 
         // TODO: remove legacy path later
         // const response = await fetch(`${this.baseUrl}/agent/upload`, {
-        const url = this.agentId === 'smarketing' ? `${this.baseUrl}/smarketing/upload` : `${this.baseUrl}/agent/upload`
+        const smarketingAgentId = import.meta.env.VITE_SMARKETING_AGENT_ID;
+        const url = this.agentId === smarketingAgentId ? `${this.baseUrl}/smarketing/upload` : `${this.baseUrl}/agent/upload`
         const response = await fetch(url, {
             method: 'POST',
             body: formData,
