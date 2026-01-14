@@ -11,6 +11,7 @@ export class AgentClient {
     private agentId: string;
     private timeout: number;
     private _session: Session;
+    private _debug: boolean = false;
 
     // Session change callback for React integration
     private onSessionChange?: (session: Session) => void;
@@ -23,15 +24,10 @@ export class AgentClient {
         this.agentId = agentId;
         this.timeout = STREAM_TIMEOUT_MS;
 
-        // Construct URL based on agentId (agentId might be a guid, but
-        // could be system-defined string like 'smarketing')        
         console.log('Creating AgentClient for agent', agentId)
-        // TODO: remove the legacy option later
-        //const agentUrl = `${baseUrl}/agent/${agentId}`;
-        const agentUrl = agentId === 'smarketing' ? `${baseUrl}/${agentId}` : `${baseUrl}/agent/${agentId}`;
 
         this.agent = new HttpAgent({
-            url: agentUrl,
+            url: this.buildAgentUrl(),
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'text/event-stream'
@@ -44,6 +40,31 @@ export class AgentClient {
             runId: null,
             isActive: false
         };
+    }
+
+    // Build agent URL with optional debug query param
+    private buildAgentUrl(): string {        
+        const base = `${this.baseUrl}/agent/${this.agentId}`;
+        return this._debug ? `${base}?debug=true` : base;
+    }
+
+    // Debug mode getter
+    get debug(): boolean {
+        return this._debug;
+    }
+
+    // Set debug mode - recreates HttpAgent with updated URL
+    setDebug(enabled: boolean): void {
+        if (this._debug === enabled) return;
+        this._debug = enabled;
+
+        this.agent = new HttpAgent({
+            url: this.buildAgentUrl(),
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream'
+            }
+        });
     }
 
     // Session getter

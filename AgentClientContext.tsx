@@ -41,6 +41,14 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
 
     const [isStreaming, setIsStreaming] = useState<boolean>(false);
 
+    // Debug mode state for LLM input capture
+    const [debug, setDebugState] = useState<boolean>(false);
+
+    const setDebug = useCallback((enabled: boolean) => {
+        agentClient.setDebug(enabled);
+        setDebugState(enabled);
+    }, [agentClient]);
+
     // Tool execution state (using refs to avoid stale closures)
     const toolCallBuffersRef = useRef<Map<string, ToolCallBuffer>>(new Map());
     const toolCallIdToNameRef = useRef<Map<string, string>>(new Map());
@@ -416,7 +424,9 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId = '
         isStreaming,
         getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),
         agentSubscriber: agentSubscriberRef.current,
-        invokeToolByName
+        invokeToolByName,
+        debug,
+        setDebug
     };
 
     return (
