@@ -15,7 +15,7 @@ import {
 } from '@ag-ui/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getFrontEndTools } from './toolUtils';
-import { getVisitorContext, logPowerBarInteraction, logPowerBarInteractionBeacon, type VisitorContext } from '../services/hubspotService';
+import { getVisitorContext, logPowerBarInteraction, logPowerBarInteractionBeacon, type VisitorContext, type HubSpotInteractionPayload } from '../services/hubspotService';
 
 // Smarketing-specific extensions to the base interfaces
 interface SmarketingContextValue extends AgentClientContextValue {
@@ -24,6 +24,9 @@ interface SmarketingContextValue extends AgentClientContextValue {
     pageUrl?: string | null;
     visitorContext?: VisitorContext | null;
     logSessionToHubSpot: (useBeacon?: boolean) => void;
+    setUserSignedUp: (accountId: string, email: string) => void;
+    captureUserEmail: (email: string) => void;
+    userAccountId: string | null;
 }
 
 interface SmarketingProviderProps extends AgentClientProviderProps {
@@ -53,8 +56,19 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
 
     // Track interaction start time for duration calculation (null until first message)
     const interactionStartTime = useRef<number | null>(null);
-    const topicsDiscussed = useRef<Set<string>>(new Set());
     const hasLoggedSession = useRef<boolean>(false);
+
+    // Track tools used during session
+    const toolsUsedRef = useRef<Set<string>>(new Set());
+
+    // Track if user signed up during this session
+    const userSignedUpRef = useRef<boolean>(false);
+
+    // Track captured email for unknown visitors
+    const capturedEmailRef = useRef<string | null>(null);
+
+    // Track account ID from successful signup (for returning user detection)
+    const userAccountIdRef = useRef<string | null>(null);
 
     // Messages state management
     const [messages, setMessages] = useState<Message[]>([]);
@@ -113,39 +127,75 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
             return; // Already logged this session
         }
 
-        // Only log if we have a known contact and interaction actually started
-        if (visitorContext?.known && visitorContext.contactId && interactionStartTime.current) {
-            const topics = Array.from(topicsDiscussed.current);
-
-            if (topics.length > 0) {
-                hasLoggedSession.current = true;
-                const durationMins = Math.round((Date.now() - interactionStartTime.current) / 60000);
-
-                if (useBeacon) {
-                    // Use sendBeacon for page unload (fire-and-forget)
-                    logPowerBarInteractionBeacon(
-                        visitorContext.contactId,
-                        pageUrl || window.location.href,
-                        topics,
-                        durationMins
-                    );
-                } else {
-                    // Use fetch for normal logging (with response handling)
-                    logPowerBarInteraction(
-                        visitorContext.contactId,
-                        pageUrl || window.location.href,
-                        topics,
-                        durationMins
-                    ).then(result => {
-                        console.log('[HubSpot] Logged session interaction:', result);
-                    }).catch(error => {
-                        console.error('[HubSpot] Failed to log session interaction:', error);
-                        hasLoggedSession.current = false; // Allow retry on error
-                    });
-                }
-            }
+        // Only log if interaction actually started (user sent at least one message)
+        if (!interactionStartTime.current) {
+            return;
         }
-    }, [visitorContext, pageUrl]);
+
+        // Build conversation context from messages (for LLM summarization on backend)
+        const conversationContext = messages
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+            .map(m => `${m.role}: ${typeof m.content === 'string' ? m.content : ''}`)
+            .join('\n');
+
+        // Skip if no meaningful conversation
+        if (!conversationContext.trim()) {
+            return;
+        }
+
+        hasLoggedSession.current = true;
+        const durationMins = Math.round((Date.now() - interactionStartTime.current) / 60000);
+
+        // Build the payload
+        const payload: HubSpotInteractionPayload = {
+            page: pageUrl || window.location.href,
+            conversationContext,
+            durationMins,
+            toolsUsed: Array.from(toolsUsedRef.current),
+            userSignedUp: userSignedUpRef.current,
+        };
+
+        // Add contactId if known visitor
+        if (visitorContext?.known && visitorContext.contactId) {
+            payload.contactId = visitorContext.contactId;
+        }
+
+        // Add email for unknown user contact creation
+        if (!visitorContext?.known && capturedEmailRef.current) {
+            payload.email = capturedEmailRef.current;
+        }
+
+        // Add accountId if user signed up
+        if (userAccountIdRef.current) {
+            payload.accountId = userAccountIdRef.current;
+        }
+
+        if (useBeacon) {
+            // Use sendBeacon for page unload (fire-and-forget)
+            logPowerBarInteractionBeacon(payload);
+        } else {
+            // Use fetch for normal logging (with response handling)
+            logPowerBarInteraction(payload)
+                .then(result => {
+                    console.log('[HubSpot] Logged session interaction:', result);
+                })
+                .catch(error => {
+                    console.error('[HubSpot] Failed to log session interaction:', error);
+                    hasLoggedSession.current = false; // Allow retry on error
+                });
+        }
+    }, [visitorContext, pageUrl, messages]);
+
+    // Functions to track signup and email capture
+    const setUserSignedUp = useCallback((accountId: string, email: string) => {
+        userSignedUpRef.current = true;
+        userAccountIdRef.current = accountId;
+        capturedEmailRef.current = email;
+    }, []);
+
+    const captureUserEmail = useCallback((email: string) => {
+        capturedEmailRef.current = email;
+    }, []);
 
     // Log to HubSpot when user leaves the page (using sendBeacon for reliability)
     useEffect(() => {
@@ -305,6 +355,10 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
             parentMessageId: event.parentMessageId
         });
         toolCallIdToNameRef.current.set(event.toolCallId, event.toolCallName);
+
+        // Track tool usage for HubSpot logging
+        toolsUsedRef.current.add(event.toolCallName);
+
         forceUpdate(n => n + 1);
     }, []);
 
@@ -446,13 +500,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
                     content: finalText
                 };
                 addMessage(completedMessage);
-
-                // Track topics discussed for HubSpot logging
-                // Extract key topics from the message (simple keyword extraction)
-                const keywords = finalText.toLowerCase().match(/\b(course|soco|outline|signup|content|learning|training|powerbar)\b/g);
-                if (keywords) {
-                    keywords.forEach(kw => topicsDiscussed.current.add(kw));
-                }
+                // Topic extraction now handled by backend LLM via conversationContext in logSessionToHubSpot
             }
         } catch (error) {
             console.error('Error creating assistant message:', error);
@@ -558,7 +606,10 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         source,
         pageUrl,
         visitorContext,
-        logSessionToHubSpot
+        logSessionToHubSpot,
+        setUserSignedUp,
+        captureUserEmail,
+        userAccountId: userAccountIdRef.current
     };
 
     return (
