@@ -68,7 +68,9 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
     const capturedEmailRef = useRef<string | null>(null);
 
     // Track account ID from successful signup (for returning user detection)
+    // Use both ref (for stable access in callbacks) and state (for triggering re-renders)
     const userAccountIdRef = useRef<string | null>(null);
+    const [userAccountId, setUserAccountId] = useState<string | null>(null);
 
     // Messages state management
     const [messages, setMessages] = useState<Message[]>([]);
@@ -191,6 +193,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         userSignedUpRef.current = true;
         userAccountIdRef.current = accountId;
         capturedEmailRef.current = email;
+        setUserAccountId(accountId); // Trigger re-render so components see the updated value
     }, []);
 
     const captureUserEmail = useCallback((email: string) => {
@@ -616,7 +619,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         logSessionToHubSpot,
         setUserSignedUp,
         captureUserEmail,
-        userAccountId: userAccountIdRef.current
+        userAccountId
     };
 
     return (
