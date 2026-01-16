@@ -197,10 +197,17 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         capturedEmailRef.current = email;
     }, []);
 
+    // Store logSessionToHubSpot in a ref so we can call it from cleanup without re-running effect
+    const logSessionToHubSpotRef = useRef(logSessionToHubSpot);
+    useEffect(() => {
+        logSessionToHubSpotRef.current = logSessionToHubSpot;
+    }, [logSessionToHubSpot]);
+
     // Log to HubSpot when user leaves the page (using sendBeacon for reliability)
+    // This effect should only run once on mount/unmount, not when logSessionToHubSpot changes
     useEffect(() => {
         const handleBeforeUnload = () => {
-            logSessionToHubSpot(true); // Use beacon for page unload
+            logSessionToHubSpotRef.current(true); // Use beacon for page unload
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
@@ -208,9 +215,9 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         return () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
             // Also log on component unmount (use regular fetch)
-            logSessionToHubSpot(false);
+            logSessionToHubSpotRef.current(false);
         };
-    }, [logSessionToHubSpot]);
+    }, []); // Empty dependency array - only run on mount/unmount
 
     // Update streaming state when session changes
     useEffect(() => {
