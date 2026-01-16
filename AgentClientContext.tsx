@@ -24,6 +24,7 @@ interface SmarketingContextValue extends AgentClientContextValue {
     pageUrl?: string | null;
     visitorContext?: VisitorContext | null;
     logSessionToHubSpot: (useBeacon?: boolean) => void;
+    completedLines: string[];
 }
 
 interface SmarketingProviderProps extends AgentClientProviderProps {
@@ -67,6 +68,10 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
     const currentMessageRef = useRef<string>('');
 
     const [isStreaming, setIsStreaming] = useState<boolean>(false);
+
+    // Line-based buffering for streaming markdown (prevents FOUC)
+    const [completedLines, setCompletedLines] = useState<string[]>([]);
+    const pendingLineRef = useRef<string>('');
 
     // Tool execution state (using refs to avoid stale closures)
     const toolCallBuffersRef = useRef<Map<string, ToolCallBuffer>>(new Map());
@@ -399,19 +404,32 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         currentMessageRef.current = '';
         setCurrentMessage('');
         setCurrentMessageId(null);
+        setCompletedLines([]);
+        pendingLineRef.current = '';
     };
     
     agentSubscriberRef.current.onTextMessageContentEvent = ({ event }: { event: TextMessageContentEvent }) => {
         if (event.messageId !== currentMessageId) {
-            setCurrentMessageId(event.messageId);            
-        } 
+            setCurrentMessageId(event.messageId);
+        }
 
-        // Add message to buffer
-        currentMessageRef.current += event.delta
+        // Add to raw buffer (for final message construction)
+        currentMessageRef.current += event.delta;
 
-        // Update UI
-        setCurrentMessage(currentMessageRef.current);
-        
+        // Line-based buffering for display (prevents FOUC)
+        const allContent = pendingLineRef.current + event.delta;
+        const lines = allContent.split('\n');
+
+        // All but last line are complete
+        const newCompleteLines = lines.slice(0, -1);
+        pendingLineRef.current = lines[lines.length - 1];
+
+        if (newCompleteLines.length > 0) {
+            setCompletedLines(prev => [...prev, ...newCompleteLines]);
+        }
+
+        // Update pending content for display
+        setCurrentMessage(pendingLineRef.current);
     };
     
     agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {
@@ -467,6 +485,8 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
             currentMessageRef.current = '';
             setCurrentMessage('');
             setCurrentMessageId(null);
+            setCompletedLines([]);
+            pendingLineRef.current = '';
             agentClient.endRun();
             // Topics are collected above; HubSpot logging happens once on session end (beforeunload/unmount)
         }
@@ -550,6 +570,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         currentMessage,
         currentMessageId,
         isStreaming,
+        completedLines,
         getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),
         agentSubscriber: agentSubscriberRef.current,
         invokeToolByName,
