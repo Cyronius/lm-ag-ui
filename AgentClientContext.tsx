@@ -328,6 +328,9 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         try {
             // Apply state updates if provided
             if (stateUpdates) {
+                // Update local React state immediately so renderers have access to the values
+                setGlobalState((prev: any) => ({ ...prev, ...stateUpdates }));
+                // Also send to backend
                 agentClient.setState({
                     ...globalState,
                     ...stateUpdates
