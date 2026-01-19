@@ -98,11 +98,9 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
     // Load HubSpot visitor context on mount
     useEffect(() => {
         if (hutk) {
-            console.log('[HubSpot] Loading visitor context for hutk:', hutk);
             getVisitorContext(hutk)
                 .then(context => {
                     setVisitorContext(context);
-                    console.log('[HubSpot] Visitor context loaded:', context);
 
                     // Store user email for AI usage tracking
                     if (context.email) {
@@ -178,8 +176,8 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         } else {
             // Use fetch for normal logging (with response handling)
             logPowerBarInteraction(payload)
-                .then(result => {
-                    console.log('[HubSpot] Logged session interaction:', result);
+                .then(() => {
+                    // Session interaction logged successfully
                 })
                 .catch(error => {
                     console.error('[HubSpot] Failed to log session interaction:', error);
@@ -452,10 +450,8 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
     });
 
     // Update handlers with fresh closures on each render while keeping same object identity
-    agentSubscriberRef.current.onEvent = ({ event }: { event: any }): void => {
-        if (event.type !== 'TEXT_MESSAGE_CONTENT') {
-            console.log('event received:', event);
-        }
+    agentSubscriberRef.current.onEvent = (): void => {
+        // Event handler - debug logging removed for production
     };
     
     agentSubscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
@@ -505,8 +501,6 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
             // where the connection closes before all messages are received and processed.
             const finalText = currentMessageRef.current.trim();
             if (finalText) {
-                console.log('completed message', finalText)
-
                 const completedMessage: Message = {
                     id: currentMessageId || `msg_${Date.now()}`,
                     role: 'assistant',
