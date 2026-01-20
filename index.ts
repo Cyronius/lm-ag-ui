@@ -143,17 +143,21 @@ export interface AgentClientContextValue {
     isStreaming: boolean;
     getToolNameFromCallId: (toolCallId: string) => string | undefined;
     agentSubscriber: AgentSubscriber;
-    invokeToolByName: (toolName: string, stateUpdates?: Record<string, any>) => Promise<void>;
-    getForwardedProps: () => Record<string, any>;
+    invokeToolByName: (toolName: string, forwardedProps?: Record<string, any>, stateUpdates?: Record<string, any>) => Promise<void>;
+    getForwardedProps: (extraProps?: Record<string, any>) => Record<string, any>;
 }
 
 
+
+// Callback type for building forwardedProps at provider level
+export type ForwardedPropsBuilder = () => Record<string, any>;
 
 export interface AgentClientProviderProps {
     children: React.ReactNode;
     tools?: Record<string, ToolDefinition>;
     baseUrl?: string;
     agentId: string;
+    buildForwardedProps?: ForwardedPropsBuilder;
 }
 
 export interface Suggestion {
