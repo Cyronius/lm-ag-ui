@@ -143,8 +143,8 @@ export interface AgentClientContextValue {
     isStreaming: boolean;
     getToolNameFromCallId: (toolCallId: string) => string | undefined;
     agentSubscriber: AgentSubscriber;
-    invokeToolByName: (toolName: string, stateUpdates?: Record<string, any>) => Promise<void>;
-    getForwardedProps: () => Record<string, any>;
+    invokeToolByName: (toolName: string, additionalForwardedProps?: Record<string, any>, stateUpdates?: Record<string, any>) => Promise<void>;
+    getForwardedProps: (extraProps?: Record<string, any>) => Record<string, any>;
 }
 
 
@@ -154,6 +154,7 @@ export interface AgentClientProviderProps {
     tools?: Record<string, ToolDefinition>;
     baseUrl?: string;
     agentId: string;
+    buildForwardedProps?: () => Record<string, any>;
 }
 
 export interface Suggestion {

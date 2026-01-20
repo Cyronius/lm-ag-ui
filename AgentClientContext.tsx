@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AgentClient } from './AgentClient';
-import { ToolDefinition, ToolCallBuffer, AgentSubscriber, RunAgentResult, Session, AgentClientContextValue, AgentClientProviderProps } from './index';
+import { ToolDefinition, ToolCallBuffer, AgentSubscriber, Session, AgentClientContextValue, AgentClientProviderProps } from './index';
 import {
     Message,
     TextMessageContentEvent,
@@ -15,62 +15,24 @@ import {
 } from '@ag-ui/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getFrontEndTools } from './toolUtils';
-import { getVisitorContext, logPowerBarInteraction, logPowerBarInteractionBeacon, type VisitorContext, type HubSpotInteractionPayload } from '../services/hubspotService';
 
-// Smarketing-specific extensions to the base interfaces
-interface SmarketingContextValue extends AgentClientContextValue {
-    hutk?: string | null;
-    source?: string | null;
-    pageUrl?: string | null;
-    visitorContext?: VisitorContext | null;
-    logSessionToHubSpot: (useBeacon?: boolean) => void;
-    setUserSignedUp: (accountId: string, email: string) => void;
-    captureUserEmail: (email: string) => void;
-    userAccountId: string | null;
-}
+const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 
-interface SmarketingProviderProps extends AgentClientProviderProps {
-    hutk?: string | null;
-    source?: string | null;
-    pageUrl?: string | null;
-}
-
-const AgentClientContext = createContext<SmarketingContextValue | null>(null);
-
-export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hutk = null, source = null, pageUrl = null }: SmarketingProviderProps) {
+export function AgentClientProvider({
+    children,
+    tools = {},
+    baseUrl,
+    agentId,
+    buildForwardedProps
+}: AgentClientProviderProps) {
     // Create a single AgentClient instance
     const [agentClient] = useState(() => new AgentClient(baseUrl, agentId));
 
     // Track session for React re-renders
     const [session, setSession] = useState<Session>(agentClient.session);
 
-
     // Global AG-UI state management
     const [globalState, setGlobalState] = useState<any>({});
-
-    // HubSpot visitor context
-    const [visitorContext, setVisitorContext] = useState<VisitorContext | null>(null);
-
-    // User email for tracking (set from HubSpot visitor context)
-    const userEmailRef = useRef<string | undefined>(undefined);
-
-    // Track interaction start time for duration calculation (null until first message)
-    const interactionStartTime = useRef<number | null>(null);
-    const hasLoggedSession = useRef<boolean>(false);
-
-    // Track tools used during session
-    const toolsUsedRef = useRef<Set<string>>(new Set());
-
-    // Track if user signed up during this session
-    const userSignedUpRef = useRef<boolean>(false);
-
-    // Track captured email for unknown visitors
-    const capturedEmailRef = useRef<string | null>(null);
-
-    // Track account ID from successful signup (for returning user detection)
-    // Use both ref (for stable access in callbacks) and state (for triggering re-renders)
-    const userAccountIdRef = useRef<string | null>(null);
-    const [userAccountId, setUserAccountId] = useState<string | null>(null);
 
     // Messages state management
     const [messages, setMessages] = useState<Message[]>([]);
@@ -95,136 +57,10 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         setIsStreaming(agentClient.session.isActive);
     }, [agentClient]);
 
-    // Load HubSpot visitor context on mount
-    useEffect(() => {
-        if (hutk) {
-            getVisitorContext(hutk)
-                .then(context => {
-                    setVisitorContext(context);
-
-                    // Store user email for AI usage tracking
-                    if (context.email) {
-                        userEmailRef.current = context.email;
-                    }
-
-                    // Post visitor context to parent window (for test environment)
-                    if (window.parent !== window) {
-                        window.parent.postMessage({
-                            type: 'powerbar_visitor_context',
-                            context: context
-                        }, '*');
-                    }
-                })
-                .catch(error => {
-                    console.error('[HubSpot] Failed to load visitor context:', error);
-                });
-        }
-    }, [hutk]);
-
-    // Function to log session interaction to HubSpot (called once per session)
-    const logSessionToHubSpot = useCallback((useBeacon: boolean = false) => {
-        if (hasLoggedSession.current) {
-            return; // Already logged this session
-        }
-
-        // Only log if interaction actually started (user sent at least one message)
-        if (!interactionStartTime.current) {
-            return;
-        }
-
-        // Build conversation context from messages (for LLM summarization on backend)
-        const conversationContext = messages
-            .filter(m => m.role === 'user' || m.role === 'assistant')
-            .map(m => `${m.role}: ${typeof m.content === 'string' ? m.content : ''}`)
-            .join('\n');
-
-        // Skip if no meaningful conversation
-        if (!conversationContext.trim()) {
-            return;
-        }
-
-        hasLoggedSession.current = true;
-        const durationMins = Math.round((Date.now() - interactionStartTime.current) / 60000);
-
-        // Build the payload
-        const payload: HubSpotInteractionPayload = {
-            page: pageUrl || window.location.href,
-            conversationContext,
-            durationMins,
-            toolsUsed: Array.from(toolsUsedRef.current),
-            userSignedUp: userSignedUpRef.current,
-        };
-
-        // Add contactId if known visitor
-        if (visitorContext?.known && visitorContext.contactId) {
-            payload.contactId = visitorContext.contactId;
-        }
-
-        // Add email for unknown user contact creation
-        if (!visitorContext?.known && capturedEmailRef.current) {
-            payload.email = capturedEmailRef.current;
-        }
-
-        // Add accountId if user signed up
-        if (userAccountIdRef.current) {
-            payload.accountId = userAccountIdRef.current;
-        }
-
-        if (useBeacon) {
-            // Use sendBeacon for page unload (fire-and-forget)
-            logPowerBarInteractionBeacon(payload);
-        } else {
-            // Use fetch for normal logging (with response handling)
-            logPowerBarInteraction(payload)
-                .then(() => {
-                    // Session interaction logged successfully
-                })
-                .catch(error => {
-                    console.error('[HubSpot] Failed to log session interaction:', error);
-                    hasLoggedSession.current = false; // Allow retry on error
-                });
-        }
-    }, [visitorContext, pageUrl, messages]);
-
-    // Functions to track signup and email capture
-    const setUserSignedUp = useCallback((accountId: string, email: string) => {
-        userSignedUpRef.current = true;
-        userAccountIdRef.current = accountId;
-        capturedEmailRef.current = email;
-        setUserAccountId(accountId); // Trigger re-render so components see the updated value
-    }, []);
-
-    const captureUserEmail = useCallback((email: string) => {
-        capturedEmailRef.current = email;
-    }, []);
-
-    // Store logSessionToHubSpot in a ref so we can call it from cleanup without re-running effect
-    const logSessionToHubSpotRef = useRef(logSessionToHubSpot);
-    useEffect(() => {
-        logSessionToHubSpotRef.current = logSessionToHubSpot;
-    }, [logSessionToHubSpot]);
-
-    // Log to HubSpot when user leaves the page (using sendBeacon for reliability)
-    // This effect should only run once on mount/unmount, not when logSessionToHubSpot changes
-    useEffect(() => {
-        const handleBeforeUnload = () => {
-            logSessionToHubSpotRef.current(true); // Use beacon for page unload
-        };
-
-        window.addEventListener('beforeunload', handleBeforeUnload);
-
-        return () => {
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-            // Also log on component unmount (use regular fetch)
-            logSessionToHubSpotRef.current(false);
-        };
-    }, []); // Empty dependency array - only run on mount/unmount
-
     // Update streaming state when session changes
     useEffect(() => {
         setIsStreaming(session.isActive);
     }, [session.isActive]);
-
 
     // Get frontend tools (empty object if no tools provided)
     const frontEndTools = useMemo(() => getFrontEndTools(tools), [tools]);
@@ -235,7 +71,6 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         globalStateRef.current = globalState;
     }, [globalState]);
 
-    // TODO: not sure state management by toolname is necessary -- could just expose set and get for global state
     // State management functions - need to be defined first
     const updateState = useCallback((toolName: string, data: any) => {
         setGlobalState((prev: any) => ({
@@ -251,12 +86,12 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         }
         return globalStateRef.current;
     }, []); // No dependencies - always reads from ref
-    
+
     // Message management functions
     const addMessage = useCallback((message: Message) => {
         setMessages(prev => [...prev, message]);
     }, []);
-    
+
     const clearMessages = useCallback(() => {
         setMessages([]);
     }, []);
@@ -296,8 +131,15 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         return null
     }, [agentClient]);
 
+    // Build forwardedProps for agent calls using callback + any additional props
+    const getForwardedProps = useCallback((extraProps?: Record<string, any>): Record<string, any> => {
+        const baseProps = buildForwardedProps?.() ?? {};
+        return { ...baseProps, ...extraProps };
+    }, [buildForwardedProps]);
+
     const invokeToolByName = useCallback(async (
         toolName: string,
+        additionalForwardedProps?: Record<string, any>,
         stateUpdates?: Record<string, any>
     ): Promise<void> => {
         // Validate tool exists
@@ -335,11 +177,9 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
                 });
             }
 
-            // Execute agent with ONLY the specific tool being invoked
-            const forwardedProps: Record<string, any> = {};
-            if (userEmailRef.current) {
-                forwardedProps.user_email = userEmailRef.current;
-            }
+            // Build forwardedProps using callback + any additional props
+            const forwardedProps = getForwardedProps(additionalForwardedProps);
+
             await agentClient.runAgent(
                 [...messages, userMessage],
                 [tool.definition], // Only pass the specific tool
@@ -356,7 +196,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
             addMessage(errorMessage);
             throw error;
         }
-    }, [agentClient, tools, messages, globalState, addMessage]);
+    }, [agentClient, tools, messages, globalState, addMessage, getForwardedProps]);
 
     // Event handlers
     const handleToolCallStart = useCallback((event: ToolCallStartEvent) => {
@@ -367,8 +207,10 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         });
         toolCallIdToNameRef.current.set(event.toolCallId, event.toolCallName);
 
-        // Track tool usage for HubSpot logging
-        toolsUsedRef.current.add(event.toolCallName);
+        // Notify tracking system of tool usage (if installed)
+        if ((window as any).__smarketingTracking?.trackToolUsed) {
+            (window as any).__smarketingTracking.trackToolUsed(event.toolCallName);
+        }
 
         forceUpdate(n => n + 1);
     }, []);
@@ -383,19 +225,6 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
             forceUpdate(n => n + 1);
         }
     }, []);
-
-    // const handleToolCallEnd = useCallback((event: ToolCallEndEvent) => {
-    //     const toolCall = toolCallBuffersRef.current.get(event.toolCallId);
-    //     if (toolCall) {
-    //         if (frontEndTools[toolCall.name]) {
-    //             executeFrontendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);                
-    //         } else {
-    //             executeBackendTool(toolCall.name, toolCall.argsBuffer, event.toolCallId);
-    //         }
-    //         toolCallBuffersRef.current.delete(event.toolCallId);
-    //         forceUpdate(n => n + 1);
-    //     }
-    // }, [frontEndTools, executeFrontendTool, executeBackendTool]);
 
     const handleToolCallResult = useCallback((event: ToolCallResultEvent) => {
         try {
@@ -451,32 +280,31 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
 
     // Update handlers with fresh closures on each render while keeping same object identity
     agentSubscriberRef.current.onEvent = (): void => {
-        // Event handler - debug logging removed for production
+        // Event handler - can be used for debugging
     };
-    
+
     agentSubscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
-        // Start timing the session from the first interaction
-        if (!interactionStartTime.current) {
-            interactionStartTime.current = Date.now();
+        // Notify tracking system that interaction started (for app-level tracking like HubSpot)
+        if ((window as any).__smarketingTracking?.startInteraction) {
+            (window as any).__smarketingTracking.startInteraction();
         }
         currentMessageRef.current = '';
         setCurrentMessage('');
         setCurrentMessageId(null);
     };
-    
+
     agentSubscriberRef.current.onTextMessageContentEvent = ({ event }: { event: TextMessageContentEvent }) => {
         if (event.messageId !== currentMessageId) {
-            setCurrentMessageId(event.messageId);            
-        } 
+            setCurrentMessageId(event.messageId);
+        }
 
-        // Add message to buffer
-        currentMessageRef.current += event.delta
+        // Accumulate streaming text
+        currentMessageRef.current += event.delta;
 
-        // Update UI
+        // Update state for Streamdown to render (Streamdown handles streaming markdown natively)
         setCurrentMessage(currentMessageRef.current);
-        
     };
-    
+
     agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {
         // Merge the snapshot with existing state, but preserve frontend-managed keys
         // Frontend-managed keys start with underscore (e.g., _soco_accumulated_outlines)
@@ -493,7 +321,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
             return merged;
         });
     };
-    
+
     agentSubscriberRef.current.onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }) => {
         try {
 
@@ -507,7 +335,6 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
                     content: finalText
                 };
                 addMessage(completedMessage);
-                // Topic extraction now handled by backend LLM via conversationContext in logSessionToHubSpot
             }
         } catch (error) {
             console.error('Error creating assistant message:', error);
@@ -523,7 +350,6 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
             setCurrentMessage('');
             setCurrentMessageId(null);
             agentClient.endRun();
-            // Topics are collected above; HubSpot logging happens once on session end (beforeunload/unmount)
         }
 
         handlePendingToolCalls()
@@ -553,7 +379,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
                     result = executeBackendTool(toolCall.name, toolCall.argsBuffer, toolCallId);
                 }
                 if (result) {
-                    toolMessages.push(result)                    
+                    toolMessages.push(result)
                 }
             }
         } catch (error) {
@@ -566,7 +392,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
             }
         }
     }
-    
+
     agentSubscriberRef.current.onRunErrorEvent = ({ event }: { event: RunErrorEvent }) => {
         setCurrentMessage('');
         setCurrentMessageId(null);
@@ -578,22 +404,12 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         addMessage(errorMessage);
         agentClient.endRun();
     };
-    
+
     agentSubscriberRef.current.onToolCallStartEvent = ({ event }: { event: ToolCallStartEvent }) => handleToolCallStart(event);
     agentSubscriberRef.current.onToolCallArgsEvent = ({ event }: { event: ToolCallArgsEvent }) => handleToolCallArgs(event);
-    //agentSubscriberRef.current.onToolCallEndEvent = ({ event }: { event: ToolCallEndEvent }) => handleToolCallEnd(event);
     agentSubscriberRef.current.onToolCallResultEvent = ({ event }: { event: ToolCallResultEvent }) => handleToolCallResult(event);
 
-    // Build forwardedProps for agent calls (includes user email for tracking)
-    const getForwardedProps = useCallback((): Record<string, any> => {
-        const props: Record<string, any> = {};
-        if (userEmailRef.current) {
-            props.user_email = userEmailRef.current;
-        }
-        return props;
-    }, []);
-
-    const contextValue: SmarketingContextValue = {
+    const contextValue: AgentClientContextValue = {
         agentClient,
         session,
         tools,
@@ -608,15 +424,7 @@ export function AgentClientProvider({ children, tools = {}, baseUrl, agentId, hu
         getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),
         agentSubscriber: agentSubscriberRef.current,
         invokeToolByName,
-        getForwardedProps,
-        hutk,
-        source,
-        pageUrl,
-        visitorContext,
-        logSessionToHubSpot,
-        setUserSignedUp,
-        captureUserEmail,
-        userAccountId
+        getForwardedProps
     };
 
     return (
@@ -635,4 +443,3 @@ export function useAgentContext() {
     }
     return context;
 }
-
