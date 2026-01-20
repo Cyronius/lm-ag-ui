@@ -155,6 +155,9 @@ export interface AgentClientProviderProps {
     baseUrl?: string;
     agentId: string;
     buildForwardedProps?: () => Record<string, any>;
+    // Optional callbacks for tracking/analytics (app-specific)
+    onRunStarted?: () => void;
+    onToolCallStart?: (toolName: string) => void;
 }
 
 export interface Suggestion {

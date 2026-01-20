@@ -23,7 +23,9 @@ export function AgentClientProvider({
     tools = {},
     baseUrl,
     agentId,
-    buildForwardedProps
+    buildForwardedProps,
+    onRunStarted,
+    onToolCallStart
 }: AgentClientProviderProps) {
     // Create a single AgentClient instance
     const [agentClient] = useState(() => new AgentClient(baseUrl, agentId));
@@ -207,13 +209,11 @@ export function AgentClientProvider({
         });
         toolCallIdToNameRef.current.set(event.toolCallId, event.toolCallName);
 
-        // Notify tracking system of tool usage (if installed)
-        if ((window as any).__smarketingTracking?.trackToolUsed) {
-            (window as any).__smarketingTracking.trackToolUsed(event.toolCallName);
-        }
+        // Notify tracking system of tool usage (if callback provided)
+        onToolCallStart?.(event.toolCallName);
 
         forceUpdate(n => n + 1);
-    }, []);
+    }, [onToolCallStart]);
 
     const handleToolCallArgs = useCallback((event: ToolCallArgsEvent) => {
         const current = toolCallBuffersRef.current.get(event.toolCallId);
@@ -284,10 +284,8 @@ export function AgentClientProvider({
     };
 
     agentSubscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
-        // Notify tracking system that interaction started (for app-level tracking like HubSpot)
-        if ((window as any).__smarketingTracking?.startInteraction) {
-            (window as any).__smarketingTracking.startInteraction();
-        }
+        // Notify tracking system that interaction started (if callback provided)
+        onRunStarted?.();
         currentMessageRef.current = '';
         setCurrentMessage('');
         setCurrentMessageId(null);
