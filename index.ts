@@ -149,15 +149,15 @@ export interface AgentClientContextValue {
 
 
 
+// Callback type for building forwardedProps at provider level
+export type ForwardedPropsBuilder = () => Record<string, any>;
+
 export interface AgentClientProviderProps {
     children: React.ReactNode;
     tools?: Record<string, ToolDefinition>;
     baseUrl?: string;
     agentId: string;
-    buildForwardedProps?: () => Record<string, any>;
-    // Optional callbacks for tracking/analytics (app-specific)
-    onRunStarted?: () => void;
-    onToolCallStart?: (toolName: string) => void;
+    buildForwardedProps?: ForwardedPropsBuilder;
 }
 
 export interface Suggestion {

@@ -23,9 +23,7 @@ export function AgentClientProvider({
     tools = {},
     baseUrl,
     agentId,
-    buildForwardedProps,
-    onRunStarted,
-    onToolCallStart
+    buildForwardedProps
 }: AgentClientProviderProps) {
     // Create a single AgentClient instance
     const [agentClient] = useState(() => new AgentClient(baseUrl, agentId));
@@ -161,7 +159,7 @@ export function AgentClientProvider({
         const userMessage: Message = {
             id: `user_${Date.now()}`,
             role: 'user',
-            content: `invoke the ${toolName} tool`
+            content: `invoke the ${toolName} tool. Parameters=${JSON.stringify(additionalForwardedProps || {})}`
         };
 
         // Start new run
@@ -209,11 +207,13 @@ export function AgentClientProvider({
         });
         toolCallIdToNameRef.current.set(event.toolCallId, event.toolCallName);
 
-        // Notify tracking system of tool usage (if callback provided)
-        onToolCallStart?.(event.toolCallName);
+        // Notify tracking system of tool usage (for app-level tracking like HubSpot)
+        if ((window as any).__smarketingTracking?.addToolUsed) {
+            (window as any).__smarketingTracking.addToolUsed(event.toolCallName);
+        }
 
         forceUpdate(n => n + 1);
-    }, [onToolCallStart]);
+    }, []);
 
     const handleToolCallArgs = useCallback((event: ToolCallArgsEvent) => {
         const current = toolCallBuffersRef.current.get(event.toolCallId);
@@ -284,8 +284,10 @@ export function AgentClientProvider({
     };
 
     agentSubscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
-        // Notify tracking system that interaction started (if callback provided)
-        onRunStarted?.();
+        // Notify tracking system that interaction started (for app-level tracking like HubSpot)
+        if ((window as any).__smarketingTracking?.startInteraction) {
+            (window as any).__smarketingTracking.startInteraction();
+        }
         currentMessageRef.current = '';
         setCurrentMessage('');
         setCurrentMessageId(null);
@@ -333,6 +335,14 @@ export function AgentClientProvider({
                     content: finalText
                 };
                 addMessage(completedMessage);
+
+                // Notify tracking system of topics and message (for app-level tracking like HubSpot)
+                if ((window as any).__smarketingTracking?.addTopics) {
+                    (window as any).__smarketingTracking.addTopics(finalText);
+                }
+                if ((window as any).__smarketingTracking?.addMessage) {
+                    (window as any).__smarketingTracking.addMessage('assistant', finalText);
+                }
             }
         } catch (error) {
             console.error('Error creating assistant message:', error);
