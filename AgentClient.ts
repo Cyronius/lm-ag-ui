@@ -24,7 +24,7 @@ export class AgentClient {
         this.agentId = agentId;
         this.timeout = STREAM_TIMEOUT_MS;
 
-        console.log('Creating AgentClient for agent', agentId)
+        console.info('Creating AgentClient for agent', agentId)
 
         this.agent = new HttpAgent({
             url: this.buildAgentUrl(),
@@ -156,7 +156,7 @@ export class AgentClient {
             throw new Error('Thread ID is required for tool result submission');
         }
 
-        console.log('submitting tool results to backend', toolMessages)
+        console.info('submitting tool results to backend', toolMessages)
 
         // Generate new run ID for continuation
         const runId = this.generateRunId();
