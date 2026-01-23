@@ -336,10 +336,7 @@ export function AgentClientProvider({
                 };
                 addMessage(completedMessage);
 
-                // Notify tracking system of topics and message (for app-level tracking like HubSpot)
-                if ((window as any).__smarketingTracking?.addTopics) {
-                    (window as any).__smarketingTracking.addTopics(finalText);
-                }
+                // Notify tracking system of message (for app-level tracking like HubSpot)
                 if ((window as any).__smarketingTracking?.addMessage) {
                     (window as any).__smarketingTracking.addMessage('assistant', finalText);
                 }
