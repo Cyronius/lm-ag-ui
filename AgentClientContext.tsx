@@ -176,6 +176,9 @@ export function AgentClientProvider({
         try {
             // Apply state updates if provided
             if (stateUpdates) {
+                // Update local React state immediately so renderers have access to the values
+                setGlobalState((prev: any) => ({ ...prev, ...stateUpdates }));
+                // Also send to backend
                 agentClient.setState({
                     ...globalState,
                     ...stateUpdates
@@ -211,6 +214,12 @@ export function AgentClientProvider({
             parentMessageId: event.parentMessageId
         });
         toolCallIdToNameRef.current.set(event.toolCallId, event.toolCallName);
+
+        // Notify tracking system of tool usage (for app-level tracking like HubSpot)
+        if ((window as any).__smarketingTracking?.addToolUsed) {
+            (window as any).__smarketingTracking.addToolUsed(event.toolCallName);
+        }
+
         forceUpdate(n => n + 1);
     }, []);
 
@@ -278,10 +287,8 @@ export function AgentClientProvider({
     });
 
     // Update handlers with fresh closures on each render while keeping same object identity
-    agentSubscriberRef.current.onEvent = ({ event }: { event: any }): void => {
-        if (event.type !== 'TEXT_MESSAGE_CONTENT') {
-            console.log('event received:', event);
-        }
+    agentSubscriberRef.current.onEvent = (): void => {
+        // Event handler - can be used for debugging
     };
 
     agentSubscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
@@ -330,8 +337,6 @@ export function AgentClientProvider({
             // where the connection closes before all messages are received and processed.
             const finalText = currentMessageRef.current.trim();
             if (finalText) {
-                console.log('completed message', finalText)
-
                 const completedMessage: Message = {
                     id: currentMessageId || `msg_${Date.now()}`,
                     role: 'assistant',
@@ -339,9 +344,9 @@ export function AgentClientProvider({
                 };
                 addMessage(completedMessage);
 
-                // Notify tracking system of topics (for app-level tracking like HubSpot)
-                if ((window as any).__smarketingTracking?.addTopics) {
-                    (window as any).__smarketingTracking.addTopics(finalText);
+                // Notify tracking system of message (for app-level tracking like HubSpot)
+                if ((window as any).__smarketingTracking?.addMessage) {
+                    (window as any).__smarketingTracking.addMessage('assistant', finalText);
                 }
             }
         } catch (error) {
@@ -453,4 +458,3 @@ export function useAgentContext() {
     }
     return context;
 }
-

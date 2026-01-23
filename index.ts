@@ -143,7 +143,7 @@ export interface AgentClientContextValue {
     isStreaming: boolean;
     getToolNameFromCallId: (toolCallId: string) => string | undefined;
     agentSubscriber: AgentSubscriber;
-    invokeToolByName: (toolName: string, forwardedProps?: Record<string, any>, stateUpdates?: Record<string, any>) => Promise<void>;
+    invokeToolByName: (toolName: string, additionalForwardedProps?: Record<string, any>, stateUpdates?: Record<string, any>) => Promise<void>;
     // Debug mode for LLM input capture
     debug: boolean;
     setDebug: (enabled: boolean) => void;
