@@ -3,13 +3,21 @@ import { Message, State, Tool } from '@ag-ui/core';
 import { AgentSubscriber, RunAgentResult, Session } from './index';
 import { v4 as uuidv4 } from 'uuid';
 
-const STREAM_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEOUT_MS = 120000;
+
+export type TokenProvider = () => Promise<string | null>;
+
+export interface AgentClientOptions {
+    tokenProvider?: TokenProvider;
+    timeout?: number;
+}
 
 export class AgentClient {
     private agent: HttpAgent;
     private baseUrl: string;
     private agentId: string;
     private timeout: number;
+    private tokenProvider?: TokenProvider;
     private _session: Session;
     private _debug: boolean = false;
 
@@ -18,11 +26,13 @@ export class AgentClient {
 
     constructor(
         baseUrl: string = 'http://localhost:8000',
-        agentId: string
+        agentId: string,
+        options?: AgentClientOptions
     ) {
         this.baseUrl = baseUrl;
         this.agentId = agentId;
-        this.timeout = STREAM_TIMEOUT_MS;
+        this.timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
+        this.tokenProvider = options?.tokenProvider;
 
         console.info('Creating AgentClient for agent', agentId)
 
@@ -113,6 +123,16 @@ export class AgentClient {
         });
     }
 
+    // Apply auth token to agent headers if a tokenProvider is configured
+    private async applyAuthHeaders(): Promise<void> {
+        if (this.tokenProvider) {
+            const token = await this.tokenProvider();
+            if (token) {
+                this.agent.headers['Authorization'] = `Bearer ${token}`;
+            }
+        }
+    }
+
     // Agent communication methods
     async runAgent(
         messages: Message[],
@@ -125,6 +145,8 @@ export class AgentClient {
         const runId = this._session.runId || this.generateRunId();
 
         try {
+            await this.applyAuthHeaders();
+
             // Set the thread ID and messages on the agent
             this.agent.threadId = threadId;
             this.agent.setMessages(messages);
@@ -162,8 +184,10 @@ export class AgentClient {
         const runId = this.generateRunId();
         
         try {
+            await this.applyAuthHeaders();
+
             // Set the thread ID and messages on the agent
-            this.agent.threadId = this._session.threadId;            
+            this.agent.threadId = this._session.threadId;
             this.agent.setMessages(toolMessages);
             const result = await this.agent.runAgent({
                 runId,
@@ -253,6 +277,15 @@ export class AgentClient {
         files.forEach((file) => formData.append('files', file));
         formData.append('thread_id', uploadThreadId);
 
+        // Build headers with auth if available
+        const headers: Record<string, string> = {};
+        if (this.tokenProvider) {
+            const token = await this.tokenProvider();
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+        }
+
         // TODO: remove legacy path later
         // const response = await fetch(`${this.baseUrl}/agent/upload`, {
         const smarketingAgentId = import.meta.env.VITE_SMARKETING_AGENT_ID;
@@ -260,6 +293,7 @@ export class AgentClient {
         const response = await fetch(url, {
             method: 'POST',
             body: formData,
+            headers,
         });
 
         if (!response.ok) {
