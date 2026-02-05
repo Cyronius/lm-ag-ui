@@ -345,6 +345,7 @@ export function AgentClientProvider({
                     role: 'assistant',
                     content: finalText
                 };
+                console.info('message:', finalText);
                 addMessage(completedMessage);
 
                 // Notify tracking system of message (for app-level tracking like HubSpot)
