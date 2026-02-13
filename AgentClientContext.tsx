@@ -287,11 +287,12 @@ export function AgentClientProvider({
     });
 
     // Update handlers with fresh closures on each render while keeping same object identity
-    agentSubscriberRef.current.onEvent = (): void => {
-        // Event handler - can be used for debugging
+    agentSubscriberRef.current.onEvent = ({ event }: { event: any }): void => {
+        // nothing needed here right now. 
     };
 
     agentSubscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
+        console.info('[AG-UI] RunStarted:', { threadId: event.threadId, runId: event.runId });
         // Notify tracking system that interaction started (for app-level tracking like HubSpot)
         if ((window as any).__smarketingTracking?.startInteraction) {
             (window as any).__smarketingTracking.startInteraction();
@@ -314,6 +315,7 @@ export function AgentClientProvider({
     };
 
     agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {
+        console.info('[AG-UI] StateSnapshot:', { snapshot: event.snapshot });
         // Merge the snapshot with existing state, but preserve frontend-managed keys
         // Frontend-managed keys start with underscore (e.g., _soco_accumulated_outlines)
         setGlobalState((prev: any) => {
@@ -331,6 +333,7 @@ export function AgentClientProvider({
     };
 
     agentSubscriberRef.current.onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }) => {
+        console.info('[AG-UI] RunFinished:', { event });
         try {
 
             // Get the final text from the ref buffer, which avoids a race condition
@@ -407,6 +410,7 @@ export function AgentClientProvider({
     }
 
     agentSubscriberRef.current.onRunErrorEvent = ({ event }: { event: RunErrorEvent }) => {
+        console.info('[AG-UI] RunError:', { message: event.message });
         setCurrentMessage('');
         setCurrentMessageId(null);
         const errorMessage: Message = {
@@ -418,9 +422,21 @@ export function AgentClientProvider({
         agentClient.endRun();
     };
 
-    agentSubscriberRef.current.onToolCallStartEvent = ({ event }: { event: ToolCallStartEvent }) => handleToolCallStart(event);
-    agentSubscriberRef.current.onToolCallArgsEvent = ({ event }: { event: ToolCallArgsEvent }) => handleToolCallArgs(event);
-    agentSubscriberRef.current.onToolCallResultEvent = ({ event }: { event: ToolCallResultEvent }) => handleToolCallResult(event);
+    agentSubscriberRef.current.onToolCallStartEvent = ({ event }: { event: ToolCallStartEvent }) => {
+        console.info('[AG-UI] ToolCallStart:', { toolCallId: event.toolCallId, toolCallName: event.toolCallName, parentMessageId: event.parentMessageId });
+        handleToolCallStart(event);
+    };
+    agentSubscriberRef.current.onToolCallArgsEvent = ({ event }: { event: ToolCallArgsEvent }) => {
+        console.info('[AG-UI] ToolCallArgs:', { toolCallId: event.toolCallId, delta: event.delta });
+        handleToolCallArgs(event);
+    };
+    agentSubscriberRef.current.onToolCallEndEvent = ({ event }: { event: ToolCallEndEvent }) => {
+        console.info('[AG-UI] ToolCallEnd:', { toolCallId: event.toolCallId });
+    };
+    agentSubscriberRef.current.onToolCallResultEvent = ({ event }: { event: ToolCallResultEvent }) => {
+        console.info('[AG-UI] ToolCallResult:', { toolCallId: event.toolCallId, content: event.content });
+        handleToolCallResult(event);
+    };
 
     const contextValue: AgentClientContextValue = {
         agentClient,
