@@ -19,6 +19,7 @@ import type {
     StateSnapshotEvent
 } from '@ag-ui/core';
 import { AgentClient } from './AgentClient';
+import type { TokenProvider, AgentClientOptions } from './AgentClient';
 import { AgentClientProvider, useAgentContext } from './AgentClientContext';
 
 // AG-UI Types - Re-export from @ag-ui/core (which is re-exported by @ag-ui/client)
@@ -190,4 +191,5 @@ export interface AgentConfig {
     config?: Record<string, string | null>;  // Agent config key-value pairs from backend
 }
 
+export type { TokenProvider, AgentClientOptions };
 export { AgentClient, AgentClientProvider, useAgentContext };
