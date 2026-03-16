@@ -20,7 +20,8 @@ import type {
 } from '@ag-ui/core';
 import { AgentClient } from './AgentClient';
 import type { TokenProvider, AgentClientOptions } from './AgentClient';
-import { AgentClientProvider, useAgentContext } from './AgentClientContext';
+import { AgentProvider, useAgentContext } from './AgentClientContext';
+import { useAgent } from './useAgent';
 
 // AG-UI Types - Re-export from @ag-ui/core (which is re-exported by @ag-ui/client)
 export type {
@@ -156,12 +157,18 @@ export interface AgentClientContextValue {
 // Callback type for building forwardedProps at provider level
 export type ForwardedPropsBuilder = () => Record<string, any>;
 
-export interface AgentClientProviderProps {
-    children: React.ReactNode;
-    tools?: Record<string, ToolDefinition>;
+export interface UseAgentOptions {
     baseUrl?: string;
     agentId: string;
+    tokenProvider?: TokenProvider;
+    timeout?: number;
+    tools?: Record<string, ToolDefinition>;
     buildForwardedProps?: ForwardedPropsBuilder;
+}
+
+export interface AgentProviderProps {
+    value: AgentClientContextValue;
+    children: React.ReactNode;
 }
 
 export interface Suggestion {
@@ -192,4 +199,4 @@ export interface AgentConfig {
 }
 
 export type { TokenProvider, AgentClientOptions };
-export { AgentClient, AgentClientProvider, useAgentContext };
+export { AgentClient, AgentProvider, useAgentContext, useAgent };
