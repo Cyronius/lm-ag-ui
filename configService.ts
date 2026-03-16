@@ -1,4 +1,5 @@
 import { AgentConfig, Suggestion, ToolConfigResponse } from './index';
+import type { TokenProvider } from './AgentClient';
 
 /**
  * Configuration Loading Service
@@ -28,15 +29,21 @@ interface AgentConfigResponse {
  * @returns Promise<AgentConfig> - Resolves with config or throws error
  * @throws Error if config fetch fails
  */
-export async function loadAgentConfig(baseUrl: string, agentId: string): Promise<AgentConfig> {
+export async function loadAgentConfig(baseUrl: string, agentId: string, tokenProvider?: TokenProvider): Promise<AgentConfig> {
 
 	const configUrl = `${baseUrl}/agent/${agentId}`;
 
+	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+	if (tokenProvider) {
+		const token = await tokenProvider();
+		if (token) {
+			headers['Authorization'] = `Bearer ${token}`;
+		}
+	}
+
 	const response = await fetch(configUrl, {
 		method: 'GET',
-		headers: {
-			'Content-Type': 'application/json'
-		}
+		headers
 	});
 
 	if (!response.ok) {

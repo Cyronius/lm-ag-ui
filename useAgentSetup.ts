@@ -53,7 +53,7 @@ export function useAgentSetup({
         setIsLoading(true);
         setError(null);
 
-        loadAgentConfig(baseUrl!, agentId)
+        loadAgentConfig(baseUrl!, agentId, tokenProvider)
             .then(loadedConfig => {
                 if (cancelled) return;
                 const finalConfig = onConfigLoaded
@@ -69,7 +69,7 @@ export function useAgentSetup({
             });
 
         return () => { cancelled = true; };
-    }, [isReady, baseUrl, agentId]);
+    }, [isReady, baseUrl, agentId, tokenProvider]);
 
     // Build the AgentLayer component.
     // When config is null, it's a passthrough (children render without AgentProvider).
