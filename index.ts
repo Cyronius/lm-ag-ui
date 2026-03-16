@@ -201,3 +201,5 @@ export interface AgentConfig {
 
 export type { TokenProvider, AgentClientOptions };
 export { AgentClient, AgentProvider, useAgentContext, useAgent, loadAgentConfig };
+export { useAgentSetup } from './useAgentSetup';
+export type { UseAgentSetupOptions, UseAgentSetupResult } from './useAgentSetup';
