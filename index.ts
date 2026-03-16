@@ -22,6 +22,7 @@ import { AgentClient } from './AgentClient';
 import type { TokenProvider, AgentClientOptions } from './AgentClient';
 import { AgentProvider, useAgentContext } from './AgentClientContext';
 import { useAgent } from './useAgent';
+import { loadAgentConfig } from './configService';
 
 // AG-UI Types - Re-export from @ag-ui/core (which is re-exported by @ag-ui/client)
 export type {
@@ -199,4 +200,4 @@ export interface AgentConfig {
 }
 
 export type { TokenProvider, AgentClientOptions };
-export { AgentClient, AgentProvider, useAgentContext, useAgent };
+export { AgentClient, AgentProvider, useAgentContext, useAgent, loadAgentConfig };
