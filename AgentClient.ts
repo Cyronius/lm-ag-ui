@@ -1,6 +1,6 @@
-import { HttpAgent } from '@ag-ui/client';
-import { Message, State, Tool } from '@ag-ui/core';
-import { AgentSubscriber, RunAgentResult, Session } from './index';
+import { HttpAgent, AgentSubscriber, Message, State, Tool } from '@ag-ui/client';
+import type { RunAgentResult } from '@ag-ui/client';
+import { Session } from './index';
 import { v4 as uuidv4 } from 'uuid';
 
 const DEFAULT_TIMEOUT_MS = 120000;
@@ -34,8 +34,7 @@ export class AgentClient {
         this.timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
         this.tokenProvider = options?.tokenProvider;
 
-        console.info('Creating AgentClient for agent', agentId)
-
+       
         this.agent = new HttpAgent({
             url: this.buildAgentUrl(),
             headers: {

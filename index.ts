@@ -1,7 +1,8 @@
 import React from 'react';
 
-// Import AG-UI types for local use
+// Import AG-UI types from @ag-ui/client to avoid version mismatch with @ag-ui/core
 import type {
+    AgentSubscriber,
     Message,
     Tool,
     RunAgentInput,
@@ -17,7 +18,7 @@ import type {
     RunFinishedEvent,
     RunErrorEvent,
     StateSnapshotEvent
-} from '@ag-ui/core';
+} from '@ag-ui/client';
 import { AgentClient } from './AgentClient';
 import type { TokenProvider, AgentClientOptions } from './AgentClient';
 import { AgentProvider, useAgentContext } from './AgentClientContext';
@@ -40,8 +41,8 @@ export type {
     RunStartedEvent,
     RunFinishedEvent,
     RunErrorEvent
-} from '@ag-ui/core';
-export { EventType } from '@ag-ui/core';
+} from '@ag-ui/client';
+export { EventType } from '@ag-ui/client';
 export interface Session {
     threadId: string | null;
     runId: string | null;
@@ -49,6 +50,7 @@ export interface Session {
 }
 
 export { HttpAgent } from '@ag-ui/client';
+export type { AgentSubscriber, RunAgentResult } from '@ag-ui/client';
 
 // Custom types for our application
 export interface ChatInterfaceProps {
@@ -83,23 +85,6 @@ export interface StandardTool {
     };
 }
 
-export interface RunAgentResult {
-    result: any;
-    newMessages: Message[];
-}
-
-export interface AgentSubscriber {
-    onRunStartedEvent?(params: { event: RunStartedEvent }): void;
-    onTextMessageContentEvent?(params: { event: TextMessageContentEvent }): void;
-    onRunFinishedEvent?(params: { event: RunFinishedEvent }): void;
-    onRunErrorEvent?(params: { event: RunErrorEvent }): void;
-    onToolCallStartEvent?(params: { event: ToolCallStartEvent }): void;
-    onToolCallArgsEvent?(params: { event: ToolCallArgsEvent }): void;
-    onToolCallEndEvent?(params: { event: ToolCallEndEvent }): void;
-    onToolCallResultEvent?(params: { event: ToolCallResultEvent }): void;
-    onStateSnapshotEvent?(params: { event: StateSnapshotEvent }): void;
-    onEvent?(params: { event: BaseEvent }): void;
-}
 
 // Tool handler executes the tool's logic (frontend tools only)
 export type ToolHandler = (

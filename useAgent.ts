@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AgentClient } from './AgentClient';
-import { ToolDefinition, ToolCallBuffer, AgentSubscriber, Session, AgentClientContextValue, UseAgentOptions } from './index';
+import { ToolDefinition, ToolCallBuffer, Session, AgentClientContextValue, UseAgentOptions } from './index';
 import {
+    AgentSubscriber,
     Message,
+    TextMessageStartEvent,
     TextMessageContentEvent,
+    TextMessageEndEvent,
     RunStartedEvent,
     RunFinishedEvent,
     RunErrorEvent,
@@ -12,7 +15,7 @@ import {
     ToolCallEndEvent,
     ToolCallResultEvent,
     StateSnapshotEvent
-} from '@ag-ui/core';
+} from '@ag-ui/client';
 import { v4 as uuidv4 } from 'uuid';
 import { getFrontEndTools } from './toolUtils';
 
@@ -275,7 +278,9 @@ export function useAgent({
     const agentSubscriberRef = useRef<AgentSubscriber>({
         onEvent: ({ event }: { event: any }): void => {},
         onRunStartedEvent: ({ event }: { event: RunStartedEvent }) => {},
+        onTextMessageStartEvent: ({ event }: { event: TextMessageStartEvent }) => {},
         onTextMessageContentEvent: ({ event }: { event: TextMessageContentEvent }) => {},
+        onTextMessageEndEvent: ({ event }: { event: TextMessageEndEvent }) => {},
         onStateSnapshotEvent: ({ event }: { event: StateSnapshotEvent }) => {},
         onRunFinishedEvent: ({ event }: { event: RunFinishedEvent }) => {},
         onRunErrorEvent: ({ event }: { event: RunErrorEvent }) => {},
@@ -301,6 +306,10 @@ export function useAgent({
         setCurrentMessageId(null);
     };
 
+    agentSubscriberRef.current.onTextMessageStartEvent = ({ event }: { event: TextMessageStartEvent }) => {
+        console.info('[AG-UI] TextMessageStart:', { messageId: event.messageId, role: event.role });
+    };
+
     agentSubscriberRef.current.onTextMessageContentEvent = ({ event }: { event: TextMessageContentEvent }) => {
         if (event.messageId !== currentMessageId) {
             setCurrentMessageId(event.messageId);
@@ -311,6 +320,10 @@ export function useAgent({
 
         // Update state for Streamdown to render (Streamdown handles streaming markdown natively)
         setCurrentMessage(currentMessageRef.current);
+    };
+
+    agentSubscriberRef.current.onTextMessageEndEvent = ({ event }: { event: TextMessageEndEvent }) => {
+        console.info('[AG-UI] TextMessageEnd:', { messageId: event.messageId });
     };
 
     agentSubscriberRef.current.onStateSnapshotEvent = ({ event }: { event: StateSnapshotEvent }) => {
