@@ -417,7 +417,8 @@ export function useAgent({
         finally {
             toolCallBuffersRef.current.clear()
             if (toolMessages.length > 0) {
-                agentClient.submitToolResults(toolMessages, agentSubscriberRef.current);
+                const toolDefs = Object.values(tools).map((t: any) => t.definition);
+                agentClient.submitToolResults(toolMessages, agentSubscriberRef.current, toolDefs, getForwardedProps());
             }
         }
     }
