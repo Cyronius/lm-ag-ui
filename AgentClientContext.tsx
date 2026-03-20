@@ -14,7 +14,7 @@ import {
     StateSnapshotEvent
 } from '@ag-ui/core';
 import { v4 as uuidv4 } from 'uuid';
-import { getFrontEndTools } from './toolUtils';
+import { getFrontEndTools, getAllToolDefinitions } from './toolUtils';
 
 const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 
@@ -405,7 +405,9 @@ export function AgentClientProvider({
         finally {
             toolCallBuffersRef.current.clear()
             if (toolMessages.length > 0) {
-                agentClient.submitToolResults(toolMessages, agentSubscriberRef.current);
+                const allToolDefs = getAllToolDefinitions(tools);
+                const forwardedProps = getForwardedProps();
+                agentClient.submitToolResults(toolMessages, agentSubscriberRef.current, allToolDefs, forwardedProps);
             }
         }
     }
