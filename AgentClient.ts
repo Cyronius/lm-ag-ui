@@ -122,6 +122,19 @@ export class AgentClient {
         });
     }
 
+    /**
+     * Build a SystemMessage from forwardedProps to inject context into the LLM.
+     * The backend reads messages[0] as SystemMessage and appends to agent instruction.
+     */
+    private buildContextMessage(forwardedProps: Record<string, any>): Message | null {
+        if (!forwardedProps || Object.keys(forwardedProps).length === 0) return null;
+        return {
+            id: `system_context_${Date.now()}`,
+            role: 'system',
+            content: JSON.stringify(forwardedProps, null, 2)
+        } as Message;
+    }
+
     // Apply auth token to agent headers if a tokenProvider is configured
     private async applyAuthHeaders(): Promise<void> {
         if (this.tokenProvider) {
@@ -148,7 +161,8 @@ export class AgentClient {
 
             // Set the thread ID and messages on the agent
             this.agent.threadId = threadId;
-            this.agent.setMessages(messages);
+            const contextMsg = this.buildContextMessage(forwardedProps);
+            this.agent.setMessages(contextMsg ? [contextMsg, ...messages] : messages);
 
             const result = await this.agent.runAgent({
                 runId,
@@ -171,7 +185,9 @@ export class AgentClient {
 
     async submitToolResults(
         toolMessages: Message[],
-        subscriber: AgentSubscriber
+        subscriber: AgentSubscriber,
+        tools: Tool[] = [],
+        forwardedProps: Record<string, any> = {}
     ): Promise<RunAgentResult> {
         if (!this._session.threadId) {
             throw new Error('Thread ID is required for tool result submission');
@@ -181,18 +197,19 @@ export class AgentClient {
 
         // Generate new run ID for continuation
         const runId = this.generateRunId();
-        
+
         try {
             await this.applyAuthHeaders();
 
             // Set the thread ID and messages on the agent
             this.agent.threadId = this._session.threadId;
-            this.agent.setMessages(toolMessages);
+            const contextMsg = this.buildContextMessage(forwardedProps);
+            this.agent.setMessages(contextMsg ? [contextMsg, ...toolMessages] : toolMessages);
             const result = await this.agent.runAgent({
                 runId,
-                tools: [], // No new tools needed for continuation
+                tools,
                 context: [],
-                forwardedProps: {}
+                forwardedProps
             }, subscriber);
 
             return result;
