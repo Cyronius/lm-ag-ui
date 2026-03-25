@@ -114,6 +114,12 @@ export class AgentClient {
         });
     }
 
+    abortRun(): void {
+        this.agent.abortRun();
+        this.agent.abortController = new AbortController();
+        this.endRun();
+    }
+
     endSession(): void {
         this.updateSession({
             threadId: null,
@@ -174,7 +180,9 @@ export class AgentClient {
             return result;
         } catch (error) {
             console.error('Agent execution error:', error);
-            this.endRun();
+            if (this._session.isActive) {
+                this.endRun();
+            }
             throw error;
         }
     }

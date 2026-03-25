@@ -46,6 +46,10 @@ export function useAgent({
     // Maintain a buffer for the streaming text
     const currentMessageRef = useRef<string>('');
 
+    // Track messages for terminate/rollback
+    const messagesRef = useRef<Message[]>([]);
+    const preRunMessageCountRef = useRef<number>(0);
+
     const [isStreaming, setIsStreaming] = useState<boolean>(false);
 
     // Debug mode state for LLM input capture
@@ -59,6 +63,7 @@ export function useAgent({
     // Tool execution state (using refs to avoid stale closures)
     const toolCallBuffersRef = useRef<Map<string, ToolCallBuffer>>(new Map());
     const toolCallIdToNameRef = useRef<Map<string, string>>(new Map());
+    const isAbortedRef = useRef<boolean>(false);
     const [, forceUpdate] = useState(0);
 
     // Set up the callback when component mounts
@@ -71,6 +76,11 @@ export function useAgent({
     useEffect(() => {
         setIsStreaming(session.isActive);
     }, [session.isActive]);
+
+    // Keep messagesRef in sync for terminate/rollback
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
 
     // Get frontend tools (empty object if no tools provided)
     const frontEndTools = useMemo(() => getFrontEndTools(tools), [tools]);
@@ -105,6 +115,24 @@ export function useAgent({
     const clearMessages = useCallback(() => {
         setMessages([]);
     }, []);
+
+    const terminateRun = useCallback(() => {
+        // Flag so onRunErrorEvent knows this was intentional
+        isAbortedRef.current = true;
+        // Abort the HTTP SSE stream
+        agentClient.abortRun();
+
+        // Clear streaming state
+        currentMessageRef.current = '';
+        setCurrentMessage('');
+        setCurrentMessageId(null);
+        toolCallBuffersRef.current.clear();
+        toolCallIdToNameRef.current.clear();
+
+        // Remove messages from the current run
+        const keepCount = preRunMessageCountRef.current;
+        setMessages(prev => prev.slice(0, keepCount));
+    }, [agentClient]);
 
     // Tool execution functions - now can reference the above functions
     const executeFrontendTool = useCallback((toolName: string, argsJson: string | null = null, toolCallId: string | null = null):Message|null => {
@@ -296,7 +324,13 @@ export function useAgent({
     };
 
     agentSubscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
-        console.info('[AG-UI] RunStarted:', { threadId: event.threadId, runId: event.runId });
+        console.info('[AG-UI] RunStarted:', { 
+            threadId: event.threadId, 
+            runId: event.runId, 
+            message: messages.slice(-1)[0]?.content
+        });
+        // Snapshot message count before this run (minus 1 to exclude the user message added before startNewRun)
+        preRunMessageCountRef.current = Math.max(0, messagesRef.current.length - 1);
         // Notify tracking system that interaction started (for app-level tracking like HubSpot)
         if ((window as any).__smarketingTracking?.startInteraction) {
             (window as any).__smarketingTracking.startInteraction();
@@ -425,6 +459,12 @@ export function useAgent({
 
     agentSubscriberRef.current.onRunErrorEvent = ({ event }: { event: RunErrorEvent }) => {
         console.info('[AG-UI] RunError:', { message: event.message });
+        // Don't show error messages for intentional aborts
+        if (isAbortedRef.current) {
+            isAbortedRef.current = false;
+            console.info('[AG-UI] Run aborted by user');
+            return;
+        }
         setCurrentMessage('');
         setCurrentMessageId(null);
         const errorMessage: Message = {
@@ -467,6 +507,7 @@ export function useAgent({
         getToolNameFromCallId: (toolCallId: string) => toolCallIdToNameRef.current.get(toolCallId),
         agentSubscriber: agentSubscriberRef.current,
         invokeToolByName,
+        terminateRun,
         debug,
         setDebug,
         getForwardedProps
