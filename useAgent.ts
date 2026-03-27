@@ -10,6 +10,7 @@ import {
     RunStartedEvent,
     RunFinishedEvent,
     RunErrorEvent,
+    ToolCall,
     ToolCallStartEvent,
     ToolCallArgsEvent,
     ToolCallEndEvent,
@@ -385,17 +386,41 @@ export function useAgent({
             // Get the final text from the ref buffer, which avoids a race condition
             // where the connection closes before all messages are received and processed.
             const finalText = currentMessageRef.current.trim();
-            if (finalText) {
+            const hasPendingToolCalls = toolCallBuffersRef.current.size > 0;
+
+            if (finalText || hasPendingToolCalls) {
+                // Build toolCalls array from pending tool call buffers so the
+                // assistant message includes them. Without this, the message
+                // history has orphaned tool results that OpenAI rejects.
+                let toolCalls: ToolCall[] | undefined;
+                if (hasPendingToolCalls) {
+                    toolCalls = Array.from(toolCallBuffersRef.current.entries()).map(
+                        ([toolCallId, toolCall]) => ({
+                            id: toolCallId,
+                            type: 'function' as const,
+                            function: {
+                                name: toolCall.name,
+                                arguments: toolCall.argsBuffer || '{}'
+                            }
+                        })
+                    );
+                }
+
                 const completedMessage: Message = {
                     id: currentMessageId || `msg_${Date.now()}`,
                     role: 'assistant',
-                    content: finalText
                 };
-                console.info('message:', finalText);
+                if (finalText) {
+                    completedMessage.content = finalText;
+                }
+                if (toolCalls) {
+                    completedMessage.toolCalls = toolCalls;
+                }
+                console.info('message:', finalText || '(tool calls only)');
                 addMessage(completedMessage);
 
                 // Notify tracking system of message (for app-level tracking like HubSpot)
-                if ((window as any).__smarketingTracking?.addMessage) {
+                if (finalText && (window as any).__smarketingTracking?.addMessage) {
                     (window as any).__smarketingTracking.addMessage('assistant', finalText);
                 }
             }
