@@ -65,7 +65,8 @@ export interface ChatSuggestionsProps {
 export interface ToolCallBuffer {
     name: string;
     argsBuffer: string;
-    parentMessageId?: string;    
+    parentMessageId?: string;
+    resultReceived?: boolean;  // true when TOOL_CALL_RESULT has been processed
 }
 
 export interface ArtifactData {

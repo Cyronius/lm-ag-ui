@@ -223,6 +223,7 @@ export class AgentClient {
             return result;
         } catch (error) {
             console.error('Tool result submission error:', error);
+            this.endRun();
             throw error;
         }
     }
@@ -310,10 +311,7 @@ export class AgentClient {
             }
         }
 
-        // TODO: remove legacy path later
-        // const response = await fetch(`${this.baseUrl}/agent/upload`, {
-        const smarketingAgentId = import.meta.env.VITE_SMARKETING_AGENT_ID;
-        const url = this.agentId === smarketingAgentId ? `${this.baseUrl}/smarketing/upload` : `${this.baseUrl}/agent/upload`
+        const url = `${this.baseUrl}/agent/${this.agentId}/upload`;
         const response = await fetch(url, {
             method: 'POST',
             body: formData,

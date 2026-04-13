@@ -20,6 +20,8 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { getFrontEndTools } from './toolUtils';
 
+const SAFETY_TIMEOUT_MS = 120000;
+
 export function useAgent({
     baseUrl,
     agentId,
@@ -78,10 +80,24 @@ export function useAgent({
         setIsStreaming(session.isActive);
     }, [session.isActive]);
 
-    // Keep messagesRef in sync for terminate/rollback
+    // Safety timeout: force-end runs stuck for over 2 minutes
     useEffect(() => {
-        messagesRef.current = messages;
-    }, [messages]);
+        if (!session.isActive) return;
+        const timeoutId = setTimeout(() => {
+            console.warn('[AG-UI] Safety timeout: forcing run end after 120s');
+            currentMessageRef.current = '';
+            setCurrentMessage('');
+            setCurrentMessageId(null);
+            toolCallBuffersRef.current.clear();
+            agentClient.endRun();
+            addMessage({
+                id: `timeout_${Date.now()}`,
+                role: 'assistant',
+                content: 'The request timed out. Please try again.'
+            });
+        }, SAFETY_TIMEOUT_MS);
+        return () => clearTimeout(timeoutId);
+    }, [session.isActive]);
 
     // Get frontend tools (empty object if no tools provided)
     const frontEndTools = useMemo(() => getFrontEndTools(tools), [tools]);
@@ -110,10 +126,12 @@ export function useAgent({
 
     // Message management functions
     const addMessage = useCallback((message: Message) => {
-        setMessages(prev => [...prev, message]);
+        messagesRef.current = [...messagesRef.current, message];
+        setMessages(messagesRef.current);
     }, []);
 
     const clearMessages = useCallback(() => {
+        messagesRef.current = [];
         setMessages([]);
     }, []);
 
@@ -132,7 +150,8 @@ export function useAgent({
 
         // Remove messages from the current run
         const keepCount = preRunMessageCountRef.current;
-        setMessages(prev => prev.slice(0, keepCount));
+        messagesRef.current = messagesRef.current.slice(0, keepCount);
+        setMessages(messagesRef.current);
     }, [agentClient]);
 
     // Tool execution functions - now can reference the above functions
@@ -289,8 +308,12 @@ export function useAgent({
                 }
             }
 
-            // TODO: delete this tool call id from the ref, I think.
-            toolCallBuffersRef.current.delete(event.toolCallId);
+            // Mark as completed so onRunFinishedEvent still sees it for toolCalls,
+            // but handlePendingToolCalls skips it.
+            const entry = toolCallBuffersRef.current.get(event.toolCallId);
+            if (entry) {
+                toolCallBuffersRef.current.set(event.toolCallId, { ...entry, resultReceived: true });
+            }
         } catch (error) {
             console.error('Error creating tool result message:', error);
             const errorDetail = error instanceof Error ? error.message : String(error);
@@ -460,6 +483,9 @@ export function useAgent({
         let toolMessages:Message[] = []
         try {
             for (const [toolCallId, toolCall] of toolCallBuffersRef.current.entries()) {
+                // Backend tools already handled via TOOL_CALL_RESULT events
+                if (toolCall.resultReceived) continue;
+
                 let result;
                 if (frontEndTools[toolCall.name]) {
                     result = executeFrontendTool(toolCall.name, toolCall.argsBuffer, toolCallId);
@@ -477,7 +503,14 @@ export function useAgent({
             toolCallBuffersRef.current.clear()
             if (toolMessages.length > 0) {
                 const toolDefs = Object.values(tools).map((t: any) => t.definition);
-                agentClient.submitToolResults(toolMessages, agentSubscriberRef.current, toolDefs, getForwardedProps());
+                agentClient.startNewRun();
+                // Send full message history (not just tool results) so stateless backends have context
+                agentClient.submitToolResults(messagesRef.current, agentSubscriberRef.current, toolDefs, getForwardedProps())
+                    .catch((error: any) => {
+                        console.error('Tool result submission failed:', error);
+                        agentClient.endRun();
+                        addErrorMessage(`Failed to submit tool results: ${error}`);
+                    });
             }
         }
     }
