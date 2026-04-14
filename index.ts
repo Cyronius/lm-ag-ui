@@ -152,6 +152,8 @@ export interface UseAgentOptions {
     timeout?: number;
     tools?: Record<string, ToolDefinition>;
     buildForwardedProps?: ForwardedPropsBuilder;
+    sendFullHistory?: boolean;
+    initialThreadId?: string;
 }
 
 export interface AgentProviderProps {

@@ -28,10 +28,12 @@ export function useAgent({
     tokenProvider,
     timeout,
     tools = {},
-    buildForwardedProps
+    buildForwardedProps,
+    sendFullHistory,
+    initialThreadId
 }: UseAgentOptions): AgentClientContextValue {
     // Create a single AgentClient instance
-    const [agentClient] = useState(() => new AgentClient(baseUrl, agentId, { tokenProvider, timeout }));
+    const [agentClient] = useState(() => new AgentClient(baseUrl, agentId, { tokenProvider, timeout, sendFullHistory, initialThreadId }));
 
     // Track session for React re-renders
     const [session, setSession] = useState<Session>(agentClient.session);

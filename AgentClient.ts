@@ -10,6 +10,8 @@ export type TokenProvider = () => Promise<string | null>;
 export interface AgentClientOptions {
     tokenProvider?: TokenProvider;
     timeout?: number;
+    sendFullHistory?: boolean;
+    initialThreadId?: string;
 }
 
 export class AgentClient {
@@ -20,6 +22,7 @@ export class AgentClient {
     private tokenProvider?: TokenProvider;
     private _session: Session;
     private _debug: boolean = false;
+    private _sendFullHistory: boolean;
 
     // Session change callback for React integration
     private onSessionChange?: (session: Session) => void;
@@ -33,8 +36,9 @@ export class AgentClient {
         this.agentId = agentId;
         this.timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
         this.tokenProvider = options?.tokenProvider;
+        this._sendFullHistory = options?.sendFullHistory ?? false;
 
-       
+
         this.agent = new HttpAgent({
             url: this.buildAgentUrl(),
             headers: {
@@ -45,7 +49,7 @@ export class AgentClient {
 
         // Initialize session
         this._session = {
-            threadId: null,
+            threadId: options?.initialThreadId ?? null,
             runId: null,
             isActive: false
         };
@@ -168,7 +172,11 @@ export class AgentClient {
             // Set the thread ID and messages on the agent
             this.agent.threadId = threadId;
             const contextMsg = this.buildContextMessage(forwardedProps);
-            this.agent.setMessages(contextMsg ? [contextMsg, ...messages] : messages);
+            // When sendFullHistory is false, backend owns history rehydration — send only the newest turn.
+            const outgoing = this._sendFullHistory
+                ? (contextMsg ? [contextMsg, ...messages] : messages)
+                : [contextMsg, messages[messages.length - 1]].filter(Boolean) as Message[];
+            this.agent.setMessages(outgoing);
 
             const result = await this.agent.runAgent({
                 runId,
@@ -212,7 +220,11 @@ export class AgentClient {
             // Set the thread ID and messages on the agent
             this.agent.threadId = this._session.threadId;
             const contextMsg = this.buildContextMessage(forwardedProps);
-            this.agent.setMessages(contextMsg ? [contextMsg, ...toolMessages] : toolMessages);
+            // Tool results must always flow; when sendFullHistory is false the backend rehydrates prior turns.
+            const outgoing = this._sendFullHistory
+                ? (contextMsg ? [contextMsg, ...toolMessages] : toolMessages)
+                : (contextMsg ? [contextMsg, ...toolMessages.filter(m => m.role === 'tool')] : toolMessages.filter(m => m.role === 'tool'));
+            this.agent.setMessages(outgoing);
             const result = await this.agent.runAgent({
                 runId,
                 tools,
