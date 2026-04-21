@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AgentClient } from './AgentClient';
-import { ToolDefinition, ToolCallBuffer, Session, AgentClientContextValue, UseAgentOptions } from './index';
+import { ToolCallBuffer, Session, AgentClientContextValue, UseAgentOptions } from './index';
 import {
     AgentSubscriber,
     Message,
@@ -20,12 +20,13 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { getFrontEndTools } from './toolUtils';
 
-const SAFETY_TIMEOUT_MS = 120000;
+const SAFETY_TIMEOUT_MS = 300000;
 
 export function useAgent({
     baseUrl,
     agentId,
     tokenProvider,
+    requestHandler,
     timeout,
     tools = {},
     buildForwardedProps,
@@ -33,13 +34,13 @@ export function useAgent({
     initialThreadId
 }: UseAgentOptions): AgentClientContextValue {
     // Create a single AgentClient instance
-    const [agentClient] = useState(() => new AgentClient(baseUrl, agentId, { tokenProvider, timeout, sendFullHistory, initialThreadId }));
+    const [agentClient] = useState(() => new AgentClient(baseUrl, agentId, { tokenProvider, requestHandler, timeout, sendFullHistory, initialThreadId }));
 
     // Track session for React re-renders
     const [session, setSession] = useState<Session>(agentClient.session);
 
     // Global AG-UI state management
-    const [globalState, setGlobalState] = useState<any>({});
+    const [globalState, setGlobalState] = useState<Record<string, unknown>>({});
 
     // Messages state management
     const [messages, setMessages] = useState<Message[]>([]);
@@ -86,12 +87,13 @@ export function useAgent({
     useEffect(() => {
         if (!session.isActive) return;
         const timeoutId = setTimeout(() => {
-            console.warn('[AG-UI] Safety timeout: forcing run end after 120s');
+            console.warn('[AG-UI] Safety timeout: forcing run end after 300s');
             currentMessageRef.current = '';
             setCurrentMessage('');
             setCurrentMessageId(null);
             toolCallBuffersRef.current.clear();
-            agentClient.endRun();
+            isAbortedRef.current = true;
+            agentClient.abortRun();
             addMessage({
                 id: `timeout_${Date.now()}`,
                 role: 'assistant',
@@ -111,14 +113,14 @@ export function useAgent({
     }, [globalState]);
 
     // State management functions - need to be defined first
-    const updateState = useCallback((toolName: string, data: any) => {
-        setGlobalState((prev: any) => ({
+    const updateState = useCallback((toolName: string, data: unknown) => {
+        setGlobalState((prev) => ({
             ...prev,
             [toolName]: data
         }));
     }, []);
 
-    const getState = useCallback((toolName?: string) => {
+    const getState = useCallback((toolName?: string): unknown => {
         // Read from ref to always get the latest state
         if (toolName) {
             return globalStateRef.current[toolName];
@@ -186,10 +188,6 @@ export function useAgent({
     }, [frontEndTools, updateState, getState, addMessage]);
 
 
-    const executeBackendTool = useCallback((toolName: string, argsJson: string, toolCallId: string):Message|null => {
-        // TODO: we should allow frontend handler calls for backend tools.
-        return null
-    }, [agentClient]);
 
     // Build forwardedProps for agent calls using callback + any additional props
     const getForwardedProps = useCallback((extraProps?: Record<string, any>): Record<string, any> => {
@@ -229,7 +227,7 @@ export function useAgent({
             // Apply state updates if provided
             if (stateUpdates) {
                 // Update local React state immediately so renderers have access to the values
-                setGlobalState((prev: any) => ({ ...prev, ...stateUpdates }));
+                setGlobalState((prev) => ({ ...prev, ...stateUpdates }));
                 // Also send to backend
                 agentClient.setState({
                     ...globalState,
@@ -390,8 +388,8 @@ export function useAgent({
         console.info('[AG-UI] StateSnapshot:', { snapshot: event.snapshot });
         // Merge the snapshot with existing state, but preserve frontend-managed keys
         // Frontend-managed keys start with underscore (e.g., _soco_accumulated_outlines)
-        setGlobalState((prev: any) => {
-            const merged = { ...prev, ...event.snapshot };
+        setGlobalState((prev) => {
+            const merged: Record<string, unknown> = { ...prev, ...event.snapshot };
 
             // Preserve any frontend-managed keys (starting with _) from prev state
             Object.keys(prev).forEach(key => {
@@ -442,11 +440,27 @@ export function useAgent({
                     completedMessage.toolCalls = toolCalls;
                 }
                 console.info('message:', finalText || '(tool calls only)');
-                addMessage(completedMessage);
 
-                // Notify tracking system of message (for app-level tracking like HubSpot)
-                if (finalText && (window as any).__smarketingTracking?.addMessage) {
-                    (window as any).__smarketingTracking.addMessage('assistant', finalText);
+                // Suppress consecutive duplicate assistant text produced by repeated
+                // preambles across tool-calling rounds. Only when there are no tool
+                // calls attached — messages with tool calls are structurally required.
+                const lastMsg = messagesRef.current[messagesRef.current.length - 1];
+                const isConsecutiveDuplicate =
+                    !toolCalls &&
+                    finalText &&
+                    lastMsg?.role === 'assistant' &&
+                    typeof lastMsg.content === 'string' &&
+                    lastMsg.content.trim() === finalText;
+
+                if (isConsecutiveDuplicate) {
+                    console.info('[AG-UI] Suppressed duplicate assistant message');
+                } else {
+                    addMessage(completedMessage);
+
+                    // Notify tracking system of message (for app-level tracking like HubSpot)
+                    if (finalText && (window as any).__smarketingTracking?.addMessage) {
+                        (window as any).__smarketingTracking.addMessage('assistant', finalText);
+                    }
                 }
             }
         } catch (error) {
@@ -492,7 +506,7 @@ export function useAgent({
                 if (frontEndTools[toolCall.name]) {
                     result = executeFrontendTool(toolCall.name, toolCall.argsBuffer, toolCallId);
                 } else {
-                    result = executeBackendTool(toolCall.name, toolCall.argsBuffer, toolCallId);
+                    console.warn(`[AG-UI] Tool '${toolCall.name}' is not a frontend tool and has no backend result — skipping`);
                 }
                 if (result) {
                     toolMessages.push(result)
@@ -504,7 +518,7 @@ export function useAgent({
         finally {
             toolCallBuffersRef.current.clear()
             if (toolMessages.length > 0) {
-                const toolDefs = Object.values(tools).map((t: any) => t.definition);
+                const toolDefs = Object.values(tools).map((t) => t.definition);
                 agentClient.startNewRun();
                 // Send full message history (not just tool results) so stateless backends have context
                 agentClient.submitToolResults(messagesRef.current, agentSubscriberRef.current, toolDefs, getForwardedProps())

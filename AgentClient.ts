@@ -1,14 +1,17 @@
 import { HttpAgent, AgentSubscriber, Message, State, Tool } from '@ag-ui/client';
 import type { RunAgentResult } from '@ag-ui/client';
+import { CustomHttpAgent } from './CustomHttpAgent';
+import type { RequestHandler } from './CustomHttpAgent';
 import { Session } from './index';
 import { v4 as uuidv4 } from 'uuid';
 
-const DEFAULT_TIMEOUT_MS = 120000;
+const DEFAULT_TIMEOUT_MS = 300000;
 
 export type TokenProvider = () => Promise<string | null>;
 
 export interface AgentClientOptions {
     tokenProvider?: TokenProvider;
+    requestHandler?: RequestHandler;
     timeout?: number;
     sendFullHistory?: boolean;
     initialThreadId?: string;
@@ -20,6 +23,7 @@ export class AgentClient {
     private agentId: string;
     private timeout: number;
     private tokenProvider?: TokenProvider;
+    private requestHandler?: RequestHandler;
     private _session: Session;
     private _debug: boolean = false;
     private _sendFullHistory: boolean;
@@ -32,20 +36,24 @@ export class AgentClient {
         agentId: string,
         options?: AgentClientOptions
     ) {
+        if (!agentId || agentId.trim().length === 0) {
+            throw new Error('AgentClient: agentId is required and cannot be empty');
+        }
+        if (!baseUrl || baseUrl.trim().length === 0) {
+            throw new Error('AgentClient: baseUrl is required and cannot be empty');
+        }
+        if (options?.timeout !== undefined && (typeof options.timeout !== 'number' || options.timeout <= 0)) {
+            throw new Error('AgentClient: timeout must be a positive number');
+        }
+
         this.baseUrl = baseUrl;
         this.agentId = agentId;
         this.timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
         this.tokenProvider = options?.tokenProvider;
+        this.requestHandler = options?.requestHandler;
         this._sendFullHistory = options?.sendFullHistory ?? false;
 
-
-        this.agent = new HttpAgent({
-            url: this.buildAgentUrl(),
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'text/event-stream'
-            }
-        });
+        this.agent = this.createAgent();
 
         // Initialize session
         this._session = {
@@ -56,9 +64,28 @@ export class AgentClient {
     }
 
     // Build agent URL with optional debug query param
-    private buildAgentUrl(): string {        
+    private buildAgentUrl(): string {
         const base = `${this.baseUrl}/agent/${this.agentId}`;
         return this._debug ? `${base}?debug=true` : base;
+    }
+
+    // Create the appropriate HttpAgent (custom or standard)
+    private createAgent(): HttpAgent {
+        const config = {
+            url: this.buildAgentUrl(),
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream'
+            }
+        };
+        return this.requestHandler
+            ? new CustomHttpAgent(config, this.requestHandler)
+            : new HttpAgent(config);
+    }
+
+    // Returns the requestHandler if set, otherwise global fetch
+    private get fetchFn(): typeof fetch {
+        return this.requestHandler ?? fetch;
     }
 
     // Debug mode getter
@@ -70,14 +97,7 @@ export class AgentClient {
     setDebug(enabled: boolean): void {
         if (this._debug === enabled) return;
         this._debug = enabled;
-
-        this.agent = new HttpAgent({
-            url: this.buildAgentUrl(),
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'text/event-stream'
-            }
-        });
+        this.agent = this.createAgent();
     }
 
     // Session getter
@@ -324,7 +344,7 @@ export class AgentClient {
         }
 
         const url = `${this.baseUrl}/agent/${this.agentId}/upload`;
-        const response = await fetch(url, {
+        const response = await this.fetchFn(url, {
             method: 'POST',
             body: formData,
             headers,
@@ -337,7 +357,7 @@ export class AgentClient {
 
         // Parse JSON response
         const uploadResponse = await response.json();
-        console.log('Files uploaded successfully', uploadResponse);
+        console.info('Files uploaded successfully', uploadResponse);
 
         return uploadResponse;
     }

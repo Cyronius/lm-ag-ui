@@ -8,6 +8,7 @@ export interface UseAgentSetupOptions {
     baseUrl?: string;
     agentId: string;
     tokenProvider?: UseAgentOptions['tokenProvider'];
+    requestHandler?: UseAgentOptions['requestHandler'];
     timeout?: number;
     tools?: UseAgentOptions['tools'];
     buildForwardedProps?: UseAgentOptions['buildForwardedProps'];
@@ -36,6 +37,7 @@ export function useAgentSetup({
     baseUrl,
     agentId,
     tokenProvider,
+    requestHandler,
     timeout,
     tools,
     buildForwardedProps,
@@ -53,7 +55,7 @@ export function useAgentSetup({
         setIsLoading(true);
         setError(null);
 
-        loadAgentConfig(baseUrl!, agentId, tokenProvider)
+        loadAgentConfig(baseUrl!, agentId, tokenProvider, requestHandler)
             .then(loadedConfig => {
                 if (cancelled) return;
                 const finalConfig = onConfigLoaded
@@ -69,7 +71,7 @@ export function useAgentSetup({
             });
 
         return () => { cancelled = true; };
-    }, [isReady, baseUrl, agentId, tokenProvider]);
+    }, [isReady, baseUrl, agentId, tokenProvider, requestHandler]);
 
     // Build the AgentLayer component.
     // When config is null, it's a passthrough (children render without AgentProvider).
@@ -84,6 +86,7 @@ export function useAgentSetup({
             baseUrl,
             agentId,
             tokenProvider,
+            requestHandler,
             timeout,
             tools: tools ?? config.tools ?? {},
             buildForwardedProps
@@ -97,7 +100,7 @@ export function useAgentSetup({
         };
         Layer.displayName = 'AgentLayer';
         return Layer;
-    }, [config, baseUrl, agentId, tokenProvider, timeout, tools, buildForwardedProps]);
+    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, tools, buildForwardedProps]);
 
     return { config, isLoading, error, AgentLayer };
 }

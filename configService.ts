@@ -1,5 +1,6 @@
 import { AgentConfig, Suggestion, ToolConfigResponse } from './index';
 import type { TokenProvider } from './AgentClient';
+import type { RequestHandler } from './CustomHttpAgent';
 
 /**
  * Configuration Loading Service
@@ -29,7 +30,9 @@ interface AgentConfigResponse {
  * @returns Promise<AgentConfig> - Resolves with config or throws error
  * @throws Error if config fetch fails
  */
-export async function loadAgentConfig(baseUrl: string, agentId: string, tokenProvider?: TokenProvider): Promise<AgentConfig> {
+const DEFAULT_CONFIG_TIMEOUT_MS = 30000;
+
+export async function loadAgentConfig(baseUrl: string, agentId: string, tokenProvider?: TokenProvider, requestHandler?: RequestHandler, timeout: number = DEFAULT_CONFIG_TIMEOUT_MS): Promise<AgentConfig> {
 
 	const configUrl = `${baseUrl}/agent/${agentId}`;
 
@@ -41,10 +44,26 @@ export async function loadAgentConfig(baseUrl: string, agentId: string, tokenPro
 		}
 	}
 
-	const response = await fetch(configUrl, {
-		method: 'GET',
-		headers
-	});
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+	const fetchFn = requestHandler ?? fetch;
+	let response: Response;
+	try {
+		response = await fetchFn(configUrl, {
+			method: 'GET',
+			headers,
+			signal: controller.signal
+		});
+	} catch (error) {
+		clearTimeout(timeoutId);
+		if (error instanceof DOMException && error.name === 'AbortError') {
+			throw new Error(`Config loading timed out after ${timeout}ms for agent '${agentId}'`);
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeoutId);
+	}
 
 	if (!response.ok) {
 		// Try to get error details from response body

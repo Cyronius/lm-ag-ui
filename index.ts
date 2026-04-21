@@ -21,6 +21,7 @@ import type {
 } from '@ag-ui/client';
 import { AgentClient } from './AgentClient';
 import type { TokenProvider, AgentClientOptions } from './AgentClient';
+import type { RequestHandler } from './CustomHttpAgent';
 import { AgentProvider, useAgentContext } from './AgentClientContext';
 import { useAgent } from './useAgent';
 import { loadAgentConfig } from './configService';
@@ -90,22 +91,22 @@ export interface StandardTool {
 // Tool handler executes the tool's logic (frontend tools only)
 export type ToolHandler = (
     args: any,
-    updateState: (toolName: string, data: any) => void,
-    getState: (toolName?: string) => any,
-    configJson?: Record<string, any>
+    updateState: (toolName: string, data: unknown) => void,
+    getState: (toolName?: string) => unknown,
+    configJson?: Record<string, unknown>
 ) => string | null;
 
 // Tool renderer handles display/artifacts for the tool result (both frontend and backend)
 export type ToolRenderer = (
     args: any,
     result: string,
-    updateState: (toolName: string, data: any) => void,
-    getState: (toolName?: string) => any,
-    configJson?: Record<string, any>
+    updateState: (toolName: string, data: unknown) => void,
+    getState: (toolName?: string) => unknown,
+    configJson?: Record<string, unknown>
 ) => React.ReactElement | void;
 
 // Tool onResult callback for side effects when tool result is received (e.g., state accumulation)
-export type ToolOnResult = (args: any, result: string, updateState: (toolName: string, data: any) => void, getState: (toolName?: string) => any) => void;
+export type ToolOnResult = (args: any, result: string, updateState: (toolName: string, data: unknown) => void, getState: (toolName?: string) => unknown) => void;
 
 export interface ToolDefinition {
     definition: StandardTool;
@@ -113,7 +114,7 @@ export interface ToolDefinition {
     renderer?: ToolRenderer; // For tools that need special rendering
     onResult?: ToolOnResult; // For side effects when result is received (e.g., accumulation)
     isFrontend: boolean;
-    configJson?: Record<string, any>;  // Tool configuration from database
+    configJson?: Record<string, unknown>;  // Tool configuration from database
 }
 
 
@@ -121,11 +122,11 @@ export interface AgentClientContextValue {
     agentClient: AgentClient;
     session: Session;
     tools: Record<string, ToolDefinition>;
-    globalState: any;
+    globalState: Record<string, unknown>;
     messages: Message[];
     addMessage: (message: Message) => void;
     clearMessages: () => void;
-    updateState: (toolName: string, data: any) => void;
+    updateState: (toolName: string, data: unknown) => void;
     // Streaming state
     currentMessage: string;
     currentMessageId: string | null;
@@ -149,6 +150,7 @@ export interface UseAgentOptions {
     baseUrl?: string;
     agentId: string;
     tokenProvider?: TokenProvider;
+    requestHandler?: RequestHandler;
     timeout?: number;
     tools?: Record<string, ToolDefinition>;
     buildForwardedProps?: ForwardedPropsBuilder;
@@ -189,6 +191,7 @@ export interface AgentConfig {
 }
 
 export type { TokenProvider, AgentClientOptions };
+export type { RequestHandler };
 export { AgentClient, AgentProvider, useAgentContext, useAgent, loadAgentConfig };
 export { useAgentSetup } from './useAgentSetup';
 export type { UseAgentSetupOptions, UseAgentSetupResult } from './useAgentSetup';
