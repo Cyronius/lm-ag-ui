@@ -20,29 +20,27 @@ npm install @itkennel/lm-ag-ui
 
 ## Quick Start
 
-The simplest way to get started is with `useAgentSetup`, which handles config loading and agent initialization:
+Use `useAgent` to initialize the agent client and wrap your UI with `AgentProvider`:
 
 ```tsx
-import { useAgentSetup, AgentProvider } from '@itkennel/lm-ag-ui';
+import { useAgent, AgentProvider, useAgentContext } from '@itkennel/lm-ag-ui';
 
 function App() {
-  const { config, isLoading, error, AgentLayer } = useAgentSetup({
+  const agent = useAgent({
     baseUrl: 'http://localhost:8000',
     agentId: 'my-agent',
+    tools: { /* your tool definitions */ },
   });
 
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-
   return (
-    <AgentLayer>
+    <AgentProvider value={agent}>
       <ChatUI />
-    </AgentLayer>
+    </AgentProvider>
   );
 }
 ```
 
-Inside `AgentLayer`, access agent state via `useAgentContext`:
+Inside `AgentProvider`, access agent state via `useAgentContext`:
 
 ```tsx
 import { useAgentContext } from '@itkennel/lm-ag-ui';
@@ -79,9 +77,9 @@ function ChatUI() {
 
 ## Core API
 
-### `useAgentSetup(options)`
+### `useAgent(options)`
 
-Combined hook that loads agent config from the backend and initializes the agent client.
+Core hook that creates an `AgentClient` and manages streaming state, messages, and tool execution.
 
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
@@ -90,15 +88,12 @@ Combined hook that loads agent config from the backend and initializes the agent
 | `tokenProvider` | `() => Promise<string \| null>` | No | Auth token provider |
 | `requestHandler` | `RequestHandler` | No | Custom fetch implementation (e.g., for session management) |
 | `timeout` | `number` | No | Request timeout in ms (default: 300000) |
-| `tools` | `Record<string, ToolDefinition>` | No | Tool definitions (overrides config) |
-| `buildForwardedProps` | `() => Record<string, any>` | No | Dynamic context injected into each agent call |
-| `onConfigLoaded` | `(config: AgentConfig) => AgentConfig` | No | Transform config after loading |
-
-Returns: `{ config, isLoading, error, AgentLayer }`
-
-### `useAgent(options)`
-
-Lower-level hook for when you manage config loading yourself. Same options as `useAgentSetup` minus `onConfigLoaded`.
+| `tools` | `Record<string, ToolDefinition>` | No | Tool definitions |
+| `buildForwardedProps` | `() => Record<string, any>` | No | Dynamic context injected into each agent call via `RunAgentInput.forwardedProps` |
+| `sendFullHistory` | `boolean` | No | Send full message history vs. only the latest turn (default: false) |
+| `initialThreadId` | `string` | No | Resume an existing conversation thread |
+| `onLifecycleEvent` | `(event: AgentLifecycleEvent) => void` | No | Callback for observing agent lifecycle events (run started, tool used, message added) |
+| `injectForwardedPropsAsSystemMessage` | `boolean` | No | Also prepend forwardedProps as a system message for backends that don't read `RunAgentInput.forwardedProps` (default: false) |
 
 Returns: `AgentClientContextValue` with all agent state and methods.
 
@@ -118,13 +113,9 @@ Key methods:
 - `startNewRun()` / `endRun()` / `endSession()` - Session lifecycle
 - `runAgent(messages, tools, subscriber, forwardedProps)` - Send messages to backend
 - `submitToolResults(messages, subscriber, tools, forwardedProps)` - Submit tool execution results
-- `uploadFile(files, threadId?)` - Upload files to the agent
 - `setDebug(enabled)` - Toggle debug mode (appends `?debug=true` to agent URL)
 - `abortRun()` - Abort the current streaming run
-
-### `loadAgentConfig(baseUrl, agentId, tokenProvider?, requestHandler?, timeout?)`
-
-Standalone function to load agent configuration from the backend. Config loading has a 30s default timeout.
+- `getConfig()` - Returns `{ baseUrl, agentId, timeout }`
 
 ## Tool System
 
@@ -163,12 +154,82 @@ const myTool: ToolDefinition = {
 | `onResult` | `ToolOnResult` | Callback when tool result is received |
 | `configJson` | `Record<string, unknown>` | Tool configuration from backend |
 
+## File Attachments
+
+The library supports file attachments via AG-UI's native `BinaryInputContent` type. Two strategies are available:
+
+### Inline base64 (simple, no upload infrastructure)
+
+Use `filesToBinaryContent()` to read files client-side and embed them directly in message content:
+
+```ts
+import { filesToBinaryContent } from '@itkennel/lm-ag-ui';
+
+const binaryParts = await filesToBinaryContent(files);
+const message = {
+  id: `msg_${Date.now()}`,
+  role: 'user',
+  content: [
+    ...binaryParts,
+    { type: 'text', text: 'Process these files' }
+  ]
+};
+```
+
+### URL reference (large files, existing upload infrastructure)
+
+Upload files to your own storage, then reference them via `BinaryInputContent.url`:
+
+```ts
+import type { BinaryInputContent } from '@itkennel/lm-ag-ui';
+
+// Upload to your own endpoint
+const uploaded = await myUploadService(files);
+
+const binaryParts: BinaryInputContent[] = uploaded.map(f => ({
+  type: 'binary',
+  mimeType: f.mimeType,
+  url: f.downloadUrl,
+  filename: f.filename,
+}));
+
+const message = {
+  id: `msg_${Date.now()}`,
+  role: 'user',
+  content: [...binaryParts, { type: 'text', text: 'Process these files' }]
+};
+```
+
+## Lifecycle Events
+
+Observe agent events for analytics or tracking without coupling your app to the library internals:
+
+```ts
+useAgent({
+  baseUrl: 'http://localhost:8000',
+  agentId: 'my-agent',
+  onLifecycleEvent: (event) => {
+    switch (event.type) {
+      case 'run_started':
+        analytics.trackInteractionStart();
+        break;
+      case 'tool_used':
+        analytics.trackToolUsage(event.toolName);
+        break;
+      case 'message_added':
+        analytics.trackMessage(event.role, event.content);
+        break;
+    }
+  },
+});
+```
+
 ## Authentication
 
 Inject auth via `tokenProvider`:
 
 ```ts
-useAgentSetup({
+useAgent({
   baseUrl: 'http://localhost:8000',
   agentId: 'my-agent',
   tokenProvider: async () => {
@@ -183,7 +244,7 @@ useAgentSetup({
 Use `requestHandler` to inject middleware (retries, session management):
 
 ```ts
-useAgentSetup({
+useAgent({
   baseUrl: 'http://localhost:8000',
   agentId: 'my-agent',
   requestHandler: async (url, init) => {
@@ -193,25 +254,65 @@ useAgentSetup({
 });
 ```
 
+## Config Loading (optional)
+
+If your backend provides a `GET /agent/{agentId}` endpoint that returns tool definitions and suggestions, you can use the config loading subpath:
+
+```tsx
+import { useAgentSetup } from '@itkennel/lm-ag-ui/config';
+import type { AgentConfig } from '@itkennel/lm-ag-ui/config';
+
+function App() {
+  const { config, isLoading, error, AgentLayer } = useAgentSetup({
+    baseUrl: 'http://localhost:8000',
+    agentId: 'my-agent',
+    onConfigLoaded: (config: AgentConfig) => {
+      // Transform config, merge tool definitions, etc.
+      return config;
+    },
+  });
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+
+  return (
+    <AgentLayer>
+      <ChatUI />
+    </AgentLayer>
+  );
+}
+```
+
+`useAgentSetup` loads config, then mounts `useAgent` + `AgentProvider` inside `AgentLayer` once config is ready. This is a convenience wrapper — you can always use `useAgent` directly if you manage config loading yourself.
+
+### Config loading API
+
+| Export | Description |
+|--------|-------------|
+| `useAgentSetup(options)` | Hook: loads config + initializes agent |
+| `loadAgentConfig(baseUrl, agentId, tokenProvider?, requestHandler?, timeout?)` | Standalone function to load config |
+| `AgentConfig` | Config response type (tools, suggestions, config KV pairs) |
+| `Suggestion` | Suggestion type |
+| `ToolConfigResponse` | Raw tool config from API |
+
 ## Exports
 
-### Classes
-- `AgentClient` - HTTP agent client
-- `CustomHttpAgent` (via `HttpAgent` re-export) - Custom request pipeline agent
+### Main entry point (`@itkennel/lm-ag-ui`)
 
-### Hooks
-- `useAgent` - Core agent state hook
-- `useAgentSetup` - Config loading + agent initialization
-- `useAgentContext` - Access agent context from child components
+**Classes**: `AgentClient`, `HttpAgent` (re-export from @ag-ui/client)
 
-### Components
-- `AgentProvider` - React context provider
+**Hooks**: `useAgent`, `useAgentContext`
 
-### Functions
-- `loadAgentConfig` - Load agent configuration
+**Components**: `AgentProvider`
 
-### Types
-- `ToolDefinition`, `ToolHandler`, `ToolRenderer`, `ToolOnResult`
-- `AgentClientContextValue`, `UseAgentOptions`, `UseAgentSetupOptions`
-- `AgentConfig`, `Session`, `Suggestion`, `TokenProvider`, `RequestHandler`
-- AG-UI re-exports: `Message`, `Tool`, `BaseEvent`, `EventType`, and all event types
+**Functions**: `filesToBinaryContent`
+
+**Types**: `ToolDefinition`, `ToolHandler`, `ToolRenderer`, `ToolOnResult`, `AgentClientContextValue`, `UseAgentOptions`, `AgentLifecycleEvent`, `Session`, `TokenProvider`, `RequestHandler`, `BinaryInputContent`, `InputContent`, AG-UI re-exports (`Message`, `Tool`, `BaseEvent`, `EventType`, and all event types)
+
+### Config subpath (`@itkennel/lm-ag-ui/config`)
+
+**Hooks**: `useAgentSetup`
+
+**Functions**: `loadAgentConfig`
+
+**Types**: `AgentConfig`, `Suggestion`, `ToolConfigResponse`, `UseAgentSetupOptions`, `UseAgentSetupResult`

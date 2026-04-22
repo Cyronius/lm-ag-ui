@@ -1,6 +1,13 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AgentClient } from './AgentClient';
-import { ToolCallBuffer, Session, AgentClientContextValue, UseAgentOptions } from './index';
+import { Session, AgentClientContextValue, UseAgentOptions } from './index';
+
+interface ToolCallBuffer {
+    name: string;
+    argsBuffer: string;
+    parentMessageId?: string;
+    resultReceived?: boolean;
+}
 import {
     AgentSubscriber,
     Message,
@@ -31,10 +38,12 @@ export function useAgent({
     tools = {},
     buildForwardedProps,
     sendFullHistory,
-    initialThreadId
+    initialThreadId,
+    onLifecycleEvent,
+    injectForwardedPropsAsSystemMessage
 }: UseAgentOptions): AgentClientContextValue {
     // Create a single AgentClient instance
-    const [agentClient] = useState(() => new AgentClient(baseUrl, agentId, { tokenProvider, requestHandler, timeout, sendFullHistory, initialThreadId }));
+    const [agentClient] = useState(() => new AgentClient(baseUrl, agentId, { tokenProvider, requestHandler, timeout, sendFullHistory, initialThreadId, injectForwardedPropsAsSystemMessage }));
 
     // Track session for React re-renders
     const [session, setSession] = useState<Session>(agentClient.session);
@@ -158,6 +167,10 @@ export function useAgent({
         setMessages(messagesRef.current);
     }, [agentClient]);
 
+    // Tracks per-batch whether any frontend tool called ctx.stopAfterToolCall().
+    // Cleared by handlePendingToolCalls after the batch is submitted.
+    const stopAfterToolCallRef = useRef<boolean>(false);
+
     // Tool execution functions - now can reference the above functions
     const executeFrontendTool = useCallback((toolName: string, argsJson: string | null = null, toolCallId: string | null = null):Message|null => {
         if (!toolCallId) {
@@ -168,8 +181,16 @@ export function useAgent({
             const args = argsJson ? JSON.parse(argsJson) : null;
             const tool = frontEndTools[toolName];
 
-            // Pass configJson directly as 4th parameter
-            const result = tool.handler?.(args, updateState, getState, tool.configJson);
+            // Build per-call ToolContext. ctx.stopAfterToolCall() is idempotent
+            // across all tools in the batch — the flag is batch-level on the wire.
+            const ctx = {
+                toolCallId: toolCallId!,
+                toolName,
+                stopAfterToolCall: () => { stopAfterToolCallRef.current = true; },
+            };
+
+            // Pass ctx as 5th parameter. Handlers that ignore it continue to work.
+            const result = tool.handler?.(args, updateState, getState, tool.configJson, ctx);
             const toolMessage: Message = {
                 id: `tool_${toolCallId}_${Date.now()}`,
                 role: 'tool',
@@ -265,10 +286,7 @@ export function useAgent({
         });
         toolCallIdToNameRef.current.set(event.toolCallId, event.toolCallName);
 
-        // Notify tracking system of tool usage (for app-level tracking like HubSpot)
-        if ((window as any).__smarketingTracking?.addToolUsed) {
-            (window as any).__smarketingTracking.addToolUsed(event.toolCallName);
-        }
+        onLifecycleEvent?.({ type: 'tool_used', toolName: event.toolCallName });
 
         forceUpdate(n => n + 1);
     }, []);
@@ -355,10 +373,7 @@ export function useAgent({
         });
         // Snapshot message count before this run (minus 1 to exclude the user message added before startNewRun)
         preRunMessageCountRef.current = Math.max(0, messagesRef.current.length - 1);
-        // Notify tracking system that interaction started (for app-level tracking like HubSpot)
-        if ((window as any).__smarketingTracking?.startInteraction) {
-            (window as any).__smarketingTracking.startInteraction();
-        }
+        onLifecycleEvent?.({ type: 'run_started' });
         currentMessageRef.current = '';
         setCurrentMessage('');
         setCurrentMessageId(null);
@@ -429,37 +444,77 @@ export function useAgent({
                     );
                 }
 
-                const completedMessage: Message = {
-                    id: currentMessageId || `msg_${Date.now()}`,
-                    role: 'assistant',
-                };
-                if (finalText) {
-                    completedMessage.content = finalText;
-                }
-                if (toolCalls) {
-                    completedMessage.toolCalls = toolCalls;
-                }
-                console.info('message:', finalText || '(tool calls only)');
+                // When every pending tool call already has a backend result, the
+                // streamed text is the final synthesis, not a preamble. Emit it as
+                // a separate assistant message after the tool result messages so
+                // the rendering filter (which hides assistant messages bearing
+                // toolCalls) doesn't swallow the answer. Splice the toolCalls
+                // placeholder in before the trailing tool result block so history
+                // stays assistant(toolCalls) → tool(result) → assistant(text).
+                const allBackendResolved =
+                    hasPendingToolCalls &&
+                    Array.from(toolCallBuffersRef.current.values()).every(tc => tc.resultReceived);
 
-                // Suppress consecutive duplicate assistant text produced by repeated
-                // preambles across tool-calling rounds. Only when there are no tool
-                // calls attached — messages with tool calls are structurally required.
-                const lastMsg = messagesRef.current[messagesRef.current.length - 1];
-                const isConsecutiveDuplicate =
-                    !toolCalls &&
-                    finalText &&
-                    lastMsg?.role === 'assistant' &&
-                    typeof lastMsg.content === 'string' &&
-                    lastMsg.content.trim() === finalText;
-
-                if (isConsecutiveDuplicate) {
-                    console.info('[AG-UI] Suppressed duplicate assistant message');
+                if (finalText && toolCalls && allBackendResolved) {
+                    const toolCallIds = new Set(toolCalls.map(tc => tc.id));
+                    let spliceIdx = messagesRef.current.length;
+                    while (
+                        spliceIdx > 0 &&
+                        messagesRef.current[spliceIdx - 1].role === 'tool' &&
+                        toolCallIds.has((messagesRef.current[spliceIdx - 1] as any).toolCallId)
+                    ) {
+                        spliceIdx--;
+                    }
+                    const toolsMessage: Message = {
+                        id: `msg_tools_${Date.now()}`,
+                        role: 'assistant',
+                        toolCalls,
+                    };
+                    const textMessage: Message = {
+                        id: currentMessageId || `msg_${Date.now()}`,
+                        role: 'assistant',
+                        content: finalText,
+                    };
+                    messagesRef.current = [
+                        ...messagesRef.current.slice(0, spliceIdx),
+                        toolsMessage,
+                        ...messagesRef.current.slice(spliceIdx),
+                        textMessage,
+                    ];
+                    setMessages(messagesRef.current);
+                    onLifecycleEvent?.({ type: 'message_added', role: 'assistant', content: finalText });
                 } else {
-                    addMessage(completedMessage);
+                    const completedMessage: Message = {
+                        id: currentMessageId || `msg_${Date.now()}`,
+                        role: 'assistant',
+                    };
+                    if (finalText) {
+                        completedMessage.content = finalText;
+                    }
+                    if (toolCalls) {
+                        completedMessage.toolCalls = toolCalls;
+                    }
+                    console.info('message:', finalText || '(tool calls only)');
 
-                    // Notify tracking system of message (for app-level tracking like HubSpot)
-                    if (finalText && (window as any).__smarketingTracking?.addMessage) {
-                        (window as any).__smarketingTracking.addMessage('assistant', finalText);
+                    // Suppress consecutive duplicate assistant text produced by repeated
+                    // preambles across tool-calling rounds. Only when there are no tool
+                    // calls attached — messages with tool calls are structurally required.
+                    const lastMsg = messagesRef.current[messagesRef.current.length - 1];
+                    const isConsecutiveDuplicate =
+                        !toolCalls &&
+                        finalText &&
+                        lastMsg?.role === 'assistant' &&
+                        typeof lastMsg.content === 'string' &&
+                        lastMsg.content.trim() === finalText;
+
+                    if (isConsecutiveDuplicate) {
+                        console.info('[AG-UI] Suppressed duplicate assistant message');
+                    } else {
+                        addMessage(completedMessage);
+
+                        if (finalText) {
+                            onLifecycleEvent?.({ type: 'message_added', role: 'assistant', content: finalText });
+                        }
                     }
                 }
             }
@@ -520,8 +575,14 @@ export function useAgent({
             if (toolMessages.length > 0) {
                 const toolDefs = Object.values(tools).map((t) => t.definition);
                 agentClient.startNewRun();
+                // If any tool called ctx.stopAfterToolCall(), merge the flag into
+                // forwardedProps so the backend terminates the run with no LLM
+                // follow-up turn. Backend contract: AGENT-STOP-FRONTEND-TOOL.
+                const stopAfter = stopAfterToolCallRef.current;
+                stopAfterToolCallRef.current = false;
+                const fwd = getForwardedProps(stopAfter ? { stopAfterToolCall: true } : undefined);
                 // Send full message history (not just tool results) so stateless backends have context
-                agentClient.submitToolResults(messagesRef.current, agentSubscriberRef.current, toolDefs, getForwardedProps())
+                agentClient.submitToolResults(messagesRef.current, agentSubscriberRef.current, toolDefs, fwd)
                     .catch((error: any) => {
                         console.error('Tool result submission failed:', error);
                         agentClient.endRun();

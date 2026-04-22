@@ -1,5 +1,10 @@
-import { createContext, useContext } from 'react';
-import { AgentClientContextValue, AgentProviderProps } from './index';
+import React, { createContext, useContext } from 'react';
+import { AgentClientContextValue } from './index';
+
+interface AgentProviderProps {
+    value: AgentClientContextValue;
+    children: React.ReactNode;
+}
 
 const AgentClientContext = createContext<AgentClientContextValue | null>(null);
 

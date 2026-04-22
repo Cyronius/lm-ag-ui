@@ -15,6 +15,9 @@ export interface AgentClientOptions {
     timeout?: number;
     sendFullHistory?: boolean;
     initialThreadId?: string;
+    /** When true, forwardedProps are also injected as a system message prepended to the messages array.
+     *  Useful for backends that don't read forwardedProps from RunAgentInput. Default: false. */
+    injectForwardedPropsAsSystemMessage?: boolean;
 }
 
 export class AgentClient {
@@ -27,6 +30,7 @@ export class AgentClient {
     private _session: Session;
     private _debug: boolean = false;
     private _sendFullHistory: boolean;
+    private _injectForwardedPropsAsSystemMessage: boolean;
 
     // Session change callback for React integration
     private onSessionChange?: (session: Session) => void;
@@ -52,6 +56,7 @@ export class AgentClient {
         this.tokenProvider = options?.tokenProvider;
         this.requestHandler = options?.requestHandler;
         this._sendFullHistory = options?.sendFullHistory ?? false;
+        this._injectForwardedPropsAsSystemMessage = options?.injectForwardedPropsAsSystemMessage ?? false;
 
         this.agent = this.createAgent();
 
@@ -81,11 +86,6 @@ export class AgentClient {
         return this.requestHandler
             ? new CustomHttpAgent(config, this.requestHandler)
             : new HttpAgent(config);
-    }
-
-    // Returns the requestHandler if set, otherwise global fetch
-    private get fetchFn(): typeof fetch {
-        return this.requestHandler ?? fetch;
     }
 
     // Debug mode getter
@@ -191,7 +191,8 @@ export class AgentClient {
 
             // Set the thread ID and messages on the agent
             this.agent.threadId = threadId;
-            const contextMsg = this.buildContextMessage(forwardedProps);
+            const contextMsg = this._injectForwardedPropsAsSystemMessage
+                ? this.buildContextMessage(forwardedProps) : null;
             // When sendFullHistory is false, backend owns history rehydration — send only the newest turn.
             const outgoing = this._sendFullHistory
                 ? (contextMsg ? [contextMsg, ...messages] : messages)
@@ -239,7 +240,8 @@ export class AgentClient {
 
             // Set the thread ID and messages on the agent
             this.agent.threadId = this._session.threadId;
-            const contextMsg = this.buildContextMessage(forwardedProps);
+            const contextMsg = this._injectForwardedPropsAsSystemMessage
+                ? this.buildContextMessage(forwardedProps) : null;
             // Tool results must always flow; when sendFullHistory is false the backend rehydrates prior turns.
             const outgoing = this._sendFullHistory
                 ? (contextMsg ? [contextMsg, ...toolMessages] : toolMessages)
@@ -312,54 +314,6 @@ export class AgentClient {
             agentId: this.agentId,
             timeout: this.timeout
         };
-    }
-
-    /**
-     * Upload files to the agent's upload endpoint
-     * @param files Array of File objects to upload
-     * @param threadId Optional thread ID (will use current session or generate new one)
-     * @returns Upload response with artifacts
-     */
-    async uploadFile(files: File[], threadId?: string): Promise<{ artifacts: any[]; thread_id: string }> {
-        // Ensure we have a thread ID
-        const uploadThreadId = threadId || this._session.threadId || this.generateThreadId();
-
-        // Update session with thread ID if not already set
-        if (!this._session.threadId) {
-            this.updateSession({ threadId: uploadThreadId });
-        }
-
-        const formData = new FormData();
-        // Append all files under the same "files" field; most backends accept this as an array
-        files.forEach((file) => formData.append('files', file));
-        formData.append('thread_id', uploadThreadId);
-
-        // Build headers with auth if available
-        const headers: Record<string, string> = {};
-        if (this.tokenProvider) {
-            const token = await this.tokenProvider();
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-        }
-
-        const url = `${this.baseUrl}/agent/${this.agentId}/upload`;
-        const response = await this.fetchFn(url, {
-            method: 'POST',
-            body: formData,
-            headers,
-        });
-
-        if (!response.ok) {
-            const text = await response.text().catch(() => '');
-            throw new Error(`Upload failed (${response.status}): ${text}`);
-        }
-
-        // Parse JSON response
-        const uploadResponse = await response.json();
-        console.info('Files uploaded successfully', uploadResponse);
-
-        return uploadResponse;
     }
 
 }

@@ -1,81 +1,17 @@
 import React from 'react';
 
-// Import AG-UI types from @ag-ui/client to avoid version mismatch with @ag-ui/core
-import type {
-    AgentSubscriber,
-    Message,
-    Tool,
-    RunAgentInput,
-    BaseEvent,
-    TextMessageStartEvent,
-    TextMessageContentEvent,
-    TextMessageEndEvent,
-    ToolCallStartEvent,
-    ToolCallArgsEvent,
-    ToolCallEndEvent,
-    ToolCallResultEvent,
-    RunStartedEvent,
-    RunFinishedEvent,
-    RunErrorEvent,
-    StateSnapshotEvent
-} from '@ag-ui/client';
+import type { AgentSubscriber, Message } from '@ag-ui/client';
 import { AgentClient } from './AgentClient';
-import type { TokenProvider, AgentClientOptions } from './AgentClient';
+import type { TokenProvider } from './AgentClient';
 import type { RequestHandler } from './CustomHttpAgent';
 import { AgentProvider, useAgentContext } from './AgentClientContext';
 import { useAgent } from './useAgent';
-import { loadAgentConfig } from './configService';
 
-// AG-UI Types - Re-export from @ag-ui/core (which is re-exported by @ag-ui/client)
-export type {
-    Message,
-    Tool,
-    RunAgentInput,
-    BaseEvent,
-    TextMessageStartEvent,
-    TextMessageContentEvent,
-    TextMessageEndEvent,
-    ToolCallStartEvent,
-    ToolCallArgsEvent,
-    ToolCallEndEvent,
-    ToolCallResultEvent,
-    RunStartedEvent,
-    RunFinishedEvent,
-    RunErrorEvent
-} from '@ag-ui/client';
-export { EventType } from '@ag-ui/client';
 export interface Session {
     threadId: string | null;
     runId: string | null;
     isActive: boolean;
 }
-
-export { HttpAgent } from '@ag-ui/client';
-export type { AgentSubscriber, RunAgentResult } from '@ag-ui/client';
-
-// Custom types for our application
-export interface ChatInterfaceProps {
-    onBack?: () => void;
-}
-
-export interface ChatSuggestionsProps {
-    onSuggestionClick: (suggestion: string) => void;
-}
-
-
-export interface ToolCallBuffer {
-    name: string;
-    argsBuffer: string;
-    parentMessageId?: string;
-    resultReceived?: boolean;  // true when TOOL_CALL_RESULT has been processed
-}
-
-export interface ArtifactData {
-    type: string;
-    [key: string]: any;
-}
-
-// Tool handler types are now defined in unifiedTools.ts
 
 export interface StandardTool {
     name: string;
@@ -88,12 +24,29 @@ export interface StandardTool {
 }
 
 
-// Tool handler executes the tool's logic (frontend tools only)
+// Per-invocation context passed to frontend tool handlers. Calling
+// ctx.stopAfterToolCall() tells the AG-UI harness to include
+// `forwardedProps.stopAfterToolCall = true` on the next tool-result
+// submission, which the backend honors by marking the resumed tool result
+// with stop_after_tool_call=True (no LLM follow-up turn). See backend spec:
+// AGENT-STOP-FRONTEND-CONTEXT.
+export interface ToolContext {
+    readonly toolCallId: string;
+    readonly toolName: string;
+    // Idempotent. If called by any tool in a batched tool-result submission,
+    // the whole submission flags the run to stop.
+    stopAfterToolCall(): void;
+}
+
+// Tool handler executes the tool's logic (frontend tools only).
+// `ctx` is optional for backward compatibility — existing handlers that
+// ignore it continue to work.
 export type ToolHandler = (
     args: any,
     updateState: (toolName: string, data: unknown) => void,
     getState: (toolName?: string) => unknown,
-    configJson?: Record<string, unknown>
+    configJson?: Record<string, unknown>,
+    ctx?: ToolContext
 ) => string | null;
 
 // Tool renderer handles display/artifacts for the tool result (both frontend and backend)
@@ -146,6 +99,11 @@ export interface AgentClientContextValue {
 // Callback type for building forwardedProps at provider level
 export type ForwardedPropsBuilder = () => Record<string, any>;
 
+export type AgentLifecycleEvent =
+    | { type: 'run_started' }
+    | { type: 'tool_used'; toolName: string }
+    | { type: 'message_added'; role: string; content: string };
+
 export interface UseAgentOptions {
     baseUrl?: string;
     agentId: string;
@@ -156,11 +114,11 @@ export interface UseAgentOptions {
     buildForwardedProps?: ForwardedPropsBuilder;
     sendFullHistory?: boolean;
     initialThreadId?: string;
-}
-
-export interface AgentProviderProps {
-    value: AgentClientContextValue;
-    children: React.ReactNode;
+    /** Optional callback for observing agent lifecycle events (e.g., tracking, analytics) */
+    onLifecycleEvent?: (event: AgentLifecycleEvent) => void;
+    /** When true, forwardedProps are also injected as a system message prepended to the messages array.
+     *  Useful for backends that don't read forwardedProps from RunAgentInput. Default: false. */
+    injectForwardedPropsAsSystemMessage?: boolean;
 }
 
 export interface Suggestion {
@@ -190,8 +148,11 @@ export interface AgentConfig {
     config?: Record<string, string | null>;  // Agent config key-value pairs from backend
 }
 
-export type { TokenProvider, AgentClientOptions };
+export type { TokenProvider };
 export type { RequestHandler };
-export { AgentClient, AgentProvider, useAgentContext, useAgent, loadAgentConfig };
+export { AgentClient, AgentProvider, useAgentContext, useAgent };
+export { filesToBinaryContent } from './fileUtils';
+export { getAllToolDefinitions, getFrontendToolDefinitions, getBackendToolDefinitions, getFrontEndTools, getToolRenderers } from './toolUtils';
+export { loadAgentConfig } from './configService';
 export { useAgentSetup } from './useAgentSetup';
 export type { UseAgentSetupOptions, UseAgentSetupResult } from './useAgentSetup';
