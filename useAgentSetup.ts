@@ -12,6 +12,7 @@ export interface UseAgentSetupOptions {
     timeout?: number;
     tools?: UseAgentOptions['tools'];
     buildForwardedProps?: UseAgentOptions['buildForwardedProps'];
+    systemContextBuilder?: UseAgentOptions['systemContextBuilder'];
     /** Called after config loads from the backend. Use this to transform toolConfigs into tools, extract settings, etc. */
     onConfigLoaded?: (config: AgentConfig) => AgentConfig;
 }
@@ -41,6 +42,7 @@ export function useAgentSetup({
     timeout,
     tools,
     buildForwardedProps,
+    systemContextBuilder,
     onConfigLoaded
 }: UseAgentSetupOptions): UseAgentSetupResult {
     const [config, setConfig] = useState<AgentConfig | null>(null);
@@ -89,7 +91,8 @@ export function useAgentSetup({
             requestHandler,
             timeout,
             tools: tools ?? config.tools ?? {},
-            buildForwardedProps
+            buildForwardedProps,
+            systemContextBuilder
         };
 
         // This is a new component — useAgent's useState initializer runs fresh
@@ -100,7 +103,7 @@ export function useAgentSetup({
         };
         Layer.displayName = 'AgentLayer';
         return Layer;
-    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, tools, buildForwardedProps]);
+    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, tools, buildForwardedProps, systemContextBuilder]);
 
     return { config, isLoading, error, AgentLayer };
 }

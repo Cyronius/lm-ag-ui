@@ -93,7 +93,7 @@ Core hook that creates an `AgentClient` and manages streaming state, messages, a
 | `sendFullHistory` | `boolean` | No | Send full message history vs. only the latest turn (default: false) |
 | `initialThreadId` | `string` | No | Resume an existing conversation thread |
 | `onLifecycleEvent` | `(event: AgentLifecycleEvent) => void` | No | Callback for observing agent lifecycle events (run started, tool used, message added) |
-| `injectForwardedPropsAsSystemMessage` | `boolean` | No | Also prepend forwardedProps as a system message for backends that don't read `RunAgentInput.forwardedProps` (default: false) |
+| `systemContextBuilder` | `() => string \| null` | No | Zero-arg renderer for the system-message snapshot. When not provided, no system context is injected. Independent of `buildForwardedProps` |
 
 Returns: `AgentClientContextValue` with all agent state and methods.
 

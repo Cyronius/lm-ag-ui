@@ -40,10 +40,10 @@ export function useAgent({
     sendFullHistory,
     initialThreadId,
     onLifecycleEvent,
-    injectForwardedPropsAsSystemMessage
+    systemContextBuilder
 }: UseAgentOptions): AgentClientContextValue {
     // Create a single AgentClient instance
-    const [agentClient] = useState(() => new AgentClient(baseUrl, agentId, { tokenProvider, requestHandler, timeout, sendFullHistory, initialThreadId, injectForwardedPropsAsSystemMessage }));
+    const [agentClient] = useState(() => new AgentClient(baseUrl, agentId, { tokenProvider, requestHandler, timeout, sendFullHistory, initialThreadId, systemContextBuilder }));
 
     // Track session for React re-renders
     const [session, setSession] = useState<Session>(agentClient.session);

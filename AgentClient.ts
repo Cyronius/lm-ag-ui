@@ -9,15 +9,26 @@ const DEFAULT_TIMEOUT_MS = 300000;
 
 export type TokenProvider = () => Promise<string | null>;
 
+/**
+ * Produces the string content for the system message injected into the
+ * thread. Zero-arg — the builder closes over whatever data it needs.
+ * Return `null` (or empty string) to skip injection for this call.
+ * Consumers should render only what the model needs to reason across
+ * the session — omit large payloads. The returned string is compared to the
+ * last-injected content for the thread; identical returns are NOT re-sent.
+ * Independent of `forwardedProps`.
+ */
+export type SystemContextBuilder = () => string | null;
+
 export interface AgentClientOptions {
     tokenProvider?: TokenProvider;
     requestHandler?: RequestHandler;
     timeout?: number;
     sendFullHistory?: boolean;
     initialThreadId?: string;
-    /** When true, forwardedProps are also injected as a system message prepended to the messages array.
-     *  Useful for backends that don't read forwardedProps from RunAgentInput. Default: false. */
-    injectForwardedPropsAsSystemMessage?: boolean;
+    /** Optional zero-arg renderer for the system-context snapshot. When not provided,
+     *  no system context is injected. Independent of `forwardedProps`. */
+    systemContextBuilder?: SystemContextBuilder;
 }
 
 export class AgentClient {
@@ -30,7 +41,11 @@ export class AgentClient {
     private _session: Session;
     private _debug: boolean = false;
     private _sendFullHistory: boolean;
-    private _injectForwardedPropsAsSystemMessage: boolean;
+    private _systemContextBuilder?: SystemContextBuilder;
+    // Tracks the last rendered system-context content we injected for each thread,
+    // so identical content isn't re-sent on subsequent runs in the same thread.
+    // Cleared per-thread on endSession().
+    private _injectedContextByThread: Map<string, string> = new Map();
 
     // Session change callback for React integration
     private onSessionChange?: (session: Session) => void;
@@ -56,7 +71,7 @@ export class AgentClient {
         this.tokenProvider = options?.tokenProvider;
         this.requestHandler = options?.requestHandler;
         this._sendFullHistory = options?.sendFullHistory ?? false;
-        this._injectForwardedPropsAsSystemMessage = options?.injectForwardedPropsAsSystemMessage ?? false;
+        this._systemContextBuilder = options?.systemContextBuilder;
 
         this.agent = this.createAgent();
 
@@ -145,6 +160,10 @@ export class AgentClient {
     }
 
     endSession(): void {
+        const prevThreadId = this._session.threadId;
+        if (prevThreadId) {
+            this._injectedContextByThread.delete(prevThreadId);
+        }
         this.updateSession({
             threadId: null,
             runId: null,
@@ -153,15 +172,34 @@ export class AgentClient {
     }
 
     /**
-     * Build a SystemMessage from forwardedProps to inject context into the LLM.
-     * The backend reads messages[0] as SystemMessage and appends to agent instruction.
+     * Render the system-context string using the configured builder.
+     * Returns null when no builder is configured or the builder returns empty.
+     * Independent of `forwardedProps`.
      */
-    private buildContextMessage(forwardedProps: Record<string, any>): Message | null {
-        if (!forwardedProps || Object.keys(forwardedProps).length === 0) return null;
+    private renderSystemContext(): string | null {
+        if (!this._systemContextBuilder) return null;
+        const rendered = this._systemContextBuilder();
+        return rendered && rendered.length > 0 ? rendered : null;
+    }
+
+    /**
+     * Build a SystemMessage for the given thread, but only if the rendered
+     * content differs from the last one we injected for that thread. This
+     * prevents re-sending the same snapshot on every tool-result round-trip.
+     * Returns null when the content is empty or unchanged since the last
+     * send for this thread.
+     */
+    private maybeBuildContextMessage(threadId: string): Message | null {
+        const rendered = this.renderSystemContext();
+        if (!rendered) return null;
+
+        if (this._injectedContextByThread.get(threadId) === rendered) return null;
+        this._injectedContextByThread.set(threadId, rendered);
+
         return {
             id: `system_context_${Date.now()}`,
             role: 'system',
-            content: JSON.stringify(forwardedProps, null, 2)
+            content: rendered
         } as Message;
     }
 
@@ -191,8 +229,7 @@ export class AgentClient {
 
             // Set the thread ID and messages on the agent
             this.agent.threadId = threadId;
-            const contextMsg = this._injectForwardedPropsAsSystemMessage
-                ? this.buildContextMessage(forwardedProps) : null;
+            const contextMsg = this.maybeBuildContextMessage(threadId);
             // When sendFullHistory is false, backend owns history rehydration — send only the newest turn.
             const outgoing = this._sendFullHistory
                 ? (contextMsg ? [contextMsg, ...messages] : messages)
@@ -240,8 +277,7 @@ export class AgentClient {
 
             // Set the thread ID and messages on the agent
             this.agent.threadId = this._session.threadId;
-            const contextMsg = this._injectForwardedPropsAsSystemMessage
-                ? this.buildContextMessage(forwardedProps) : null;
+            const contextMsg = this.maybeBuildContextMessage(this._session.threadId);
             // Tool results must always flow; when sendFullHistory is false the backend rehydrates prior turns.
             const outgoing = this._sendFullHistory
                 ? (contextMsg ? [contextMsg, ...toolMessages] : toolMessages)

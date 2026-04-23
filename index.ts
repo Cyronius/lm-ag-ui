@@ -2,7 +2,7 @@ import React from 'react';
 
 import type { AgentSubscriber, Message } from '@ag-ui/client';
 import { AgentClient } from './AgentClient';
-import type { TokenProvider } from './AgentClient';
+import type { TokenProvider, SystemContextBuilder } from './AgentClient';
 import type { RequestHandler } from './CustomHttpAgent';
 import { AgentProvider, useAgentContext } from './AgentClientContext';
 import { useAgent } from './useAgent';
@@ -116,9 +116,9 @@ export interface UseAgentOptions {
     initialThreadId?: string;
     /** Optional callback for observing agent lifecycle events (e.g., tracking, analytics) */
     onLifecycleEvent?: (event: AgentLifecycleEvent) => void;
-    /** When true, forwardedProps are also injected as a system message prepended to the messages array.
-     *  Useful for backends that don't read forwardedProps from RunAgentInput. Default: false. */
-    injectForwardedPropsAsSystemMessage?: boolean;
+    /** Optional zero-arg renderer for the system-context snapshot. When not provided,
+     *  no system context is injected. Independent of `buildForwardedProps`. */
+    systemContextBuilder?: SystemContextBuilder;
 }
 
 export interface Suggestion {
@@ -148,7 +148,7 @@ export interface AgentConfig {
     config?: Record<string, string | null>;  // Agent config key-value pairs from backend
 }
 
-export type { TokenProvider };
+export type { TokenProvider, SystemContextBuilder };
 export type { RequestHandler };
 export { AgentClient, AgentProvider, useAgentContext, useAgent };
 export { filesToBinaryContent } from './fileUtils';
