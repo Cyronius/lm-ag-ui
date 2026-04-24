@@ -6,46 +6,43 @@ import dts from "vite-plugin-dts";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-    root: './',
-    publicDir: './public',
+    root: __dirname,
     base: '',
-    server: {
-        host: "::",
-        port: 8080,
-    },
     plugins: [
         react(),
         dts({
-            entryRoot: "src/lib",
-            outDir: "dist-lib/types",
+            entryRoot: "src",
+            outDir: "dist/types",
+            tsconfigPath: "tsconfig.json",
+            include: ["src"],
+            exclude: [
+                "src/**/__tests__/**",
+            ],
             insertTypesEntry: true,
         }),
         visualizer({
-            filename: "dist-lib/stats.html",
-            template: "flamegraph", // sunburst, treemap, network, raw-data, list, flamegraph --- sunburst and treemap are pretty nice!
+            filename: "dist/stats.html",
+            template: "flamegraph",
             gzipSize: true,
-            brotliSize: true,            
-        }), 
+            brotliSize: true,
+        }),
     ].filter(Boolean),
     resolve: {
         alias: {
-            "@": path.resolve(__dirname, "./src"),
             // Deduplicate rxjs so @ag-ui/client and this project share one copy.
-            // @ag-ui/client pins rxjs@7.8.1 which installs a nested copy; this
-            // forces everything to resolve to the project-level rxjs.
-            "rxjs": path.resolve(__dirname, "node_modules/rxjs"),
+            // Points at the workspace-root node_modules install.
+            "rxjs": path.resolve(__dirname, "../../node_modules/rxjs"),
         },
     },
     build: {
         lib: {
             entry: {
-                index: "src/lib/index.ts",
+                index: "src/index.ts",
             },
             name: "lm-ag-ui",
             formats: ["es"],
         },
         rollupOptions: {
-            // keep dependencies external to avoid bundling react etc.
             external: [/^react/, /^react-dom/, /^@ag-ui/, /^rxjs/],
             output: {
                 globals: { react: "React" },
@@ -53,7 +50,7 @@ export default defineConfig(({ mode }) => ({
         },
         target: "es2020",
         sourcemap: true,
-        emptyOutDir: false, // so it doesn’t wipe your app build if sharing /dist
-        outDir: "dist-lib", // separate from your app’s outDir
+        emptyOutDir: true,
+        outDir: "dist",
     },
 }));

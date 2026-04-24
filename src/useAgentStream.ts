@@ -172,6 +172,8 @@ export function useAgentStream(
                     .map(([id]) => id)
             );
 
+            console.info('[AG-UI] TextMessage: ', finalText);
+            
             const result = assembleFinalMessages({
                 finalText,
                 toolCalls,

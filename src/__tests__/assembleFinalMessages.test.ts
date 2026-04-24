@@ -67,6 +67,53 @@ describe('assembleFinalMessages', () => {
         expect((r.messages[3] as any).content).toBe('synthesis');
     });
 
+    it('text + tools all backend-resolved: suppresses duplicate trailing text from prior round', () => {
+        const existing: Message[] = [
+            userMsg('hi'),
+            { id: 'a_tc_A', role: 'assistant', toolCalls: [tc('A')] } as Message,
+            toolResultMsg('A'),
+            assistantTextMsg('preamble'),
+            toolResultMsg('B'),
+        ];
+        const r = assembleFinalMessages({
+            finalText: 'preamble',
+            toolCalls: [tc('B')],
+            pendingToolCallIds: new Set(),
+            existingMessages: existing,
+            streamingMessageId: null,
+        });
+        expect(r.suppressedDuplicate).toBe(true);
+        expect(r.announcedAssistantText).toBeNull();
+        // Last message should be the spliced tools message, then the tool result — no trailing text appended.
+        const trailingTexts = r.messages.filter(
+            m => m.role === 'assistant' && typeof (m as any).content === 'string' && (m as any).content === 'preamble'
+        );
+        expect(trailingTexts).toHaveLength(1); // only the original from the prior round
+        expect(r.messages[r.messages.length - 1].role).toBe('tool');
+    });
+
+    it('text + tools all backend-resolved: appends trailing text when content differs', () => {
+        const existing: Message[] = [
+            userMsg('hi'),
+            { id: 'a_tc_A', role: 'assistant', toolCalls: [tc('A')] } as Message,
+            toolResultMsg('A'),
+            assistantTextMsg('preamble'),
+            toolResultMsg('B'),
+        ];
+        const r = assembleFinalMessages({
+            finalText: 'different preamble',
+            toolCalls: [tc('B')],
+            pendingToolCallIds: new Set(),
+            existingMessages: existing,
+            streamingMessageId: null,
+        });
+        expect(r.suppressedDuplicate).toBe(false);
+        expect(r.announcedAssistantText).toBe('different preamble');
+        const last = r.messages[r.messages.length - 1] as any;
+        expect(last.role).toBe('assistant');
+        expect(last.content).toBe('different preamble');
+    });
+
     it('text + pending tools: appends a single assistant message with both fields', () => {
         const existing = [userMsg('hi')];
         const r = assembleFinalMessages({
@@ -96,7 +143,7 @@ describe('assembleFinalMessages', () => {
         expect(r.announcedAssistantText).toBeNull();
     });
 
-    it('does NOT suppress a duplicate when tool calls are attached', () => {
+    it('still appends a tool-bearing message when text duplicates prior, but drops the duplicate text', () => {
         const existing = [userMsg('hi'), assistantTextMsg('text')];
         const r = assembleFinalMessages({
             finalText: 'text',
@@ -106,7 +153,96 @@ describe('assembleFinalMessages', () => {
             streamingMessageId: null,
         });
         expect(r.messages).toHaveLength(3);
+        expect(r.suppressedDuplicate).toBe(true);
+        const appended = r.messages[2] as any;
+        expect(appended.content).toBeUndefined();
+        expect(appended.toolCalls).toHaveLength(1);
+    });
+
+    it('text + pending tools: drops duplicate text from prior round, keeps toolCalls', () => {
+        const existing: Message[] = [
+            userMsg('hi'),
+            { id: 'a1', role: 'assistant', content: 'preamble', toolCalls: [tc('A')] } as Message,
+            toolResultMsg('A'),
+        ];
+        const r = assembleFinalMessages({
+            finalText: 'preamble',
+            toolCalls: [tc('B')],
+            pendingToolCallIds: new Set(['B']),
+            existingMessages: existing,
+            streamingMessageId: null,
+        });
+        expect(r.suppressedDuplicate).toBe(true);
+        expect(r.announcedAssistantText).toBeNull();
+        expect(r.messages).toHaveLength(4);
+        const last = r.messages[3] as any;
+        expect(last.role).toBe('assistant');
+        expect(last.content).toBeUndefined();
+        expect(last.toolCalls).toHaveLength(1);
+    });
+
+    it('text + pending tools: keeps text when content differs from prior round', () => {
+        const existing: Message[] = [
+            userMsg('hi'),
+            { id: 'a1', role: 'assistant', content: 'preamble', toolCalls: [tc('A')] } as Message,
+            toolResultMsg('A'),
+        ];
+        const r = assembleFinalMessages({
+            finalText: 'different preamble',
+            toolCalls: [tc('B')],
+            pendingToolCallIds: new Set(['B']),
+            existingMessages: existing,
+            streamingMessageId: null,
+        });
         expect(r.suppressedDuplicate).toBe(false);
+        expect(r.announcedAssistantText).toBe('different preamble');
+        const last = r.messages[r.messages.length - 1] as any;
+        expect(last.content).toBe('different preamble');
+        expect(last.toolCalls).toHaveLength(1);
+    });
+
+    it('Branch 4: walks past trailing non-owned tool result to find duplicate preamble', () => {
+        // Existing has a prior preamble followed by a tool result that does NOT belong
+        // to the new round. The previous adjacency-only check would see `tool` as `prev`
+        // and miss the duplicate; the helper walks past it.
+        const existing: Message[] = [
+            userMsg('hi'),
+            { id: 'a_tc_A', role: 'assistant', toolCalls: [tc('A')] } as Message,
+            assistantTextMsg('preamble'),
+            toolResultMsg('A'),
+        ];
+        const r = assembleFinalMessages({
+            finalText: 'preamble',
+            toolCalls: [tc('B')],
+            pendingToolCallIds: new Set(),
+            existingMessages: existing,
+            streamingMessageId: null,
+        });
+        expect(r.suppressedDuplicate).toBe(true);
+        expect(r.announcedAssistantText).toBeNull();
+        const trailingTexts = r.messages.filter(
+            m => m.role === 'assistant' && typeof (m as any).content === 'string' && (m as any).content === 'preamble'
+        );
+        expect(trailingTexts).toHaveLength(1);
+    });
+
+    it('helper stops at user turn boundary — same text in a prior turn is not a duplicate', () => {
+        const existing: Message[] = [
+            userMsg('first turn'),
+            assistantTextMsg('preamble'),
+            userMsg('second turn'),
+        ];
+        const r = assembleFinalMessages({
+            finalText: 'preamble',
+            toolCalls: [tc('X')],
+            pendingToolCallIds: new Set(['X']),
+            existingMessages: existing,
+            streamingMessageId: null,
+        });
+        expect(r.suppressedDuplicate).toBe(false);
+        const last = r.messages[r.messages.length - 1] as any;
+        expect(last.content).toBe('preamble');
+        expect(last.toolCalls).toHaveLength(1);
     });
 
     it('no text + no tools → no-op', () => {

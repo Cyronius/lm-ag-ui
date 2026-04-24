@@ -20,6 +20,24 @@ export interface AssembleResult {
     announcedAssistantText: string | null;
 }
 
+// Walks backward through messages, skipping `tool` messages and assistant messages
+// that carry only `toolCalls` (no string content). Returns the trimmed text of the
+// most recent assistant message with non-empty string content, or null if a
+// user / system / developer turn boundary is reached first.
+function findMostRecentAssistantText(messages: Message[]): string | null {
+    for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i];
+        if (m.role === 'tool') continue;
+        if (m.role === 'assistant') {
+            const hasText = typeof m.content === 'string' && m.content.trim().length > 0;
+            if (hasText) return (m.content as string).trim();
+            continue;
+        }
+        return null;
+    }
+    return null;
+}
+
 /**
  * Assemble the final message list at RunFinished.
  *
@@ -32,8 +50,10 @@ export interface AssembleResult {
  *      assistant(toolCalls) → tool(result) → assistant(text).
  *   5. Text + tool calls, some pending → append one assistant message with both fields.
  *
- * Duplicate suppression: if the last assistant message has the same text and no tool calls
- * are attached to this turn, suppress the duplicate.
+ * Duplicate suppression (branches 2, 4, 5): if a recent assistant message in the
+ * same user turn already has the same text, drop the duplicate. In branch 5 the
+ * combined message is still appended for its required toolCalls, but its content
+ * is omitted.
  */
 export function assembleFinalMessages(input: AssembleInput): AssembleResult {
     const { finalText, toolCalls, pendingToolCallIds, existingMessages, streamingMessageId } = input;
@@ -49,62 +69,72 @@ export function assembleFinalMessages(input: AssembleInput): AssembleResult {
 
     // Branch 4: text + tool calls, all already resolved via backend results
     if (hasText && hasToolCalls && allBackendResolved) {
-        const toolCallIds = new Set(toolCalls.map(tc => tc.id));
+        // Tool results sometimes stream in before the assistant message that owns them.
+        // Walk back over any trailing tool-result messages belonging to this turn so we
+        // can splice the assistant(toolCalls) message in front of them.
+        const ownedToolCallIds = new Set(toolCalls.map(tc => tc.id));
         let spliceIdx = existingMessages.length;
         while (
             spliceIdx > 0 &&
             existingMessages[spliceIdx - 1].role === 'tool' &&
-            toolCallIds.has((existingMessages[spliceIdx - 1] as any).toolCallId)
+            ownedToolCallIds.has((existingMessages[spliceIdx - 1] as any).toolCallId)
         ) {
             spliceIdx--;
         }
+
+        const before = existingMessages.slice(0, spliceIdx);
+        const tail = existingMessages.slice(spliceIdx);
         const toolsMessage: Message = {
             id: `msg_tools_${Date.now()}`,
             role: 'assistant',
             toolCalls,
         };
-        const textMessage: Message = {
-            id: streamingMessageId || `msg_${Date.now()}`,
-            role: 'assistant',
-            content: finalText,
-        };
+
+        // Check the prior-round preamble within this user turn (skipping tool messages
+        // and assistant messages that only carry toolCalls). If the model regenerated
+        // the same preamble, suppress the new copy.
+        const priorText = findMostRecentAssistantText(before);
+        const isDuplicateTrailingText = priorText !== null && priorText === finalText;
+
+        const messages = isDuplicateTrailingText
+            ? [...before, toolsMessage, ...tail]
+            : [
+                  ...before,
+                  toolsMessage,
+                  ...tail,
+                  { id: streamingMessageId || `msg_${Date.now()}`, role: 'assistant', content: finalText } as Message,
+              ];
+
         return {
-            messages: [
-                ...existingMessages.slice(0, spliceIdx),
-                toolsMessage,
-                ...existingMessages.slice(spliceIdx),
-                textMessage,
-            ],
-            suppressedDuplicate: false,
-            announcedAssistantText: finalText,
+            messages,
+            suppressedDuplicate: isDuplicateTrailingText,
+            announcedAssistantText: isDuplicateTrailingText ? null : finalText,
         };
     }
 
-    // Branches 2, 3, 5: single message with text and/or toolCalls
+    // Branches 2, 3, 5: single message with text and/or toolCalls.
+    // Detect a duplicate preamble across the current user turn so it can be omitted
+    // even when the new message has toolCalls (tool-bearing messages are still
+    // appended for the protocol; only their content is suppressed).
+    const priorText = hasText ? findMostRecentAssistantText(existingMessages) : null;
+    const isDuplicateText = hasText && priorText === finalText;
+
+    // Tool-only branch with no text → trivial dedup not relevant.
+    // Text-only branch with duplicate text → drop the message entirely.
+    if (isDuplicateText && !hasToolCalls) {
+        return { messages: existingMessages, suppressedDuplicate: true, announcedAssistantText: null };
+    }
+
     const completed: Message = {
         id: streamingMessageId || `msg_${Date.now()}`,
         role: 'assistant',
     };
-    if (hasText) completed.content = finalText;
+    if (hasText && !isDuplicateText) completed.content = finalText;
     if (hasToolCalls) completed.toolCalls = toolCalls;
-
-    // Duplicate suppression: only when no tool calls are attached (tool-bearing messages
-    // are structurally required and never suppressed).
-    const lastMsg = existingMessages[existingMessages.length - 1];
-    const isConsecutiveDuplicate =
-        !hasToolCalls &&
-        hasText &&
-        lastMsg?.role === 'assistant' &&
-        typeof lastMsg.content === 'string' &&
-        lastMsg.content.trim() === finalText;
-
-    if (isConsecutiveDuplicate) {
-        return { messages: existingMessages, suppressedDuplicate: true, announcedAssistantText: null };
-    }
 
     return {
         messages: [...existingMessages, completed],
-        suppressedDuplicate: false,
-        announcedAssistantText: hasText ? finalText : null,
+        suppressedDuplicate: isDuplicateText,
+        announcedAssistantText: hasText && !isDuplicateText ? finalText : null,
     };
 }
