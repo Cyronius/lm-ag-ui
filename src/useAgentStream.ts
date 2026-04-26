@@ -8,7 +8,6 @@ import {
     RunStartedEvent,
     RunFinishedEvent,
     RunErrorEvent,
-    ToolCall,
     ToolCallStartEvent,
     ToolCallArgsEvent,
     ToolCallEndEvent,
@@ -16,8 +15,7 @@ import {
     StateSnapshotEvent,
 } from '@ag-ui/client';
 import { v4 as uuidv4 } from 'uuid';
-import { agentReducer, initialAgentState, AgentState, AgentAction, ToolCallBuffer } from './agentReducer';
-import { assembleFinalMessages } from './assembleFinalMessages';
+import { agentReducer, initialAgentState, AgentState, AgentAction } from './agentReducer';
 import { AgentClient } from './AgentClient';
 import { ToolDefinition, UseAgentOptions } from './index';
 import { getFrontEndTools } from './toolUtils';
@@ -136,8 +134,28 @@ export function useAgentStream(
         dispatch({ type: 'SNAPSHOT_PRE_RUN' });
     };
 
+    // Flush the in-flight turn (text + unflushed tool calls) into messages and
+    // fire the lifecycle announcement. Used at turn boundaries (next
+    // TextMessageStart with content already buffered) and at RunFinished.
+    const flushTurn = () => {
+        const before = stateRef.current;
+        const hasUnflushedToolCall = Array.from(before.toolCallBuffers.keys()).some(
+            id => !before.flushedToolCallIds.has(id)
+        );
+        if (!before.streamingText.trim() && !hasUnflushedToolCall) return;
+        dispatch({ type: 'FINALIZE_TURN' });
+        const announced = stateRef.current.lastAnnouncedAssistantText;
+        if (announced) {
+            console.info('[AG-UI] TextMessage: ', announced);
+            onLifecycleEvent?.({ type: 'message_added', role: 'assistant', content: announced });
+        }
+    };
+
     subscriberRef.current.onTextMessageStartEvent = ({ event }: { event: TextMessageStartEvent }) => {
         console.info('[AG-UI] TextMessageStart:', { messageId: event.messageId, role: event.role });
+        // If a previous turn's text/tool-calls are still pending, commit them
+        // before this new text segment begins.
+        flushTurn();
     };
 
     subscriberRef.current.onTextMessageContentEvent = ({ event }: { event: TextMessageContentEvent }) => {
@@ -156,40 +174,7 @@ export function useAgentStream(
     subscriberRef.current.onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }) => {
         console.info('[AG-UI] RunFinished:', { event });
         try {
-            const current = stateRef.current;
-            const finalText = current.streamingText.trim();
-            const buffers = current.toolCallBuffers;
-            const toolCalls: ToolCall[] = Array.from(buffers.entries()).map(
-                ([toolCallId, toolCall]: [string, ToolCallBuffer]) => ({
-                    id: toolCallId,
-                    type: 'function' as const,
-                    function: { name: toolCall.name, arguments: toolCall.argsBuffer || '{}' },
-                })
-            );
-            const pendingToolCallIds = new Set(
-                Array.from(buffers.entries())
-                    .filter(([, tc]) => !tc.resultReceived)
-                    .map(([id]) => id)
-            );
-
-            console.info('[AG-UI] TextMessage: ', finalText);
-            
-            const result = assembleFinalMessages({
-                finalText,
-                toolCalls,
-                pendingToolCallIds,
-                existingMessages: current.messages,
-                streamingMessageId: current.streamingMessageId,
-            });
-
-            if (result.suppressedDuplicate) {
-                console.info('[AG-UI] Suppressed duplicate assistant message');
-            } else if (result.messages !== current.messages) {
-                dispatch({ type: 'SET_MESSAGES', messages: result.messages });
-                if (result.announcedAssistantText) {
-                    onLifecycleEvent?.({ type: 'message_added', role: 'assistant', content: result.announcedAssistantText });
-                }
-            }
+            flushTurn();
         } catch (error) {
             console.error('Error creating assistant message:', error);
             const errorDetail = error instanceof Error ? error.message : String(error);

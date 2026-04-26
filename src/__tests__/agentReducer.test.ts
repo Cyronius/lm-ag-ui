@@ -148,6 +148,107 @@ describe('agentReducer', () => {
         });
     });
 
+    describe('FINALIZE_TURN per-turn assembly', () => {
+        it('text-only turn: appends one assistant(content) message', () => {
+            let s = initialAgentState;
+            s = agentReducer(s, { type: 'TEXT_DELTA', messageId: 'm1', delta: 'Hello world' });
+            s = agentReducer(s, { type: 'FINALIZE_TURN' });
+            expect(s.messages).toHaveLength(1);
+            expect(s.messages[0].role).toBe('assistant');
+            expect(s.messages[0].content).toBe('Hello world');
+            expect(s.streamingText).toBe('');
+            expect(s.lastAnnouncedAssistantText).toBe('Hello world');
+        });
+
+        it('preamble + single tool call with backend result: produces assistant(text+toolCalls) followed by tool result', () => {
+            let s = initialAgentState;
+            // preamble streams in
+            s = agentReducer(s, { type: 'TEXT_DELTA', messageId: 'm1', delta: 'Let me check' });
+            // tool call buffers
+            s = agentReducer(s, { type: 'TOOL_CALL_START', toolCallId: 't1', name: 'lookup' });
+            s = agentReducer(s, { type: 'TOOL_CALL_ARGS', toolCallId: 't1', delta: '{"q":"x"}' });
+            // tool result arrives before RunFinished
+            s = agentReducer(s, {
+                type: 'TOOL_CALL_RESULT',
+                toolCallId: 't1',
+                message: toolMsg('t1', '{"answer":42}'),
+            });
+            // RunFinished triggers FINALIZE_TURN
+            s = agentReducer(s, { type: 'FINALIZE_TURN' });
+
+            expect(s.messages).toHaveLength(2);
+            expect(s.messages[0].role).toBe('assistant');
+            expect(s.messages[0].content).toBe('Let me check');
+            expect((s.messages[0] as any).toolCalls).toHaveLength(1);
+            expect((s.messages[0] as any).toolCalls[0].id).toBe('t1');
+            expect(s.messages[1].role).toBe('tool');
+            expect((s.messages[1] as any).toolCallId).toBe('t1');
+            expect(s.flushedToolCallIds.has('t1')).toBe(true);
+        });
+
+        it('multi-segment run: text1+tool1, text2+tool2 are separate per-turn messages, no concat or aggregation', () => {
+            let s = initialAgentState;
+
+            // Turn 1: text1 + tool1
+            s = agentReducer(s, { type: 'TEXT_DELTA', messageId: 'm1', delta: 'first' });
+            s = agentReducer(s, { type: 'TOOL_CALL_START', toolCallId: 't1', name: 'fn' });
+            s = agentReducer(s, { type: 'TOOL_CALL_ARGS', toolCallId: 't1', delta: '{}' });
+            s = agentReducer(s, {
+                type: 'TOOL_CALL_RESULT',
+                toolCallId: 't1',
+                message: toolMsg('t1', 'r1'),
+            });
+            // Boundary (next TextMessageStart): flush turn 1
+            s = agentReducer(s, { type: 'FINALIZE_TURN' });
+
+            // Turn 2: text2 + tool2
+            s = agentReducer(s, { type: 'TEXT_DELTA', messageId: 'm2', delta: 'second' });
+            s = agentReducer(s, { type: 'TOOL_CALL_START', toolCallId: 't2', name: 'fn' });
+            s = agentReducer(s, { type: 'TOOL_CALL_ARGS', toolCallId: 't2', delta: '{}' });
+            s = agentReducer(s, {
+                type: 'TOOL_CALL_RESULT',
+                toolCallId: 't2',
+                message: toolMsg('t2', 'r2'),
+            });
+            // RunFinished: flush turn 2
+            s = agentReducer(s, { type: 'FINALIZE_TURN' });
+
+            // Expected shape: assistant(first, [t1]), tool(t1), assistant(second, [t2]), tool(t2)
+            expect(s.messages).toHaveLength(4);
+            expect(s.messages[0].role).toBe('assistant');
+            expect(s.messages[0].content).toBe('first');
+            expect((s.messages[0] as any).toolCalls).toHaveLength(1);
+            expect((s.messages[0] as any).toolCalls[0].id).toBe('t1');
+            expect(s.messages[1].role).toBe('tool');
+            expect((s.messages[1] as any).toolCallId).toBe('t1');
+            expect(s.messages[2].role).toBe('assistant');
+            expect(s.messages[2].content).toBe('second');
+            expect((s.messages[2] as any).toolCalls).toHaveLength(1);
+            expect((s.messages[2] as any).toolCalls[0].id).toBe('t2');
+            expect(s.messages[3].role).toBe('tool');
+            expect((s.messages[3] as any).toolCallId).toBe('t2');
+            expect(s.flushedToolCallIds.size).toBe(2);
+        });
+
+        it('FINALIZE_TURN with empty buffers and no streaming text is a near-no-op (only clears announce)', () => {
+            const s = agentReducer(initialAgentState, { type: 'FINALIZE_TURN' });
+            expect(s.messages).toEqual([]);
+            expect(s.lastAnnouncedAssistantText).toBeNull();
+        });
+
+        it('SNAPSHOT_PRE_RUN resets flushedToolCallIds for a new run', () => {
+            const seeded: AgentState = {
+                ...initialAgentState,
+                messages: [userMsg('hi')],
+                flushedToolCallIds: new Set(['t1', 't2']),
+                lastAnnouncedAssistantText: 'stale',
+            };
+            const s = agentReducer(seeded, { type: 'SNAPSHOT_PRE_RUN' });
+            expect(s.flushedToolCallIds.size).toBe(0);
+            expect(s.lastAnnouncedAssistantText).toBeNull();
+        });
+    });
+
     describe('message ops', () => {
         it('ADD_MESSAGE appends immutably', () => {
             const seeded: AgentState = { ...initialAgentState, messages: [userMsg('hi')] };

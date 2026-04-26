@@ -1,4 +1,5 @@
-import type { Message } from '@ag-ui/client';
+import type { Message, ToolCall } from '@ag-ui/client';
+import { assembleFinalMessages } from './assembleFinalMessages';
 
 export interface ToolCallBuffer {
     name: string;
@@ -13,6 +14,13 @@ export interface AgentState {
     streamingMessageId: string | null;
     toolCallBuffers: Map<string, ToolCallBuffer>;
     toolCallIdToName: Map<string, string>;
+    // IDs of tool calls already committed to a finalized assistant message via FINALIZE_TURN.
+    // Subsequent FINALIZE_TURN calls skip these so the same tool call is not assembled twice
+    // across successive turns within one run.
+    flushedToolCallIds: Set<string>;
+    // Set by FINALIZE_TURN; the hook reads it to fire onLifecycleEvent('message_added').
+    // Cleared on the next FINALIZE_TURN, SNAPSHOT_PRE_RUN, TERMINATE.
+    lastAnnouncedAssistantText: string | null;
     isAborted: boolean;
     globalState: Record<string, unknown>;
     preRunMessageCount: number;
@@ -24,6 +32,8 @@ export const initialAgentState: AgentState = {
     streamingMessageId: null,
     toolCallBuffers: new Map(),
     toolCallIdToName: new Map(),
+    flushedToolCallIds: new Set(),
+    lastAnnouncedAssistantText: null,
     isAborted: false,
     globalState: {},
     preRunMessageCount: 0,
@@ -35,6 +45,7 @@ export type AgentAction =
     | { type: 'CLEAR_MESSAGES' }
     | { type: 'SNAPSHOT_PRE_RUN' }
     | { type: 'CLEAR_STREAMING' }
+    | { type: 'FINALIZE_TURN' }
     | { type: 'TEXT_DELTA'; messageId: string; delta: string }
     | { type: 'TOOL_CALL_START'; toolCallId: string; name: string; parentMessageId?: string }
     | { type: 'TOOL_CALL_ARGS'; toolCallId: string; delta: string }
@@ -64,10 +75,53 @@ export function agentReducer(state: AgentState, action: AgentAction): AgentState
                 preRunMessageCount: Math.max(0, state.messages.length - 1),
                 streamingText: '',
                 streamingMessageId: null,
+                flushedToolCallIds: new Set(),
+                lastAnnouncedAssistantText: null,
             };
 
         case 'CLEAR_STREAMING':
             return { ...state, streamingText: '', streamingMessageId: null };
+
+        case 'FINALIZE_TURN': {
+            const finalText = state.streamingText.trim();
+            const turnToolCalls: ToolCall[] = [];
+            for (const [toolCallId, tc] of state.toolCallBuffers.entries()) {
+                if (state.flushedToolCallIds.has(toolCallId)) continue;
+                turnToolCalls.push({
+                    id: toolCallId,
+                    type: 'function',
+                    function: { name: tc.name, arguments: tc.argsBuffer || '{}' },
+                });
+            }
+
+            if (!finalText && turnToolCalls.length === 0) {
+                return {
+                    ...state,
+                    streamingText: '',
+                    streamingMessageId: null,
+                    lastAnnouncedAssistantText: null,
+                };
+            }
+
+            const result = assembleFinalMessages({
+                finalText,
+                toolCalls: turnToolCalls,
+                existingMessages: state.messages,
+                streamingMessageId: state.streamingMessageId,
+            });
+
+            const flushedToolCallIds = new Set(state.flushedToolCallIds);
+            for (const tc of turnToolCalls) flushedToolCallIds.add(tc.id);
+
+            return {
+                ...state,
+                messages: result.messages,
+                streamingText: '',
+                streamingMessageId: null,
+                flushedToolCallIds,
+                lastAnnouncedAssistantText: result.announcedAssistantText,
+            };
+        }
 
         case 'TEXT_DELTA':
             return {
@@ -126,6 +180,8 @@ export function agentReducer(state: AgentState, action: AgentAction): AgentState
                 streamingMessageId: null,
                 toolCallBuffers: new Map(),
                 toolCallIdToName: new Map(),
+                flushedToolCallIds: new Set(),
+                lastAnnouncedAssistantText: null,
                 messages: state.messages.slice(0, state.preRunMessageCount),
             };
 

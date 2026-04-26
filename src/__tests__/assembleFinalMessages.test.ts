@@ -47,24 +47,24 @@ describe('assembleFinalMessages', () => {
         expect(r.announcedAssistantText).toBeNull();
     });
 
-    it('text + tools, all backend-resolved: splices toolCalls before tool-result block, appends text after', () => {
+    it('text + tools, all backend-resolved: splices a single assistant(text+toolCalls) before the tool-result block', () => {
         // Simulates: user, tool(result), — where tool results arrived via backend streaming.
         const existing: Message[] = [userMsg('hi'), toolResultMsg('x1')];
         const r = assembleFinalMessages({
-            finalText: 'synthesis',
+            finalText: 'preamble',
             toolCalls: [tc('x1')],
             pendingToolCallIds: new Set(),
             existingMessages: existing,
             streamingMessageId: null,
         });
-        // Expect: user, assistant(toolCalls), tool(result), assistant(text)
-        expect(r.messages).toHaveLength(4);
+        // Per-turn shape: user, assistant(content+toolCalls), tool(result).
+        expect(r.messages).toHaveLength(3);
         expect(r.messages[0].role).toBe('user');
         expect(r.messages[1].role).toBe('assistant');
+        expect((r.messages[1] as any).content).toBe('preamble');
         expect((r.messages[1] as any).toolCalls).toHaveLength(1);
         expect(r.messages[2].role).toBe('tool');
-        expect(r.messages[3].role).toBe('assistant');
-        expect((r.messages[3] as any).content).toBe('synthesis');
+        expect(r.announcedAssistantText).toBe('preamble');
     });
 
     it('text + tools all backend-resolved: suppresses duplicate trailing text from prior round', () => {
@@ -92,12 +92,11 @@ describe('assembleFinalMessages', () => {
         expect(r.messages[r.messages.length - 1].role).toBe('tool');
     });
 
-    it('text + tools all backend-resolved: appends trailing text when content differs', () => {
+    it('text + tools all backend-resolved: keeps text on the spliced assistant message when content differs', () => {
         const existing: Message[] = [
             userMsg('hi'),
-            { id: 'a_tc_A', role: 'assistant', toolCalls: [tc('A')] } as Message,
+            { id: 'a_tc_A', role: 'assistant', content: 'preamble', toolCalls: [tc('A')] } as Message,
             toolResultMsg('A'),
-            assistantTextMsg('preamble'),
             toolResultMsg('B'),
         ];
         const r = assembleFinalMessages({
@@ -109,9 +108,14 @@ describe('assembleFinalMessages', () => {
         });
         expect(r.suppressedDuplicate).toBe(false);
         expect(r.announcedAssistantText).toBe('different preamble');
-        const last = r.messages[r.messages.length - 1] as any;
-        expect(last.role).toBe('assistant');
-        expect(last.content).toBe('different preamble');
+        // The new assistant message must precede tool_result for B.
+        // Shape: user, assistant(text=preamble, toolCalls=[A]), tool(A), assistant(text=different preamble, toolCalls=[B]), tool(B)
+        expect(r.messages).toHaveLength(5);
+        expect(r.messages[3].role).toBe('assistant');
+        expect((r.messages[3] as any).content).toBe('different preamble');
+        expect((r.messages[3] as any).toolCalls).toHaveLength(1);
+        expect(r.messages[4].role).toBe('tool');
+        expect((r.messages[4] as any).toolCallId).toBe('B');
     });
 
     it('text + pending tools: appends a single assistant message with both fields', () => {

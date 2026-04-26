@@ -3,9 +3,6 @@ import type { Message, ToolCall } from '@ag-ui/client';
 export interface AssembleInput {
     finalText: string;
     toolCalls: ToolCall[];
-    // Subset of toolCalls whose results have NOT yet arrived (frontend-tool execution pending).
-    // When empty and toolCalls is non-empty, all tool calls already resolved via backend results.
-    pendingToolCallIds: Set<string>;
     // The current message list before assembly — used for duplicate suppression and splicing.
     existingMessages: Message[];
     streamingMessageId: string | null;
@@ -39,24 +36,26 @@ function findMostRecentAssistantText(messages: Message[]): string | null {
 }
 
 /**
- * Assemble the final message list at RunFinished.
+ * Assemble one assistant turn into the running message list. A turn is the unit
+ * the model emits in a single "thought": optional preamble text plus zero or
+ * more tool calls. Their tool results may already have streamed into
+ * existingMessages by the time we get here.
  *
- * Branches:
- *   1. No text and no tool calls → no-op (returns existingMessages unchanged).
- *   2. Text only → append assistant(content).
- *   3. Tool calls only → append assistant(toolCalls).
- *   4. Text + tool calls, all backend-resolved → splice assistant(toolCalls) BEFORE the
- *      trailing tool-result block, append assistant(text) AFTER. History stays
- *      assistant(toolCalls) → tool(result) → assistant(text).
- *   5. Text + tool calls, some pending → append one assistant message with both fields.
+ * Output shape:
+ *   - No text and no tool calls → no-op.
+ *   - Text only → append assistant(content).
+ *   - Tool calls only → append assistant(toolCalls).
+ *   - Text + tool calls → ONE assistant message with both fields, spliced
+ *     in immediately before any trailing tool-result messages owned by these
+ *     tool calls. History stays assistant(content+toolCalls) → tool(result).
  *
- * Duplicate suppression (branches 2, 4, 5): if a recent assistant message in the
- * same user turn already has the same text, drop the duplicate. In branch 5 the
- * combined message is still appended for its required toolCalls, but its content
- * is omitted.
+ * Duplicate suppression: if the most recent assistant text within the same user
+ * turn already matches finalText, drop the duplicate text. When tool calls are
+ * also present, the message is still appended for the protocol but its content
+ * field is omitted.
  */
 export function assembleFinalMessages(input: AssembleInput): AssembleResult {
-    const { finalText, toolCalls, pendingToolCallIds, existingMessages, streamingMessageId } = input;
+    const { finalText, toolCalls, existingMessages, streamingMessageId } = input;
 
     const hasText = !!finalText;
     const hasToolCalls = toolCalls.length > 0;
@@ -65,75 +64,41 @@ export function assembleFinalMessages(input: AssembleInput): AssembleResult {
         return { messages: existingMessages, suppressedDuplicate: false, announcedAssistantText: null };
     }
 
-    const allBackendResolved = hasToolCalls && pendingToolCallIds.size === 0;
-
-    // Branch 4: text + tool calls, all already resolved via backend results
-    if (hasText && hasToolCalls && allBackendResolved) {
-        // Tool results sometimes stream in before the assistant message that owns them.
-        // Walk back over any trailing tool-result messages belonging to this turn so we
-        // can splice the assistant(toolCalls) message in front of them.
-        const ownedToolCallIds = new Set(toolCalls.map(tc => tc.id));
-        let spliceIdx = existingMessages.length;
-        while (
-            spliceIdx > 0 &&
-            existingMessages[spliceIdx - 1].role === 'tool' &&
-            ownedToolCallIds.has((existingMessages[spliceIdx - 1] as any).toolCallId)
-        ) {
-            spliceIdx--;
-        }
-
-        const before = existingMessages.slice(0, spliceIdx);
-        const tail = existingMessages.slice(spliceIdx);
-        const toolsMessage: Message = {
-            id: `msg_tools_${Date.now()}`,
-            role: 'assistant',
-            toolCalls,
-        };
-
-        // Check the prior-round preamble within this user turn (skipping tool messages
-        // and assistant messages that only carry toolCalls). If the model regenerated
-        // the same preamble, suppress the new copy.
-        const priorText = findMostRecentAssistantText(before);
-        const isDuplicateTrailingText = priorText !== null && priorText === finalText;
-
-        const messages = isDuplicateTrailingText
-            ? [...before, toolsMessage, ...tail]
-            : [
-                  ...before,
-                  toolsMessage,
-                  ...tail,
-                  { id: streamingMessageId || `msg_${Date.now()}`, role: 'assistant', content: finalText } as Message,
-              ];
-
-        return {
-            messages,
-            suppressedDuplicate: isDuplicateTrailingText,
-            announcedAssistantText: isDuplicateTrailingText ? null : finalText,
-        };
-    }
-
-    // Branches 2, 3, 5: single message with text and/or toolCalls.
-    // Detect a duplicate preamble across the current user turn so it can be omitted
-    // even when the new message has toolCalls (tool-bearing messages are still
-    // appended for the protocol; only their content is suppressed).
     const priorText = hasText ? findMostRecentAssistantText(existingMessages) : null;
     const isDuplicateText = hasText && priorText === finalText;
 
-    // Tool-only branch with no text → trivial dedup not relevant.
-    // Text-only branch with duplicate text → drop the message entirely.
+    // Text-only duplicate → drop entirely.
     if (isDuplicateText && !hasToolCalls) {
         return { messages: existingMessages, suppressedDuplicate: true, announcedAssistantText: null };
     }
 
-    const completed: Message = {
+    const turnMessage: Message = {
         id: streamingMessageId || `msg_${Date.now()}`,
         role: 'assistant',
     };
-    if (hasText && !isDuplicateText) completed.content = finalText;
-    if (hasToolCalls) completed.toolCalls = toolCalls;
+    if (hasText && !isDuplicateText) turnMessage.content = finalText;
+    if (hasToolCalls) turnMessage.toolCalls = toolCalls;
+
+    // Splice point: walk back over trailing tool-result messages owned by this
+    // turn's tool calls. The assistant message must precede its own tool results.
+    const ownedToolCallIds = new Set(toolCalls.map(tc => tc.id));
+    let spliceIdx = existingMessages.length;
+    while (
+        spliceIdx > 0 &&
+        existingMessages[spliceIdx - 1].role === 'tool' &&
+        ownedToolCallIds.has((existingMessages[spliceIdx - 1] as { toolCallId?: string }).toolCallId ?? '')
+    ) {
+        spliceIdx--;
+    }
+
+    const messages = [
+        ...existingMessages.slice(0, spliceIdx),
+        turnMessage,
+        ...existingMessages.slice(spliceIdx),
+    ];
 
     return {
-        messages: [...existingMessages, completed],
+        messages,
         suppressedDuplicate: isDuplicateText,
         announcedAssistantText: hasText && !isDuplicateText ? finalText : null,
     };
