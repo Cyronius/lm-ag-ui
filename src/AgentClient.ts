@@ -233,6 +233,13 @@ export class AgentClient {
                 : [contextMsg, messages[messages.length - 1]].filter(Boolean) as Message[];
             this.agent.setMessages(outgoing);
 
+            console.info('[AG-UI] RunAgent start:', {
+                threadId,
+                runId,
+                stopAfterToolCall: forwardedProps?.stopAfterToolCall === true,
+                suppressAssistantMessages: forwardedProps?.suppressAssistantMessages === true,
+            });
+
             const result = await this.agent.runAgent({
                 runId,
                 tools,
@@ -278,10 +285,16 @@ export class AgentClient {
             throw new Error('Thread ID is required for tool result submission');
         }
 
-        console.info('submitting tool results to backend', toolMessages)
-
         // Generate new run ID for continuation
         const runId = this.generateRunId();
+
+        console.info('[AG-UI] RunAgent start (tool results):', {
+            threadId: this._session.threadId,
+            runId,
+            toolMessageCount: toolMessages.length,
+            stopAfterToolCall: forwardedProps?.stopAfterToolCall === true,
+            suppressAssistantMessages: forwardedProps?.suppressAssistantMessages === true,
+        });
 
         try {
             await this.applyAuthHeaders();

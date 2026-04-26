@@ -39,9 +39,10 @@ export function useFrontendToolRunner(
         });
         return unsub;
 
-        // Scoped per run — stopAfterToolCall bookkeeping lives inside the runner.
+        // Scoped per run — flag bookkeeping lives inside the runner.
         function handlePendingToolCalls() {
             let stopAfterToolCall = false;
+            let suppressAssistantMessages = false;
             const toolMessages: Message[] = [];
             const dispatch = stream.dispatch;
             const stateRef = stream.stateRef;
@@ -63,6 +64,7 @@ export function useFrontendToolRunner(
                         toolCallId,
                         toolName,
                         stopAfterToolCall: () => { stopAfterToolCall = true; },
+                        suppressAssistantMessages: () => { suppressAssistantMessages = true; },
                     };
                     const result = tool.handler?.(args, updateState, getState, tool.configJson, ctx);
                     const toolMessage: Message = {
@@ -107,7 +109,11 @@ export function useFrontendToolRunner(
                     const toolDefs = Object.values(toolsRef.current).map((t) => t.definition);
                     session.client.startNewRun();
                     const baseProps = buildFwdRef.current?.() ?? {};
-                    const fwd = stopAfterToolCall ? { ...baseProps, stopAfterToolCall: true } : baseProps;
+                    const fwd = {
+                        ...baseProps,
+                        ...(suppressAssistantMessages ? { suppressAssistantMessages: true } : {}),
+                        ...(stopAfterToolCall ? { stopAfterToolCall: true } : {}),
+                    };
                     session.client.submitToolResults(
                         stateRef.current.messages,
                         stream.subscriber,

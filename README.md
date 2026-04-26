@@ -104,7 +104,11 @@ The `RunFinished` branching logic lives in the pure helper [assembleFinalMessage
 
 ### Tool system
 
-A `ToolDefinition` bundles: OpenAI-compatible `definition`, optional `handler` (frontend execution), optional `renderer` (UI), optional `onResult` (side-effect hook fired for both frontend and backend tools), and an `isFrontend` routing flag. Frontend tools execute synchronously on `RunFinished`; backend tools execute remotely and their results arrive as `ToolCallResult` events. The `ctx.stopAfterToolCall()` escape hatch terminates the run without an LLM follow-up turn.
+A `ToolDefinition` bundles: OpenAI-compatible `definition`, optional `handler` (frontend execution), optional `renderer` (UI), optional `onResult` (side-effect hook fired for both frontend and backend tools), and an `isFrontend` routing flag. Frontend tools execute synchronously on `RunFinished`; backend tools execute remotely and their results arrive as `ToolCallResult` events.
+
+Frontend handlers receive a `ctx: ToolContext` with two escape hatches:
+- `ctx.stopAfterToolCall()` — terminates the run; no LLM follow-up turn (backend spec `AGENT-STOP-FRONTEND-CONTEXT`).
+- `ctx.suppressAssistantMessages()` — keeps the agentic loop running but filters assistant `TextMessage` events from the next turn (backend spec `AGENT-SUPPRESS-ASSISTANT-MESSAGES`). Use this when you want a UI artifact without chat narration but still want the LLM to be able to chain into another tool call. If both flags are set, `stopAfterToolCall` wins.
 
 ### State ownership
 

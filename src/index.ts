@@ -24,18 +24,28 @@ export interface StandardTool {
 }
 
 
-// Per-invocation context passed to frontend tool handlers. Calling
-// ctx.stopAfterToolCall() tells the AG-UI harness to include
-// `forwardedProps.stopAfterToolCall = true` on the next tool-result
-// submission, which the backend honors by marking the resumed tool result
-// with stop_after_tool_call=True (no LLM follow-up turn). See backend spec:
-// AGENT-STOP-FRONTEND-CONTEXT.
+// Per-invocation context passed to frontend tool handlers.
+//
+// ctx.stopAfterToolCall() — sets `forwardedProps.stopAfterToolCall = true` on
+// the next tool-result submission. Backend short-circuits the LLM entirely
+// (no follow-up turn). Use only when the tool output IS the final answer.
+// Backend spec: AGENT-STOP-FRONTEND-CONTEXT.
+//
+// ctx.suppressAssistantMessages() — sets `forwardedProps.suppressAssistantMessages
+// = true`. Backend still runs the LLM (agentic loop continues, multi-turn tool
+// calls work) but filters TEXT_MESSAGE_* events from the SSE stream. Use when
+// you don't want chat narration after a UI artifact, but want the LLM to be
+// able to chain into another tool call. Backend spec:
+// AGENT-SUPPRESS-ASSISTANT-MESSAGES. If both flags are set,
+// stopAfterToolCall wins.
+//
+// Both methods are idempotent and batch-scoped — if any tool in a batched
+// tool-result submission sets a flag, it applies to the whole submission.
 export interface ToolContext {
     readonly toolCallId: string;
     readonly toolName: string;
-    // Idempotent. If called by any tool in a batched tool-result submission,
-    // the whole submission flags the run to stop.
     stopAfterToolCall(): void;
+    suppressAssistantMessages(): void;
 }
 
 // Tool handler executes the tool's logic (frontend tools only).

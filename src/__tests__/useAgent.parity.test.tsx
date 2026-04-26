@@ -185,6 +185,60 @@ describe('useAgent parity harness', () => {
         expect(h.fake.submitToolResultsCalls[0].forwardedProps).toEqual({ stopAfterToolCall: true });
     });
 
+    it('suppressAssistantMessages flags forwardedProps.suppressAssistantMessages on submission', async () => {
+        const handler = vi.fn((_a: any, _u: any, _g: any, _c: any, ctx: any) => {
+            ctx.suppressAssistantMessages();
+            return JSON.stringify({ done: true });
+        });
+        const tools: Record<string, ToolDefinition> = {
+            quietTool: {
+                definition: { name: 'quietTool', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                handler,
+                isFrontend: true,
+            },
+        };
+        const h = await setup(tools);
+        const sub = h.sub;
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tcS', 'quietTool') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tcS', '{}') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
+        });
+        await flush();
+        expect(h.fake.submitToolResultsCalls.length).toBe(1);
+        expect(h.fake.submitToolResultsCalls[0].forwardedProps).toEqual({ suppressAssistantMessages: true });
+    });
+
+    it('both flags set forward both forwardedProps; backend resolves precedence', async () => {
+        const handler = vi.fn((_a: any, _u: any, _g: any, _c: any, ctx: any) => {
+            ctx.suppressAssistantMessages();
+            ctx.stopAfterToolCall();
+            return JSON.stringify({ done: true });
+        });
+        const tools: Record<string, ToolDefinition> = {
+            bothFlags: {
+                definition: { name: 'bothFlags', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                handler,
+                isFrontend: true,
+            },
+        };
+        const h = await setup(tools);
+        const sub = h.sub;
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tcB', 'bothFlags') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tcB', '{}') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
+        });
+        await flush();
+        expect(h.fake.submitToolResultsCalls.length).toBe(1);
+        expect(h.fake.submitToolResultsCalls[0].forwardedProps).toEqual({
+            suppressAssistantMessages: true,
+            stopAfterToolCall: true,
+        });
+    });
+
     it('backend tool result (TOOL_CALL_RESULT) appends tool message and does not re-submit', async () => {
         const tools: Record<string, ToolDefinition> = {
             backendThing: {
