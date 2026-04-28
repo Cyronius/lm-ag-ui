@@ -66,8 +66,16 @@ type FakeAgentClient = InstanceType<typeof MockedAgentClient> & {
     abortRunCount: number;
 };
 
-function Harness({ tools, onReady }: { tools: Record<string, ToolDefinition>; onReady: (ctx: AgentClientContextValue) => void }) {
-    const ctx = useAgent({ agentId: 'test', tools });
+function Harness({
+    tools,
+    onReady,
+    suppressIntermediateAssistantMessages,
+}: {
+    tools: Record<string, ToolDefinition>;
+    onReady: (ctx: AgentClientContextValue) => void;
+    suppressIntermediateAssistantMessages?: boolean;
+}) {
+    const ctx = useAgent({ agentId: 'test', tools, suppressIntermediateAssistantMessages });
     React.useEffect(() => { onReady(ctx); });
     return null;
 }
@@ -99,10 +107,19 @@ describe('useAgent parity harness', () => {
     let ctxValue: AgentClientContextValue | null;
     beforeEach(() => { ctxValue = null; });
 
-    async function setup(tools: Record<string, ToolDefinition> = {}) {
+    async function setup(
+        tools: Record<string, ToolDefinition> = {},
+        opts: { suppressIntermediateAssistantMessages?: boolean } = {}
+    ) {
         ctxValue = null;
         await act(async () => {
-            render(<Harness tools={tools} onReady={(c) => { ctxValue = c; }} />);
+            render(
+                <Harness
+                    tools={tools}
+                    onReady={(c) => { ctxValue = c; }}
+                    suppressIntermediateAssistantMessages={opts.suppressIntermediateAssistantMessages}
+                />
+            );
         });
         await flush();
         return {
@@ -185,58 +202,251 @@ describe('useAgent parity harness', () => {
         expect(h.fake.submitToolResultsCalls[0].forwardedProps).toEqual({ stopAfterToolCall: true });
     });
 
-    it('suppressAssistantMessages flags forwardedProps.suppressAssistantMessages on submission', async () => {
-        const handler = vi.fn((_a: any, _u: any, _g: any, _c: any, ctx: any) => {
-            ctx.suppressAssistantMessages();
-            return JSON.stringify({ done: true });
-        });
+    it('suppressIntermediateAssistantMessages OFF: chained-run text always lands (regression guard)', async () => {
+        const handler = vi.fn(() => JSON.stringify({ done: true }));
         const tools: Record<string, ToolDefinition> = {
-            quietTool: {
-                definition: { name: 'quietTool', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+            chatty: {
+                definition: { name: 'chatty', description: '', parameters: { type: 'object', properties: {}, required: [] } },
                 handler,
                 isFrontend: true,
             },
         };
         const h = await setup(tools);
         const sub = h.sub;
+        // Run 1: tool only.
         await act(async () => {
             sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
-            sub.onToolCallStartEvent!({ event: ev.toolStart('tcS', 'quietTool') } as any);
-            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tcS', '{}') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tc1', 'chatty') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tc1', '{}') } as any);
             sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
         });
         await flush();
-        expect(h.fake.submitToolResultsCalls.length).toBe(1);
-        expect(h.fake.submitToolResultsCalls[0].forwardedProps).toEqual({ suppressAssistantMessages: true });
+        // Run 2 (chained): text only.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r2') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m1') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m1', 'narration') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m1') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r2') } as any);
+        });
+        await flush();
+        expect(h.ctx.messages.some(m => m.role === 'assistant' && m.content === 'narration')).toBe(true);
     });
 
-    it('both flags set forward both forwardedProps; backend resolves precedence', async () => {
-        const handler = vi.fn((_a: any, _u: any, _g: any, _c: any, ctx: any) => {
-            ctx.suppressAssistantMessages();
-            ctx.stopAfterToolCall();
-            return JSON.stringify({ done: true });
+    it('suppressIntermediateAssistantMessages ON: single-run turn with only text streams normally (text is both first and final)', async () => {
+        const h = await setup({}, { suppressIntermediateAssistantMessages: true });
+        const sub = h.sub;
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m1') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m1', 'Hello world') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m1') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
         });
+        await flush();
+        const assistant = h.ctx.messages.filter(m => m.role === 'assistant');
+        expect(assistant.length).toBe(1);
+        expect(assistant[0].content).toBe('Hello world');
+    });
+
+    it('suppressIntermediateAssistantMessages ON: run1 (text+tool) → run2 (text only) shows BOTH', async () => {
+        const handler = vi.fn(() => JSON.stringify({ done: true }));
         const tools: Record<string, ToolDefinition> = {
-            bothFlags: {
-                definition: { name: 'bothFlags', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+            doIt: {
+                definition: { name: 'doIt', description: '', parameters: { type: 'object', properties: {}, required: [] } },
                 handler,
                 isFrontend: true,
             },
         };
-        const h = await setup(tools);
+        const h = await setup(tools, { suppressIntermediateAssistantMessages: true });
         const sub = h.sub;
+
+        // Run 1: text (first) + tool.
         await act(async () => {
             sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
-            sub.onToolCallStartEvent!({ event: ev.toolStart('tcB', 'bothFlags') } as any);
-            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tcB', '{}') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m1') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m1', 'first message') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tc1', 'doIt') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tc1', '{}') } as any);
             sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
         });
         await flush();
-        expect(h.fake.submitToolResultsCalls.length).toBe(1);
-        expect(h.fake.submitToolResultsCalls[0].forwardedProps).toEqual({
-            suppressAssistantMessages: true,
-            stopAfterToolCall: true,
+        // Run 2 (chained): text only — final result.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r2') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m2') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m2', 'final result') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m2') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r2') } as any);
         });
+        await flush();
+        const assistantTexts = h.ctx.messages.filter(m => m.role === 'assistant').map(m => m.content);
+        expect(assistantTexts).toContain('first message');
+        expect(assistantTexts).toContain('final result');
+    });
+
+    it('suppressIntermediateAssistantMessages ON: run1 (text+tool) → run2 (text+tool) → run3 (text only) drops the middle text', async () => {
+        const handler = vi.fn(() => JSON.stringify({ done: true }));
+        const tools: Record<string, ToolDefinition> = {
+            doIt: {
+                definition: { name: 'doIt', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                handler,
+                isFrontend: true,
+            },
+        };
+        const h = await setup(tools, { suppressIntermediateAssistantMessages: true });
+        const sub = h.sub;
+
+        // Run 1: first text + tool.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m1') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m1', 'first') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tc1', 'doIt') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tc1', '{}') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
+        });
+        await flush();
+        // Run 2 (chained): text + tool — middle, must be dropped.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r2') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m2') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m2', 'middle narration') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m2') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tc2', 'doIt') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tc2', '{}') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r2') } as any);
+        });
+        await flush();
+        // Run 3 (chained): text only — final.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r3') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m3') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m3', 'final') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m3') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r3') } as any);
+        });
+        await flush();
+        const assistantTexts = h.ctx.messages.filter(m => m.role === 'assistant').map(m => m.content);
+        expect(assistantTexts).toContain('first');
+        expect(assistantTexts).toContain('final');
+        expect(assistantTexts).not.toContain('middle narration');
+    });
+
+    it('suppressIntermediateAssistantMessages ON: run1 tool-only → run2 (text+tool) → run3 (text only) — first text appears in run2 and is preserved', async () => {
+        const handler = vi.fn(() => JSON.stringify({ done: true }));
+        const tools: Record<string, ToolDefinition> = {
+            doIt: {
+                definition: { name: 'doIt', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                handler,
+                isFrontend: true,
+            },
+        };
+        const h = await setup(tools, { suppressIntermediateAssistantMessages: true });
+        const sub = h.sub;
+        // Run 1: tool only, no text.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tc1', 'doIt') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tc1', '{}') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
+        });
+        await flush();
+        // Run 2 (chained): text + tool. firstTextEmittedThisTurnRef was still false, so this text is "first" and streams live.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r2') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m2') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m2', 'first text in chain') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m2') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tc2', 'doIt') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tc2', '{}') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r2') } as any);
+        });
+        await flush();
+        // Run 3 (chained): text only — final.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r3') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m3') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m3', 'final answer') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m3') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r3') } as any);
+        });
+        await flush();
+        const assistantTexts = h.ctx.messages.filter(m => m.role === 'assistant').map(m => m.content);
+        expect(assistantTexts).toContain('first text in chain');
+        expect(assistantTexts).toContain('final answer');
+    });
+
+    it('suppressIntermediateAssistantMessages ON: turn boundary resets first-text tracking when a fresh runAgent fires', async () => {
+        // First turn: a single-run text-only response.
+        const h = await setup({}, { suppressIntermediateAssistantMessages: true });
+        const sub = h.sub;
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m1') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m1', 'first turn answer') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m1') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
+        });
+        await flush();
+        // Second turn — chainedRunRef is false (no submitToolResults fired), so first-text resets.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r2') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m2') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m2', 'second turn answer') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m2') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r2') } as any);
+        });
+        await flush();
+        const assistantTexts = h.ctx.messages.filter(m => m.role === 'assistant').map(m => m.content);
+        expect(assistantTexts).toContain('first turn answer');
+        expect(assistantTexts).toContain('second turn answer');
+    });
+
+    it('suppressIntermediateAssistantMessages ON: RunError mid-chain clears buffer state', async () => {
+        const handler = vi.fn(() => JSON.stringify({ done: true }));
+        const tools: Record<string, ToolDefinition> = {
+            doIt: {
+                definition: { name: 'doIt', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                handler,
+                isFrontend: true,
+            },
+        };
+        const h = await setup(tools, { suppressIntermediateAssistantMessages: true });
+        const sub = h.sub;
+        // Run 1: text + tool (first text streams).
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m1') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m1', 'first') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tc1', 'doIt') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tc1', '{}') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
+        });
+        await flush();
+        // Run 2 (chained): begins, then errors after partial buffered text.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r2') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m2') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m2', 'partial') } as any);
+            sub.onRunErrorEvent!({ event: { message: 'boom' } } as any);
+        });
+        await flush();
+        // Next turn (fresh runAgent): first text should reset — appears in history.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r3') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m3') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m3', 'recovered') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m3') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r3') } as any);
+        });
+        await flush();
+        const assistantTexts = h.ctx.messages.filter(m => m.role === 'assistant').map(m => m.content);
+        expect(assistantTexts).toContain('recovered');
+        expect(assistantTexts).not.toContain('partial');
     });
 
     it('backend tool result (TOOL_CALL_RESULT) appends tool message and does not re-submit', async () => {

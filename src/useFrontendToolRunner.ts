@@ -42,7 +42,6 @@ export function useFrontendToolRunner(
         // Scoped per run — flag bookkeeping lives inside the runner.
         function handlePendingToolCalls() {
             let stopAfterToolCall = false;
-            let suppressAssistantMessages = false;
             const toolMessages: Message[] = [];
             const dispatch = stream.dispatch;
             const stateRef = stream.stateRef;
@@ -64,7 +63,6 @@ export function useFrontendToolRunner(
                         toolCallId,
                         toolName,
                         stopAfterToolCall: () => { stopAfterToolCall = true; },
-                        suppressAssistantMessages: () => { suppressAssistantMessages = true; },
                     };
                     const result = tool.handler?.(args, updateState, getState, tool.configJson, ctx);
                     const toolMessage: Message = {
@@ -111,9 +109,12 @@ export function useFrontendToolRunner(
                     const baseProps = buildFwdRef.current?.() ?? {};
                     const fwd = {
                         ...baseProps,
-                        ...(suppressAssistantMessages ? { suppressAssistantMessages: true } : {}),
                         ...(stopAfterToolCall ? { stopAfterToolCall: true } : {}),
                     };
+                    // Mark the upcoming run as a continuation so the stream's
+                    // turn-scoped state (firstTextEmittedThisTurnRef, buffers)
+                    // is preserved across the agentic chain.
+                    stream.chainedRunRef.current = true;
                     session.client.submitToolResults(
                         stateRef.current.messages,
                         stream.subscriber,

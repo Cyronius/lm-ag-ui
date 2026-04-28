@@ -32,6 +32,15 @@ export interface AgentClientOptions {
     /** Appends `?debug=true` to the agent URL so the backend captures LLM input.
      *  Set once at construction — not runtime-toggleable. Drive from env/URL flag at app init. */
     debug?: boolean;
+    /**
+     * Optional outbound-message transformer. When set, every wire send
+     * (`runAgent` and `submitToolResults`) passes the assembled message array
+     * through this function immediately before `agent.setMessages`. Use this
+     * for context shrinking (e.g. tombstoning stale tool results) without
+     * needing each caller to remember to invoke it. Must preserve message
+     * ordering and tool-call/tool-result pairing — only `content` may change.
+     */
+    pruneOutboundMessages?: (messages: Message[]) => Message[];
 }
 
 export class AgentClient {
@@ -45,6 +54,7 @@ export class AgentClient {
     private _debug: boolean;
     private _sendFullHistory: boolean;
     private _systemContextBuilder?: SystemContextBuilder;
+    private _pruneOutboundMessages?: (messages: Message[]) => Message[];
     // Tracks the last rendered system-context content we injected for each thread,
     // so identical content isn't re-sent on subsequent runs in the same thread.
     // Cleared per-thread on endSession().
@@ -75,7 +85,13 @@ export class AgentClient {
         this.requestHandler = options?.requestHandler;
         this._sendFullHistory = options?.sendFullHistory ?? false;
         this._systemContextBuilder = options?.systemContextBuilder;
+        this._pruneOutboundMessages = options?.pruneOutboundMessages;
         this._debug = options?.debug ?? false;
+        console.info('[AG-UI] AgentClient constructed:', {
+            agentId,
+            sendFullHistory: this._sendFullHistory,
+            hasPruneOutboundMessages: !!this._pruneOutboundMessages,
+        });
 
         this.agent = this.createAgent();
 
@@ -228,16 +244,22 @@ export class AgentClient {
             this.agent.threadId = threadId;
             const contextMsg = this.maybeBuildContextMessage(threadId);
             // When sendFullHistory is false, backend owns history rehydration — send only the newest turn.
-            const outgoing = this._sendFullHistory
+            const assembled = this._sendFullHistory
                 ? (contextMsg ? [contextMsg, ...messages] : messages)
                 : [contextMsg, messages[messages.length - 1]].filter(Boolean) as Message[];
+            console.info('[AG-UI] runAgent assembled', {
+                assembledCount: assembled.length,
+                hasPrune: !!this._pruneOutboundMessages,
+            });
+            const outgoing = this._pruneOutboundMessages
+                ? this._pruneOutboundMessages(assembled)
+                : assembled;
             this.agent.setMessages(outgoing);
 
             console.info('[AG-UI] RunAgent start:', {
                 threadId,
                 runId,
                 stopAfterToolCall: forwardedProps?.stopAfterToolCall === true,
-                suppressAssistantMessages: forwardedProps?.suppressAssistantMessages === true,
             });
 
             const result = await this.agent.runAgent({
@@ -293,7 +315,6 @@ export class AgentClient {
             runId,
             toolMessageCount: toolMessages.length,
             stopAfterToolCall: forwardedProps?.stopAfterToolCall === true,
-            suppressAssistantMessages: forwardedProps?.suppressAssistantMessages === true,
         });
 
         try {
@@ -303,9 +324,16 @@ export class AgentClient {
             this.agent.threadId = this._session.threadId;
             const contextMsg = this.maybeBuildContextMessage(this._session.threadId);
             // Tool results must always flow; when sendFullHistory is false the backend rehydrates prior turns.
-            const outgoing = this._sendFullHistory
+            const assembled = this._sendFullHistory
                 ? (contextMsg ? [contextMsg, ...toolMessages] : toolMessages)
                 : (contextMsg ? [contextMsg, ...toolMessages.filter(m => m.role === 'tool')] : toolMessages.filter(m => m.role === 'tool'));
+            console.info('[AG-UI] submitToolResults assembled', {
+                assembledCount: assembled.length,
+                hasPrune: !!this._pruneOutboundMessages,
+            });
+            const outgoing = this._pruneOutboundMessages
+                ? this._pruneOutboundMessages(assembled)
+                : assembled;
             this.agent.setMessages(outgoing);
             const result = await this.agent.runAgent({
                 runId,

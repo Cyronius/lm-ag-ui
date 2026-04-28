@@ -13,6 +13,7 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
         onLifecycleEvent: options.onLifecycleEvent,
         onError: options.onError,
         safetyTimeoutMs: options.safetyTimeoutMs,
+        suppressIntermediateAssistantMessages: options.suppressIntermediateAssistantMessages,
         tools,
     });
     useFrontendToolRunner(stream, session, tools, { buildForwardedProps });
@@ -29,6 +30,10 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
 
     const addMessage = useCallback((message: Message) => {
         dispatch({ type: 'ADD_MESSAGE', message });
+    }, [dispatch]);
+
+    const setMessages = useCallback((messages: Message[]) => {
+        dispatch({ type: 'SET_MESSAGES', messages });
     }, [dispatch]);
 
     const clearMessages = useCallback(() => {
@@ -104,6 +109,7 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
         globalState: state.globalState,
         messages: state.messages,
         addMessage,
+        setMessages,
         clearMessages,
         updateState,
         currentMessage: state.streamingText,
@@ -127,6 +133,7 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
         stream.subscriber,
         stateRef,
         addMessage,
+        setMessages,
         clearMessages,
         updateState,
         invokeToolByName,

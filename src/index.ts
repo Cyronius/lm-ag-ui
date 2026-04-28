@@ -31,21 +31,18 @@ export interface StandardTool {
 // (no follow-up turn). Use only when the tool output IS the final answer.
 // Backend spec: AGENT-STOP-FRONTEND-CONTEXT.
 //
-// ctx.suppressAssistantMessages() — sets `forwardedProps.suppressAssistantMessages
-// = true`. Backend still runs the LLM (agentic loop continues, multi-turn tool
-// calls work) but filters TEXT_MESSAGE_* events from the SSE stream. Use when
-// you don't want chat narration after a UI artifact, but want the LLM to be
-// able to chain into another tool call. Backend spec:
-// AGENT-SUPPRESS-ASSISTANT-MESSAGES. If both flags are set,
-// stopAfterToolCall wins.
+// stopAfterToolCall is idempotent and batch-scoped — if any tool in a batched
+// tool-result submission sets the flag, it applies to the whole submission.
 //
-// Both methods are idempotent and batch-scoped — if any tool in a batched
-// tool-result submission sets a flag, it applies to the whole submission.
+// To suppress *intermediate* assistant narration during an agentic chain (so
+// only the first and final assistant messages of the user's turn are shown),
+// set `suppressIntermediateAssistantMessages: true` on `UseAgentSetupOptions`
+// or `UseAgentOptions`. That flag is sticky for the lifetime of the agent
+// component and is FE-local (does not cross the wire).
 export interface ToolContext {
     readonly toolCallId: string;
     readonly toolName: string;
     stopAfterToolCall(): void;
-    suppressAssistantMessages(): void;
 }
 
 // Tool handler executes the tool's logic (frontend tools only).
@@ -88,6 +85,7 @@ export interface AgentClientContextValue {
     globalState: Record<string, unknown>;
     messages: Message[];
     addMessage: (message: Message) => void;
+    setMessages: (messages: Message[]) => void;
     clearMessages: () => void;
     updateState: (toolName: string, data: unknown) => void;
     // Streaming state
@@ -137,6 +135,19 @@ export interface UseAgentOptions {
     /** Safety timeout in ms. After this elapses with an active run, the run is forcibly
      *  aborted and a timeout message is added. Default: 300_000 (5 min). */
     safetyTimeoutMs?: number;
+    /** Optional outbound-message transformer applied by AgentClient on every wire send
+     *  (runAgent + submitToolResults), immediately before agent.setMessages. Use for
+     *  context shrinking such as tombstoning stale tool results. Must preserve
+     *  ordering and tool-call/tool-result pairing — only `content` may change. */
+    pruneOutboundMessages?: (messages: Message[]) => Message[];
+    /** When true, suppress *intermediate* assistant narration during an agentic
+     *  chain. The first text emitted in a user turn (the first TEXT_MESSAGE_*
+     *  group seen since the user submitted) streams normally. The final text
+     *  (text in the run that does not chain another tool call) is committed at
+     *  RUN_FINISHED. Any text emitted in an intermediate run that chains
+     *  another tool call after itself is dropped. FE-local — does not cross
+     *  the wire. Default: false. */
+    suppressIntermediateAssistantMessages?: boolean;
 }
 
 export interface Suggestion {

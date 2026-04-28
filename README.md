@@ -106,9 +106,14 @@ The `RunFinished` branching logic lives in the pure helper [assembleFinalMessage
 
 A `ToolDefinition` bundles: OpenAI-compatible `definition`, optional `handler` (frontend execution), optional `renderer` (UI), optional `onResult` (side-effect hook fired for both frontend and backend tools), and an `isFrontend` routing flag. Frontend tools execute synchronously on `RunFinished`; backend tools execute remotely and their results arrive as `ToolCallResult` events.
 
-Frontend handlers receive a `ctx: ToolContext` with two escape hatches:
+Frontend handlers receive a `ctx: ToolContext` with one escape hatch:
 - `ctx.stopAfterToolCall()` — terminates the run; no LLM follow-up turn (backend spec `AGENT-STOP-FRONTEND-CONTEXT`).
-- `ctx.suppressAssistantMessages()` — keeps the agentic loop running but filters assistant `TextMessage` events from the next turn (backend spec `AGENT-SUPPRESS-ASSISTANT-MESSAGES`). Use this when you want a UI artifact without chat narration but still want the LLM to be able to chain into another tool call. If both flags are set, `stopAfterToolCall` wins.
+
+To suppress *intermediate* assistant narration during an agentic chain — keeping the first and final messages of the user's turn but dropping middle narration — set `suppressIntermediateAssistantMessages: true` on `useAgentSetup` / `useAgent` options. The flag is sticky for the lifetime of the agent component and is FE-local (not sent to the backend). The runtime applies these rules on every run while the flag is on:
+
+- The first text emitted in a user turn (the first `TEXT_MESSAGE_*` group seen since the user submitted) streams live as it arrives.
+- Text in any subsequent run is buffered until that run's `RUN_FINISHED`. If the run emitted any tool calls (chain continues), the buffered text is dropped — it was intermediate narration. If the run had no tool calls (chain ends), the buffered text is committed as the final-result message.
+- A new turn (a fresh `runAgent` call rather than a tool-result chain continuation) resets the first-text tracking; `useFrontendToolRunner` signals continuation via `stream.chainedRunRef`.
 
 ### State ownership
 

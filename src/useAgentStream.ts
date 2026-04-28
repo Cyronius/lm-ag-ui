@@ -38,9 +38,17 @@ export interface StreamHandle {
     dispatch: Dispatch<AgentAction>;
     subscriber: AgentSubscriber;
     onRunFinished: (cb: (p: RunFinishedPayload) => void) => () => void;
+    /**
+     * Set to `true` by `useFrontendToolRunner` immediately before
+     * `submitToolResults`. Read (and cleared) on the next `RunStarted` to
+     * distinguish a chained run (continuation of the user's turn) from a
+     * fresh user-initiated run. Drives first/final-message preservation when
+     * `suppressIntermediateAssistantMessages` is on.
+     */
+    chainedRunRef: React.MutableRefObject<boolean>;
 }
 
-type StreamOptions = Pick<UseAgentOptions, 'onLifecycleEvent' | 'onError' | 'safetyTimeoutMs'> & {
+type StreamOptions = Pick<UseAgentOptions, 'onLifecycleEvent' | 'onError' | 'safetyTimeoutMs' | 'suppressIntermediateAssistantMessages'> & {
     tools?: Record<string, ToolDefinition>;
 };
 
@@ -54,7 +62,7 @@ export function useAgentStream(
     sessionIsActive: boolean,
     options: StreamOptions
 ): StreamHandle {
-    const { onLifecycleEvent, onError, safetyTimeoutMs, tools = {} } = options;
+    const { onLifecycleEvent, onError, safetyTimeoutMs, suppressIntermediateAssistantMessages, tools = {} } = options;
     const effectiveSafetyTimeoutMs = safetyTimeoutMs ?? 300_000;
 
     const [state, setState] = useState<AgentState>(initialAgentState);
@@ -65,6 +73,27 @@ export function useAgentStream(
         stateRef.current = next;
         setState(next);
     }, []);
+
+    // First/final-message preservation under `suppressIntermediateAssistantMessages`.
+    // Sticky from setup options.
+    const suppressEnabledRef = useRef(!!suppressIntermediateAssistantMessages);
+    suppressEnabledRef.current = !!suppressIntermediateAssistantMessages;
+
+    // Reset to `false` at the start of every new user-initiated turn. Stays
+    // `true` across chained runs within the same turn.
+    const firstTextEmittedThisTurnRef = useRef(false);
+
+    // Set by `useFrontendToolRunner` immediately before `submitToolResults`;
+    // read & cleared by `onRunStartedEvent` to detect chained vs. fresh runs.
+    const chainedRunRef = useRef(false);
+
+    // Text segments buffered during a chained run after the turn's first
+    // text has already been emitted. At RUN_FINISHED, we either flush them
+    // (no tool calls in this run → final result) or drop them (tool calls
+    // present → intermediate narration).
+    interface BufferedSegment { messageId: string; text: string }
+    const bufferedFinalTextRef = useRef<BufferedSegment[]>([]);
+    const bufferedMessageIdsRef = useRef<Set<string>>(new Set());
 
     const runFinishedListenersRef = useRef<Set<(p: RunFinishedPayload) => void>>(new Set());
     const onRunFinished = useCallback((cb: (p: RunFinishedPayload) => void) => {
@@ -130,6 +159,17 @@ export function useAgentStream(
             runId: event.runId,
             message: stateRef.current.messages.slice(-1)[0]?.content,
         });
+        if (suppressEnabledRef.current) {
+            if (chainedRunRef.current) {
+                // Continuing the same agentic turn — preserve firstText state.
+                chainedRunRef.current = false;
+            } else {
+                // Fresh user-initiated turn — reset turn-scoped state.
+                firstTextEmittedThisTurnRef.current = false;
+                bufferedFinalTextRef.current = [];
+                bufferedMessageIdsRef.current.clear();
+            }
+        }
         onLifecycleEvent?.({ type: 'run_started' });
         dispatch({ type: 'SNAPSHOT_PRE_RUN' });
     };
@@ -152,17 +192,37 @@ export function useAgentStream(
     };
 
     subscriberRef.current.onTextMessageStartEvent = ({ event }: { event: TextMessageStartEvent }) => {
+        if (suppressEnabledRef.current && firstTextEmittedThisTurnRef.current) {
+            // Already shown the first text of this turn. Buffer this segment;
+            // RUN_FINISHED will decide whether to flush (final) or drop (middle).
+            bufferedMessageIdsRef.current.add(event.messageId);
+            bufferedFinalTextRef.current.push({ messageId: event.messageId, text: '' });
+            return;
+        }
         console.info('[AG-UI] TextMessageStart:', { messageId: event.messageId, role: event.role });
+        if (suppressEnabledRef.current) {
+            // First text of the turn — stream it live.
+            firstTextEmittedThisTurnRef.current = true;
+        }
         // If a previous turn's text/tool-calls are still pending, commit them
         // before this new text segment begins.
         flushTurn();
     };
 
     subscriberRef.current.onTextMessageContentEvent = ({ event }: { event: TextMessageContentEvent }) => {
+        if (bufferedMessageIdsRef.current.has(event.messageId)) {
+            const seg = bufferedFinalTextRef.current.find(s => s.messageId === event.messageId);
+            if (seg) seg.text += event.delta;
+            return;
+        }
         dispatch({ type: 'TEXT_DELTA', messageId: event.messageId, delta: event.delta });
     };
 
     subscriberRef.current.onTextMessageEndEvent = ({ event }: { event: TextMessageEndEvent }) => {
+        if (bufferedMessageIdsRef.current.has(event.messageId)) {
+            // Keep buffered; final disposition decided at RUN_FINISHED.
+            return;
+        }
         console.info('[AG-UI] TextMessageEnd:', { messageId: event.messageId });
     };
 
@@ -173,6 +233,29 @@ export function useAgentStream(
 
     subscriberRef.current.onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }) => {
         console.info('[AG-UI] RunFinished:', { event });
+        // Resolve buffered text BEFORE flushTurn so the decision uses the
+        // run's tool-call presence (cleared by FINALIZE_TURN inside flushTurn).
+        if (bufferedFinalTextRef.current.length > 0) {
+            const before = stateRef.current;
+            const hasUnflushedToolCall = Array.from(before.toolCallBuffers.keys()).some(
+                id => !before.flushedToolCallIds.has(id)
+            );
+            if (hasUnflushedToolCall) {
+                console.info('[AG-UI] Dropped intermediate narration:',
+                    bufferedFinalTextRef.current.map(s => s.text));
+            } else {
+                for (const seg of bufferedFinalTextRef.current) {
+                    if (!seg.text.trim()) continue;
+                    dispatch({
+                        type: 'ADD_MESSAGE',
+                        message: { id: seg.messageId, role: 'assistant', content: seg.text },
+                    });
+                    onLifecycleEvent?.({ type: 'message_added', role: 'assistant', content: seg.text });
+                }
+            }
+            bufferedFinalTextRef.current = [];
+            bufferedMessageIdsRef.current.clear();
+        }
         try {
             flushTurn();
         } catch (error) {
@@ -212,6 +295,10 @@ export function useAgentStream(
             return;
         }
         dispatch({ type: 'CLEAR_STREAMING' });
+        firstTextEmittedThisTurnRef.current = false;
+        chainedRunRef.current = false;
+        bufferedFinalTextRef.current = [];
+        bufferedMessageIdsRef.current.clear();
         dispatch({
             type: 'ADD_MESSAGE',
             message: { id: `error_${Date.now()}`, role: 'assistant', content: `Error: ${event.message}` },
@@ -284,6 +371,7 @@ export function useAgentStream(
         dispatch,
         subscriber: subscriberRef.current,
         onRunFinished,
+        chainedRunRef,
     };
 }
 

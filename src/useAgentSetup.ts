@@ -16,6 +16,24 @@ export interface UseAgentSetupOptions {
     systemContextBuilder?: UseAgentOptions['systemContextBuilder'];
     debug?: boolean;
     /**
+     * When true, runAgent ships the full caller-provided messages array on every
+     * call (frontend-controlled history). When false (default), only the newest
+     * turn is sent and the backend rehydrates prior history from threadId.
+     * Must match the backend contract — see AgentClient.submitToolResults docs.
+     */
+    sendFullHistory?: boolean;
+    /**
+     * Optional outbound-message transformer applied by AgentClient on every wire send
+     * (runAgent + submitToolResults). See AgentClientOptions.pruneOutboundMessages.
+     */
+    pruneOutboundMessages?: UseAgentOptions['pruneOutboundMessages'];
+    /**
+     * When true, suppress intermediate assistant narration during an agentic
+     * chain. See `UseAgentOptions.suppressIntermediateAssistantMessages` for full
+     * semantics. Sticky for the lifetime of the AgentLayer.
+     */
+    suppressIntermediateAssistantMessages?: UseAgentOptions['suppressIntermediateAssistantMessages'];
+    /**
      * Optional frontend tool implementations keyed by tool name. When provided,
      * backend tool configs are automatically joined with these implementations via
      * `hydrateToolConfigs`, and the result is assigned to `config.tools` before
@@ -57,6 +75,9 @@ export function useAgentSetup({
     buildForwardedProps,
     systemContextBuilder,
     debug,
+    sendFullHistory,
+    pruneOutboundMessages,
+    suppressIntermediateAssistantMessages,
     frontendToolImpls,
     onConfigLoaded
 }: UseAgentSetupOptions): UseAgentSetupResult {
@@ -113,7 +134,10 @@ export function useAgentSetup({
             tools: tools ?? config.tools ?? {},
             buildForwardedProps,
             systemContextBuilder,
-            debug
+            debug,
+            sendFullHistory,
+            pruneOutboundMessages,
+            suppressIntermediateAssistantMessages,
         };
 
         // This is a new component — useAgent's useState initializer runs fresh
@@ -124,7 +148,7 @@ export function useAgentSetup({
         };
         Layer.displayName = 'AgentLayer';
         return Layer;
-    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, tools, buildForwardedProps, systemContextBuilder, debug]);
+    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, tools, buildForwardedProps, systemContextBuilder, debug, sendFullHistory, pruneOutboundMessages, suppressIntermediateAssistantMessages]);
 
     return { config, isLoading, error, AgentLayer };
 }
