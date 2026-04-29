@@ -354,7 +354,7 @@ describe('useAgent parity harness', () => {
             sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
         });
         await flush();
-        // Run 2 (chained): text + tool. firstTextEmittedThisTurnRef was still false, so this text is "first" and streams live.
+        // Run 2 (chained): text + tool. No first-text was emitted yet this turn, so this text is "first" and streams live.
         await act(async () => {
             sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r2') } as any);
             sub.onTextMessageStartEvent!({ event: ev.textStart('m2') } as any);
@@ -391,7 +391,7 @@ describe('useAgent parity harness', () => {
             sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
         });
         await flush();
-        // Second turn — chainedRunRef is false (no submitToolResults fired), so first-text resets.
+        // Second turn — no submitToolResults fired, so the suppressor resets first-text.
         await act(async () => {
             sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r2') } as any);
             sub.onTextMessageStartEvent!({ event: ev.textStart('m2') } as any);

@@ -56,8 +56,25 @@ export function useFrontendToolRunner(
                 toolName ? stateRef.current.globalState[toolName] : stateRef.current.globalState;
 
             const executeFrontendTool = (toolName: string, argsJson: string | null, toolCallId: string): Message | null => {
+                let args: unknown;
                 try {
-                    const args = argsJson ? JSON.parse(argsJson) : null;
+                    args = argsJson ? JSON.parse(argsJson) : null;
+                } catch (parseError) {
+                    // Synthesize a tool-result message so the protocol stays whole;
+                    // the backend gets a structured error and can react instead of stalling.
+                    const detail = parseError instanceof Error ? parseError.message : String(parseError);
+                    const errorContent = JSON.stringify({ error: 'invalid_tool_args', message: detail, raw: argsJson });
+                    const toolMessage: Message = {
+                        id: `tool_${toolCallId}_${Date.now()}`,
+                        role: 'tool',
+                        content: errorContent,
+                        toolCallId,
+                    };
+                    dispatch({ type: 'ADD_MESSAGE', message: toolMessage });
+                    console.error(`Invalid JSON args for tool ${toolName}:`, parseError, { raw: argsJson });
+                    return toolMessage;
+                }
+                try {
                     const tool = frontEndToolsRef.current[toolName];
                     const ctx = {
                         toolCallId,
@@ -112,9 +129,9 @@ export function useFrontendToolRunner(
                         ...(stopAfterToolCall ? { stopAfterToolCall: true } : {}),
                     };
                     // Mark the upcoming run as a continuation so the stream's
-                    // turn-scoped state (firstTextEmittedThisTurnRef, buffers)
+                    // turn-scoped suppression state (first-text flag, buffers)
                     // is preserved across the agentic chain.
-                    stream.chainedRunRef.current = true;
+                    stream.markChainedRun();
                     session.client.submitToolResults(
                         stateRef.current.messages,
                         stream.subscriber,

@@ -20,7 +20,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: 'hello there',
             toolCalls: [],
-            pendingToolCallIds: new Set(),
             existingMessages: existing,
             streamingMessageId: 'mid',
         });
@@ -35,7 +34,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: '',
             toolCalls: [tc('x1')],
-            pendingToolCallIds: new Set(['x1']),
             existingMessages: existing,
             streamingMessageId: null,
         });
@@ -53,7 +51,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: 'preamble',
             toolCalls: [tc('x1')],
-            pendingToolCallIds: new Set(),
             existingMessages: existing,
             streamingMessageId: null,
         });
@@ -78,7 +75,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: 'preamble',
             toolCalls: [tc('B')],
-            pendingToolCallIds: new Set(),
             existingMessages: existing,
             streamingMessageId: null,
         });
@@ -102,7 +98,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: 'different preamble',
             toolCalls: [tc('B')],
-            pendingToolCallIds: new Set(),
             existingMessages: existing,
             streamingMessageId: null,
         });
@@ -123,7 +118,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: 'preamble',
             toolCalls: [tc('x1')],
-            pendingToolCallIds: new Set(['x1']),
             existingMessages: existing,
             streamingMessageId: null,
         });
@@ -138,7 +132,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: 'same answer',
             toolCalls: [],
-            pendingToolCallIds: new Set(),
             existingMessages: existing,
             streamingMessageId: null,
         });
@@ -152,7 +145,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: 'text',
             toolCalls: [tc('x1')],
-            pendingToolCallIds: new Set(['x1']),
             existingMessages: existing,
             streamingMessageId: null,
         });
@@ -172,7 +164,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: 'preamble',
             toolCalls: [tc('B')],
-            pendingToolCallIds: new Set(['B']),
             existingMessages: existing,
             streamingMessageId: null,
         });
@@ -194,7 +185,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: 'different preamble',
             toolCalls: [tc('B')],
-            pendingToolCallIds: new Set(['B']),
             existingMessages: existing,
             streamingMessageId: null,
         });
@@ -218,7 +208,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: 'preamble',
             toolCalls: [tc('B')],
-            pendingToolCallIds: new Set(),
             existingMessages: existing,
             streamingMessageId: null,
         });
@@ -239,7 +228,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: 'preamble',
             toolCalls: [tc('X')],
-            pendingToolCallIds: new Set(['X']),
             existingMessages: existing,
             streamingMessageId: null,
         });
@@ -254,7 +242,6 @@ describe('assembleFinalMessages', () => {
         const r = assembleFinalMessages({
             finalText: '',
             toolCalls: [],
-            pendingToolCallIds: new Set(),
             existingMessages: existing,
             streamingMessageId: null,
         });

@@ -72,6 +72,9 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
             content: `invoke the ${toolName} tool. Parameters=${JSON.stringify(additionalForwardedProps || {})}`,
         };
 
+        // Defensive: this is a fresh user-initiated run, so clear any chained-run
+        // marker left over from a prior turn before starting.
+        stream.clearPendingChain();
         session.client.startNewRun();
 
         try {
@@ -102,6 +105,8 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
         }
     }, [session, stream.subscriber, tools, addMessage, getForwardedProps, dispatch, stateRef]);
 
+    const clearPendingChain = stream.clearPendingChain;
+
     return useMemo(() => ({
         agentClient: session.client,
         session: session.session,
@@ -121,6 +126,7 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
         terminateRun,
         debug: session.client.debug,
         getForwardedProps,
+        clearPendingChain,
     }), [
         session.client,
         session.session,
@@ -139,5 +145,6 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
         invokeToolByName,
         terminateRun,
         getForwardedProps,
+        clearPendingChain,
     ]);
 }

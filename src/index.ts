@@ -99,6 +99,14 @@ export interface AgentClientContextValue {
     // Debug mode for LLM input capture (read-only; set via UseAgentOptions.debug at init)
     debug: boolean;
     getForwardedProps: (extraProps?: Record<string, any>) => Record<string, any>;
+    /**
+     * Defensive: clears any pending chained-run marker. Consumers calling
+     * `agentClient.runAgent` directly to start a fresh user-initiated run
+     * while `suppressIntermediateAssistantMessages` is enabled should call
+     * this first. `useAgent.invokeToolByName` calls it automatically.
+     * No-op when `suppressIntermediateAssistantMessages` is off.
+     */
+    clearPendingChain: () => void;
 }
 
 
@@ -180,10 +188,16 @@ export interface AgentConfig {
 export type { TokenProvider, SystemContextBuilder };
 export type { RequestHandler };
 export { AgentClient, AgentProvider, useAgentContext, useAgent };
+
+/** @advanced Lower-level building block. Most consumers should use `useAgent`. */
 export { useAgentSession } from './useAgentSession';
 export type { SessionHandle } from './useAgentSession';
+
+/** @advanced Lower-level building block. Most consumers should use `useAgent`. */
 export { useAgentStream } from './useAgentStream';
 export type { StreamHandle, RunFinishedPayload, PendingToolCall } from './useAgentStream';
+
+/** @advanced Lower-level building block. Most consumers should use `useAgent`. */
 export { useFrontendToolRunner } from './useFrontendToolRunner';
 export type { FrontendToolRunnerOptions } from './useFrontendToolRunner';
 export { filesToBinaryContent } from './fileUtils';

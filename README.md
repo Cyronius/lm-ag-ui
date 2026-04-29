@@ -77,6 +77,8 @@ function ChatUI() {
 
 ## Architecture
 
+> **In doubt? Use `useAgent`.** It composes `useAgentSession` + `useAgentStream` + `useFrontendToolRunner` into a single hook with the right wiring. The lower-level hooks are exposed only for consumers building a custom runner (e.g. running tools in a worker, or skipping the frontend tool layer entirely).
+
 ### Layered structure
 
 - **Transport layer** — [CustomHttpAgent.ts](./CustomHttpAgent.ts): subclasses `@ag-ui/client`'s `HttpAgent` to route the request pipeline through a pluggable `RequestHandler`. Auth headers, retries, and custom fetch behavior hook in here.
@@ -113,7 +115,7 @@ To suppress *intermediate* assistant narration during an agentic chain — keepi
 
 - The first text emitted in a user turn (the first `TEXT_MESSAGE_*` group seen since the user submitted) streams live as it arrives.
 - Text in any subsequent run is buffered until that run's `RUN_FINISHED`. If the run emitted any tool calls (chain continues), the buffered text is dropped — it was intermediate narration. If the run had no tool calls (chain ends), the buffered text is committed as the final-result message.
-- A new turn (a fresh `runAgent` call rather than a tool-result chain continuation) resets the first-text tracking; `useFrontendToolRunner` signals continuation via `stream.chainedRunRef`.
+- A new turn (a fresh `runAgent` call rather than a tool-result chain continuation) resets the first-text tracking. `useFrontendToolRunner` signals continuation by calling `stream.markChainedRun()` immediately before submitting tool results. Consumers calling `agentClient.runAgent` directly to start a fresh user-initiated run while this flag is enabled should call `agent.clearPendingChain()` first as a defensive guard; `useAgent.invokeToolByName` does this automatically.
 
 ### State ownership
 
