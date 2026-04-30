@@ -59,6 +59,9 @@ export class AgentClient {
     // so identical content isn't re-sent on subsequent runs in the same thread.
     // Cleared per-thread on endSession().
     private _injectedContextByThread: Map<string, string> = new Map();
+    // Wall-clock start of the current agentic run (set in startNewRun, cleared in endRun).
+    // Spans the full chain of LLM turns + tool round-trips, not just one runAgent call.
+    private _runStartedAt: number | null = null;
 
     // Session change callback for React integration
     private onSessionChange?: (session: Session) => void;
@@ -155,14 +158,37 @@ export class AgentClient {
             isActive: true
         };
 
+        // Preserve the start time across chained tool round-trips so the
+        // elapsed log covers the full agentic run, not each per-turn hop.
+        if (this._runStartedAt == null) {
+            this._runStartedAt = Date.now();
+        }
         this.updateSession(newSession);
         return this.session;
     }
 
     endRun(): void {
+        const startedAt = this._runStartedAt;
         this.updateSession({
             runId: null,
             isActive: false
+        });
+
+        if (startedAt == null) return;
+
+        // Defer the elapsed log: useFrontendToolRunner calls startNewRun
+        // synchronously after endRun when continuing a tool chain. Wait one
+        // microtask to see whether the run actually ended or just hopped turns.
+        queueMicrotask(() => {
+            if (this._session.isActive) return;
+            if (this._runStartedAt !== startedAt) return;
+            const elapsedMs = Date.now() - startedAt;
+            console.info('[AG-UI] agentic run complete', {
+                threadId: this._session.threadId,
+                elapsedMs,
+                elapsedSec: +(elapsedMs / 1000).toFixed(2),
+            });
+            this._runStartedAt = null;
         });
     }
 
@@ -247,19 +273,24 @@ export class AgentClient {
             const assembled = this._sendFullHistory
                 ? (contextMsg ? [contextMsg, ...messages] : messages)
                 : [contextMsg, messages[messages.length - 1]].filter(Boolean) as Message[];
-            console.info('[AG-UI] runAgent assembled', {
-                assembledCount: assembled.length,
-                hasPrune: !!this._pruneOutboundMessages,
-            });
             const outgoing = this._pruneOutboundMessages
                 ? this._pruneOutboundMessages(assembled)
                 : assembled;
             this.agent.setMessages(outgoing);
 
+            const outgoingBytes = JSON.stringify(outgoing).length;
+            const outgoingPerMessage = outgoing.map((m: any, i: number) => ({
+                i,
+                role: m.role,
+                bytes: JSON.stringify(m).length,
+            }));
             console.info('[AG-UI] RunAgent start:', {
                 threadId,
                 runId,
                 stopAfterToolCall: forwardedProps?.stopAfterToolCall === true,
+                outgoingCount: outgoing.length,
+                outgoingBytes,
+                outgoingPerMessage,
             });
 
             const result = await this.agent.runAgent({
@@ -310,13 +341,6 @@ export class AgentClient {
         // Generate new run ID for continuation
         const runId = this.generateRunId();
 
-        console.info('[AG-UI] RunAgent start (tool results):', {
-            threadId: this._session.threadId,
-            runId,
-            toolMessageCount: toolMessages.length,
-            stopAfterToolCall: forwardedProps?.stopAfterToolCall === true,
-        });
-
         try {
             await this.applyAuthHeaders();
 
@@ -327,14 +351,27 @@ export class AgentClient {
             const assembled = this._sendFullHistory
                 ? (contextMsg ? [contextMsg, ...toolMessages] : toolMessages)
                 : (contextMsg ? [contextMsg, ...toolMessages.filter(m => m.role === 'tool')] : toolMessages.filter(m => m.role === 'tool'));
-            console.info('[AG-UI] submitToolResults assembled', {
-                assembledCount: assembled.length,
-                hasPrune: !!this._pruneOutboundMessages,
-            });
             const outgoing = this._pruneOutboundMessages
                 ? this._pruneOutboundMessages(assembled)
                 : assembled;
             this.agent.setMessages(outgoing);
+
+            const outgoingBytes = JSON.stringify(outgoing).length;
+            const outgoingPerMessage = outgoing.map((m: any, i: number) => ({
+                i,
+                role: m.role,
+                bytes: JSON.stringify(m).length,
+            }));
+            console.info('[AG-UI] RunAgent start (tool results):', {
+                threadId: this._session.threadId,
+                runId,
+                toolMessageCount: toolMessages.length,
+                stopAfterToolCall: forwardedProps?.stopAfterToolCall === true,
+                outgoingCount: outgoing.length,
+                outgoingBytes,
+                outgoingPerMessage,
+            });
+
             const result = await this.agent.runAgent({
                 runId,
                 tools,
