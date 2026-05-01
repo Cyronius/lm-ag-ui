@@ -170,8 +170,8 @@ export function useAgentStream(
     // TextMessageStart with content already buffered) and at RunFinished.
     const flushTurn = () => {
         const before = stateRef.current;
-        const hasUnflushedToolCall = Array.from(before.toolCallBuffers.keys()).some(
-            id => !before.flushedToolCallIds.has(id)
+        const hasUnflushedToolCall = Array.from(before.toolCallBuffers.entries()).some(
+            ([id, buf]) => !before.flushedToolCallIds.has(id) && !buf.resultReceived
         );
         if (!before.streamingText.trim() && !hasUnflushedToolCall) return;
         dispatch({ type: 'FINALIZE_TURN' });
@@ -219,9 +219,13 @@ export function useAgentStream(
         console.info('[AG-UI] RunFinished:', { event });
         // Resolve buffered text BEFORE flushTurn so the decision uses the
         // run's tool-call presence (cleared by FINALIZE_TURN inside flushTurn).
+        // Tool calls whose result has already arrived in this run (backend
+        // tools) don't gate a chained continuation — they're terminal, so the
+        // trailing assistant text in the same run is the final text and must
+        // commit, not drop.
         const before = stateRef.current;
-        const hasUnflushedToolCall = Array.from(before.toolCallBuffers.keys()).some(
-            id => !before.flushedToolCallIds.has(id)
+        const hasUnflushedToolCall = Array.from(before.toolCallBuffers.entries()).some(
+            ([id, buf]) => !before.flushedToolCallIds.has(id) && !buf.resultReceived
         );
         const { commit, dropped } = suppressorRef.current.onRunFinished(hasUnflushedToolCall);
         if (dropped.length > 0) {

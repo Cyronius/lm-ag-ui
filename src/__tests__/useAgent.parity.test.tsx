@@ -472,6 +472,128 @@ describe('useAgent parity harness', () => {
         expect(h.fake.submitToolResultsCalls.length).toBe(0);
     });
 
+    it('suppressIntermediateAssistantMessages ON: backend tool result + trailing text in same run — trailing text commits', async () => {
+        // Regression: a single run where a backend tool resolves mid-stream and
+        // the agent emits a final TextMessage after the tool result. The
+        // trailing text is buffered (it's the second text in the turn) and
+        // must commit at RunFinished — the tool already has its result, so
+        // the run is terminal, not an intermediate step in a chain.
+        const tools: Record<string, ToolDefinition> = {
+            backendThing: {
+                definition: { name: 'backendThing', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                isFrontend: false,
+            },
+        };
+        const h = await setup(tools, { suppressIntermediateAssistantMessages: true });
+        const sub = h.sub;
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m1') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m1', 'preamble') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tcB', 'backendThing') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tcB', '{}') } as any);
+            sub.onToolCallResultEvent!({ event: ev.toolResult('tcB', '{"ok":false,"error":"not configured"}') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m2') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m2', 'final apology') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m2') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
+        });
+        await flush();
+        const assistantTexts = h.ctx.messages.filter(m => m.role === 'assistant').map(m => m.content);
+        expect(assistantTexts).toContain('final apology');
+        expect(h.fake.submitToolResultsCalls.length).toBe(0);
+    });
+
+    it('suppressIntermediateAssistantMessages ON: frontend tool with trailing text in run1 still drops the mid-chain text (regression)', async () => {
+        // Counterpart to the backend-tool case: a frontend tool has no
+        // ToolCallResult in the same run; the chained run continues. The
+        // trailing text in run1 is intermediate narration and must drop.
+        const tools: Record<string, ToolDefinition> = {
+            frontendThing: {
+                definition: { name: 'frontendThing', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                isFrontend: true,
+                handler: () => '{"ok":true}',
+            },
+        };
+        const h = await setup(tools, { suppressIntermediateAssistantMessages: true });
+        const sub = h.sub;
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m1') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m1', 'first') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tcF', 'frontendThing') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tcF', '{}') } as any);
+            sub.onToolCallEndEvent!({ event: ev.toolEnd('tcF') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m2') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m2', 'mid-chain narration') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m2') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r2') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m3') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m3', 'final after chain') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m3') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r2') } as any);
+        });
+        await flush();
+        const assistantTexts = h.ctx.messages.filter(m => m.role === 'assistant').map(m => m.content);
+        expect(assistantTexts).toContain('final after chain');
+        expect(assistantTexts).not.toContain('mid-chain narration');
+    });
+
+    it('REPRO bug-report scenario: run1 FE tool → chained run2 BE tool with result + trailing text — trailing text commits', async () => {
+        // Mirrors the actual production trace: agent calls a frontend tool
+        // first (e.g. get_user_info), runner submits results, chained run2
+        // calls a backend tool (submit_contact_form) that resolves mid-stream
+        // and the agent emits a final apology. The final text MUST commit.
+        const tools: Record<string, ToolDefinition> = {
+            get_user_info: {
+                definition: { name: 'get_user_info', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                isFrontend: true,
+                handler: () => JSON.stringify({ ok: true, userName: 'a@b.com', firstName: 'A', lastName: 'B' }),
+            },
+            submit_contact_form: {
+                definition: { name: 'submit_contact_form', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                isFrontend: false,
+            },
+        };
+        const h = await setup(tools, { suppressIntermediateAssistantMessages: true });
+        const sub = h.sub;
+
+        // Run 1: assistant says "I'll help..." then calls FE get_user_info (no tool result).
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m1') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m1', "I'll help you submit a bug report.") } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tcA', 'get_user_info', 'm1') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tcA', '{}') } as any);
+            sub.onToolCallEndEvent!({ event: ev.toolEnd('tcA') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
+        });
+        await flush();
+
+        // Run 2 (chained, post-tool-results): empty anchor text + BE tool with result + final apology.
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r2') } as any);
+            // Anchor empty text (the ToolCallStart's parentMessageId).
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m_anchor') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m_anchor') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tcB', 'submit_contact_form', 'm_anchor') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tcB', '{}') } as any);
+            sub.onToolCallEndEvent!({ event: ev.toolEnd('tcB') } as any);
+            sub.onToolCallResultEvent!({ event: ev.toolResult('tcB', '{"success":true}') } as any);
+            sub.onTextMessageStartEvent!({ event: ev.textStart('m_final') } as any);
+            sub.onTextMessageContentEvent!({ event: ev.textDelta('m_final', 'Your bug report has been submitted successfully.') } as any);
+            sub.onTextMessageEndEvent!({ event: ev.textEnd('m_final') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r2') } as any);
+        });
+        await flush();
+        const assistantTexts = h.ctx.messages.filter(m => m.role === 'assistant').map(m => m.content);
+        expect(assistantTexts).toContain('Your bug report has been submitted successfully.');
+    });
+
     it('run error: adds error message and calls onError', async () => {
         const h = await setup();
         const sub = h.sub;
