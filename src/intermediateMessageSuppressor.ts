@@ -76,6 +76,10 @@ export class IntermediateMessageSuppressor {
         if (seg) seg.text += delta;
     }
 
+    getBufferedText(messageId: string): string | undefined {
+        return this.bufferedSegments.find(s => s.messageId === messageId)?.text;
+    }
+
     /** Called on RUN_FINISHED, BEFORE any tool buffers are cleared. Caller passes
      *  whether the just-finished run had any unflushed tool calls. Returns the
      *  segments to commit (final-run case) and segments to drop (intermediate-run case). */

@@ -204,9 +204,14 @@ export function useAgentStream(
 
     subscriberRef.current.onTextMessageEndEvent = ({ event }: { event: TextMessageEndEvent }) => {
         if (suppressorRef.current.isBuffered(event.messageId)) {
+            // Log the suppressed narration so it's still visible in the console
+            // even though it won't be committed to the message list.
+            const buffered = suppressorRef.current.getBufferedText(event.messageId) ?? '';
+            console.debug('[AG-UI] AssistantMessage (suppressed):', { messageId: event.messageId, content: buffered });
             // Keep buffered; final disposition decided at RUN_FINISHED.
             return;
         }
+        console.debug('[AG-UI] AssistantMessage:', { messageId: event.messageId, content: stateRef.current.streamingText });
         console.info('[AG-UI] TextMessageEnd:', { messageId: event.messageId });
     };
 
