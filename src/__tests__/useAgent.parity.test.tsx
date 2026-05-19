@@ -545,7 +545,7 @@ describe('useAgent parity harness', () => {
     it('REPRO bug-report scenario: run1 FE tool → chained run2 BE tool with result + trailing text — trailing text commits', async () => {
         // Mirrors the actual production trace: agent calls a frontend tool
         // first (e.g. get_user_info), runner submits results, chained run2
-        // calls a backend tool (submit_contact_form) that resolves mid-stream
+        // calls a backend tool (submit_bug_report) that resolves mid-stream
         // and the agent emits a final apology. The final text MUST commit.
         const tools: Record<string, ToolDefinition> = {
             get_user_info: {
@@ -553,8 +553,8 @@ describe('useAgent parity harness', () => {
                 isFrontend: true,
                 handler: () => JSON.stringify({ ok: true, userName: 'a@b.com', firstName: 'A', lastName: 'B' }),
             },
-            submit_contact_form: {
-                definition: { name: 'submit_contact_form', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+            submit_bug_report: {
+                definition: { name: 'submit_bug_report', description: '', parameters: { type: 'object', properties: {}, required: [] } },
                 isFrontend: false,
             },
         };
@@ -580,7 +580,7 @@ describe('useAgent parity harness', () => {
             // Anchor empty text (the ToolCallStart's parentMessageId).
             sub.onTextMessageStartEvent!({ event: ev.textStart('m_anchor') } as any);
             sub.onTextMessageEndEvent!({ event: ev.textEnd('m_anchor') } as any);
-            sub.onToolCallStartEvent!({ event: ev.toolStart('tcB', 'submit_contact_form', 'm_anchor') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tcB', 'submit_bug_report', 'm_anchor') } as any);
             sub.onToolCallArgsEvent!({ event: ev.toolArgs('tcB', '{}') } as any);
             sub.onToolCallEndEvent!({ event: ev.toolEnd('tcB') } as any);
             sub.onToolCallResultEvent!({ event: ev.toolResult('tcB', '{"success":true}') } as any);
