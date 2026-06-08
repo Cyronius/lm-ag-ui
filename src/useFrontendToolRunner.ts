@@ -10,6 +10,87 @@ export interface FrontendToolRunnerOptions {
     buildForwardedProps?: ForwardedPropsBuilder;
 }
 
+export interface FrontendToolExecution {
+    /**
+     * The `role: 'tool'` result message to submit back to the agent. Always
+     * produced for a frontend tool call — including when arg parsing fails or
+     * the handler throws — so the agent protocol stays whole (no dangling
+     * tool_call) and the model receives a structured failure it can react to.
+     */
+    message: Message;
+    /** Parsed tool args, or `undefined` when JSON parsing failed. */
+    args: unknown;
+    /** The handler's raw return value; `undefined` if the handler threw. */
+    result: string | null | undefined;
+    /** True when the handler ran to completion (did not throw). Gates `onResult`. */
+    executed: boolean;
+}
+
+/**
+ * Run one frontend tool call and build its result message. Pure with respect to
+ * control flow — it never throws: a JSON-parse failure or a handler exception is
+ * caught and turned into an `{ ok: false, error }` tool-result message, mirroring
+ * the existing invalid-args path. This is what guarantees a thrown handler is
+ * surfaced to the model as a real tool result (and counted by any failure
+ * circuit breaker) instead of leaking out as a stray assistant message with no
+ * result submitted for the call.
+ *
+ * Side effects (dispatching the message, invoking `onResult`) are left to the
+ * caller so this stays unit-testable. `nowMs` is injected for a deterministic id.
+ */
+export function executeFrontendToolCall(
+    tool: ToolDefinition | undefined,
+    toolName: string,
+    argsJson: string | null,
+    toolCallId: string,
+    ctx: {
+        updateState: (toolName: string, data: unknown) => void;
+        getState: (toolName?: string) => unknown;
+        stopAfterToolCall: () => void;
+    },
+    nowMs: number
+): FrontendToolExecution {
+    const mkMessage = (content: string): Message => ({
+        id: `tool_${toolCallId}_${nowMs}`,
+        role: 'tool',
+        content,
+        toolCallId,
+    });
+
+    let args: unknown;
+    try {
+        args = argsJson ? JSON.parse(argsJson) : null;
+    } catch (parseError) {
+        const detail = parseError instanceof Error ? parseError.message : String(parseError);
+        console.error(`Invalid JSON args for tool ${toolName}:`, parseError, { raw: argsJson });
+        return {
+            message: mkMessage(JSON.stringify({ ok: false, error: 'invalid_tool_args', message: detail, raw: argsJson })),
+            args: undefined,
+            result: undefined,
+            executed: false,
+        };
+    }
+
+    try {
+        const handlerCtx = {
+            toolCallId,
+            toolName,
+            stopAfterToolCall: ctx.stopAfterToolCall,
+        };
+        const result = tool?.handler?.(args, ctx.updateState, ctx.getState, tool.configJson, handlerCtx);
+        return { message: mkMessage(result || '{}'), args, result, executed: true };
+    } catch (error) {
+        console.error(`Tool execution error for ${toolName}:`, error);
+        const detail = error instanceof Error ? error.message : String(error);
+        return {
+            message: mkMessage(JSON.stringify({ ok: false, error: 'tool_execution_error', message: detail })),
+            args,
+            result: undefined,
+            executed: false,
+        };
+    }
+}
+
 /**
  * Effect-only hook. Subscribes to stream.onRunFinished and, for each pending
  * tool call that has a frontend handler, executes it, dispatches the tool
@@ -56,53 +137,27 @@ export function useFrontendToolRunner(
                 toolName ? stateRef.current.globalState[toolName] : stateRef.current.globalState;
 
             const executeFrontendTool = (toolName: string, argsJson: string | null, toolCallId: string): Message | null => {
-                let args: unknown;
-                try {
-                    args = argsJson ? JSON.parse(argsJson) : null;
-                } catch (parseError) {
-                    // Synthesize a tool-result message so the protocol stays whole;
-                    // the backend gets a structured error and can react instead of stalling.
-                    const detail = parseError instanceof Error ? parseError.message : String(parseError);
-                    const errorContent = JSON.stringify({ error: 'invalid_tool_args', message: detail, raw: argsJson });
-                    const toolMessage: Message = {
-                        id: `tool_${toolCallId}_${Date.now()}`,
-                        role: 'tool',
-                        content: errorContent,
-                        toolCallId,
-                    };
-                    dispatch({ type: 'ADD_MESSAGE', message: toolMessage });
-                    console.error(`Invalid JSON args for tool ${toolName}:`, parseError, { raw: argsJson });
-                    return toolMessage;
-                }
-                try {
-                    const tool = frontEndToolsRef.current[toolName];
-                    const ctx = {
-                        toolCallId,
-                        toolName,
-                        stopAfterToolCall: () => { stopAfterToolCall = true; },
-                    };
-                    const result = tool.handler?.(args, updateState, getState, tool.configJson, ctx);
-                    const toolMessage: Message = {
-                        id: `tool_${toolCallId}_${Date.now()}`,
-                        role: 'tool',
-                        content: result || '{}',
-                        toolCallId,
-                    };
-                    dispatch({ type: 'ADD_MESSAGE', message: toolMessage });
-                    if (tool.onResult) {
-                        try {
-                            tool.onResult(args, result || '', updateState, getState);
-                        } catch (error) {
-                            console.error(`Error calling onResult for tool ${toolName}:`, error);
-                        }
+                const tool = frontEndToolsRef.current[toolName];
+                // Always yields a result message — a parse failure or a handler
+                // throw becomes an { ok: false } tool result rather than a stray
+                // assistant message with no result submitted for the call.
+                const { message, args, result, executed } = executeFrontendToolCall(
+                    tool,
+                    toolName,
+                    argsJson,
+                    toolCallId,
+                    { updateState, getState, stopAfterToolCall: () => { stopAfterToolCall = true; } },
+                    Date.now()
+                );
+                dispatch({ type: 'ADD_MESSAGE', message });
+                if (executed && tool.onResult) {
+                    try {
+                        tool.onResult(args, result || '', updateState, getState);
+                    } catch (error) {
+                        console.error(`Error calling onResult for tool ${toolName}:`, error);
                     }
-                    return toolMessage;
-                } catch (error) {
-                    console.error(`Tool execution error for ${toolName}:`, error);
-                    const errorDetail = error instanceof Error ? error.message : String(error);
-                    addErrorMessage(`Error executing tool '${toolName}': ${errorDetail}`);
-                    return null;
                 }
+                return message;
             };
 
             try {
