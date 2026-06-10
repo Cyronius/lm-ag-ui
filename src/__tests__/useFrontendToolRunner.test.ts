@@ -41,9 +41,9 @@ afterEach(() => {
 });
 
 describe('executeFrontendToolCall', () => {
-    it('returns the handler result as a tool-role message on success', () => {
+    it('returns the handler result as a tool-role message on success', async () => {
         const tool = makeTool(() => JSON.stringify({ ok: true, columnId: 'c1' }));
-        const { message, result, executed, args } = executeFrontendToolCall(
+        const { message, result, executed, args } = await executeFrontendToolCall(
             tool, 'do_thing', JSON.stringify({ columnId: 'c1' }), 'call_1', ctx, NOW,
         );
 
@@ -56,9 +56,9 @@ describe('executeFrontendToolCall', () => {
         expect(args).toEqual({ columnId: 'c1' });
     });
 
-    it('surfaces a thrown handler as an ok:false tool message (not a dropped result)', () => {
+    it('surfaces a thrown handler as an ok:false tool message (not a dropped result)', async () => {
         const tool = makeTool(() => { throw new Error('boom'); });
-        const { message, result, executed } = executeFrontendToolCall(
+        const { message, result, executed } = await executeFrontendToolCall(
             tool, 'do_thing', '{}', 'call_2', ctx, NOW,
         );
 
@@ -74,9 +74,9 @@ describe('executeFrontendToolCall', () => {
         expect(result).toBeUndefined();
     });
 
-    it('surfaces invalid JSON args as an ok:false tool message', () => {
+    it('surfaces invalid JSON args as an ok:false tool message', async () => {
         const tool = makeTool(() => JSON.stringify({ ok: true }));
-        const { message, executed, args } = executeFrontendToolCall(
+        const { message, executed, args } = await executeFrontendToolCall(
             tool, 'do_thing', '{not json', 'call_3', ctx, NOW,
         );
 
@@ -89,16 +89,16 @@ describe('executeFrontendToolCall', () => {
         expect(args).toBeUndefined();
     });
 
-    it('does not invoke the handler when args fail to parse', () => {
+    it('does not invoke the handler when args fail to parse', async () => {
         const handler = vi.fn(() => '{}');
         const tool = makeTool(handler);
-        executeFrontendToolCall(tool, 'do_thing', '{bad', 'call_4', ctx, NOW);
+        await executeFrontendToolCall(tool, 'do_thing', '{bad', 'call_4', ctx, NOW);
         expect(handler).not.toHaveBeenCalled();
     });
 
-    it('coerces a falsy handler return to "{}" and still marks executed', () => {
+    it('coerces a falsy handler return to "{}" and still marks executed', async () => {
         const tool = makeTool(() => null);
-        const { message, executed } = executeFrontendToolCall(
+        const { message, executed } = await executeFrontendToolCall(
             tool, 'do_thing', '{}', 'call_5', ctx, NOW,
         );
         expect(message.content).toBe('{}');
@@ -106,10 +106,10 @@ describe('executeFrontendToolCall', () => {
         expect(executed).toBe(true);
     });
 
-    it('passes parsed args, state callbacks, configJson, and a context to the handler', () => {
+    it('passes parsed args, state callbacks, configJson, and a context to the handler', async () => {
         const handler = vi.fn(() => '{}');
         const tool: ToolDefinition = { ...makeTool(handler), configJson: { foo: 'bar' } };
-        executeFrontendToolCall(tool, 'do_thing', JSON.stringify({ a: 1 }), 'call_6', ctx, NOW);
+        await executeFrontendToolCall(tool, 'do_thing', JSON.stringify({ a: 1 }), 'call_6', ctx, NOW);
 
         expect(handler).toHaveBeenCalledTimes(1);
         const [argsArg, updateStateArg, getStateArg, configArg, ctxArg] = handler.mock.calls[0];
@@ -120,9 +120,47 @@ describe('executeFrontendToolCall', () => {
         expect(ctxArg).toMatchObject({ toolCallId: 'call_6', toolName: 'do_thing' });
     });
 
-    it('wires ctx.stopAfterToolCall through to the handler context', () => {
+    it('wires ctx.stopAfterToolCall through to the handler context', async () => {
         const tool = makeTool((_a, _u, _g, _c, handlerCtx) => { handlerCtx?.stopAfterToolCall(); return '{}'; });
-        executeFrontendToolCall(tool, 'do_thing', '{}', 'call_7', ctx, NOW);
+        await executeFrontendToolCall(tool, 'do_thing', '{}', 'call_7', ctx, NOW);
         expect(ctx.stopAfterToolCall).toHaveBeenCalledTimes(1);
+    });
+
+    // --- Async handlers: sync and async flow through the same awaited path ---
+
+    it('resolves an async handler that returns a Promise<string> into the tool message', async () => {
+        const tool = makeTool(async () => JSON.stringify({ ok: true, fetched: 'data' }));
+        const { message, result, executed } = await executeFrontendToolCall(
+            tool, 'do_thing', '{}', 'call_8', ctx, NOW,
+        );
+
+        expect(message.role).toBe('tool');
+        expect(parse(message.content as string)).toEqual({ ok: true, fetched: 'data' });
+        expect(result).toBe(JSON.stringify({ ok: true, fetched: 'data' }));
+        expect(executed).toBe(true);
+    });
+
+    it('surfaces a rejected async handler as an ok:false tool message (parity with a sync throw)', async () => {
+        const tool = makeTool(async () => { throw new Error('boom'); });
+        const { message, result, executed } = await executeFrontendToolCall(
+            tool, 'do_thing', '{}', 'call_9', ctx, NOW,
+        );
+
+        expect(message.role).toBe('tool');
+        const body = parse(message.content as string);
+        expect(body.ok).toBe(false);
+        expect(body.error).toBe('tool_execution_error');
+        expect(body.message).toBe('boom');
+        expect(executed).toBe(false);
+        expect(result).toBeUndefined();
+    });
+
+    it('coerces an async handler resolving to null to "{}" and marks executed', async () => {
+        const tool = makeTool(async () => null);
+        const { message, executed } = await executeFrontendToolCall(
+            tool, 'do_thing', '{}', 'call_10', ctx, NOW,
+        );
+        expect(message.content).toBe('{}');
+        expect(executed).toBe(true);
     });
 });

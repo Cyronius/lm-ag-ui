@@ -48,13 +48,19 @@ export interface ToolContext {
 // Tool handler executes the tool's logic (frontend tools only).
 // `ctx` is optional for backward compatibility — existing handlers that
 // ignore it continue to work.
+//
+// A handler may return its result synchronously (`string | null`) OR
+// asynchronously (`Promise<string | null>`). The runner awaits the return, so
+// both forms are handled by the same code path — a sync tool needs no change,
+// and an async tool (e.g. one that fetches) opts in simply by being declared
+// `async`. See useFrontendToolRunner.executeFrontendToolCall.
 export type ToolHandler = (
     args: any,
     updateState: (toolName: string, data: unknown) => void,
     getState: (toolName?: string) => unknown,
     configJson?: Record<string, unknown>,
     ctx?: ToolContext
-) => string | null;
+) => string | null | Promise<string | null>;
 
 // Tool renderer handles display/artifacts for the tool result (both frontend and backend)
 export type ToolRenderer = (
