@@ -46,6 +46,14 @@ export interface UseAgentSetupOptions {
     frontendToolImpls?: Record<string, Partial<ToolDefinition>>;
     /** Called after config loads from the backend. Use this to transform toolConfigs into tools, extract settings, etc. */
     onConfigLoaded?: (config: AgentConfig) => AgentConfig;
+    /**
+     * Optional extra query params appended to the config-init GET
+     * (`GET /agent/{agentId}`). Array values are sent as repeated keys
+     * (`?kbIds=a&kbIds=b`). Read when config loads; pass a stable reference
+     * (memoized object) — a new identity per render re-triggers the config
+     * fetch, like tokenProvider/requestHandler.
+     */
+    configParams?: Record<string, string | string[]>;
 }
 
 export interface UseAgentSetupResult {
@@ -79,7 +87,8 @@ export function useAgentSetup({
     pruneOutboundMessages,
     suppressIntermediateAssistantMessages,
     frontendToolImpls,
-    onConfigLoaded
+    onConfigLoaded,
+    configParams
 }: UseAgentSetupOptions): UseAgentSetupResult {
     const [config, setConfig] = useState<AgentConfig | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -93,7 +102,7 @@ export function useAgentSetup({
         setIsLoading(true);
         setError(null);
 
-        loadAgentConfig(baseUrl!, agentId, tokenProvider, requestHandler)
+        loadAgentConfig(baseUrl!, agentId, tokenProvider, requestHandler, undefined, configParams)
             .then(loadedConfig => {
                 if (cancelled) return;
                 // Auto-hydrate tools from backend configs + caller-supplied frontend impls,
@@ -114,7 +123,7 @@ export function useAgentSetup({
             });
 
         return () => { cancelled = true; };
-    }, [isReady, baseUrl, agentId, tokenProvider, requestHandler]);
+    }, [isReady, baseUrl, agentId, tokenProvider, requestHandler, configParams]);
 
     // Build the AgentLayer component.
     // When config is null, it's a passthrough (children render without AgentProvider).

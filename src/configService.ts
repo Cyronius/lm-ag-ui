@@ -32,9 +32,23 @@ interface AgentConfigResponse {
  */
 const DEFAULT_CONFIG_TIMEOUT_MS = 30000;
 
-export async function loadAgentConfig(baseUrl: string, agentId: string, tokenProvider?: TokenProvider, requestHandler?: RequestHandler, timeout: number = DEFAULT_CONFIG_TIMEOUT_MS): Promise<AgentConfig> {
+export async function loadAgentConfig(baseUrl: string, agentId: string, tokenProvider?: TokenProvider, requestHandler?: RequestHandler, timeout: number = DEFAULT_CONFIG_TIMEOUT_MS, configParams?: Record<string, string | string[]>): Promise<AgentConfig> {
 
-	const configUrl = `${baseUrl}/agent/${agentId}`;
+	// Extra query params on the config-init GET (e.g. kbIds — MOBI-KB-TOOL).
+	// Array values are appended as repeated keys (?kbIds=a&kbIds=b). No params →
+	// the URL is unchanged (no trailing '?').
+	let configUrl = `${baseUrl}/agent/${agentId}`;
+	if (configParams && Object.keys(configParams).length > 0) {
+		const search = new URLSearchParams();
+		for (const [key, value] of Object.entries(configParams)) {
+			if (Array.isArray(value)) {
+				for (const v of value) search.append(key, v);
+			} else {
+				search.append(key, value);
+			}
+		}
+		configUrl += `?${search.toString()}`;
+	}
 
 	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 	if (tokenProvider) {

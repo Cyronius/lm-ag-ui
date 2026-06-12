@@ -94,6 +94,37 @@ describe('loadAgentConfig', () => {
         ).rejects.toThrow("Config loading timed out after 50ms for agent 'test-agent'");
     });
 
+    // Traces: MOBI-KB-TOOL (canonical spec: lm-admin/specs/mobi/spec.md)
+    it('appends configParams to the config URL, arrays as repeated keys', async () => {
+        const fetchFn = mockFetch(mockConfigResponse);
+        await loadAgentConfig('http://example.com', 'my-agent', undefined, fetchFn, undefined, {
+            kbIds: ['kb-1', 'kb-2'],
+            mode: 'full'
+        });
+
+        expect(fetchFn).toHaveBeenCalledWith(
+            'http://example.com/agent/my-agent?kbIds=kb-1&kbIds=kb-2&mode=full',
+            expect.objectContaining({ method: 'GET' })
+        );
+    });
+
+    // Traces: MOBI-KB-TOOL (canonical spec: lm-admin/specs/mobi/spec.md)
+    it('omits the query string when configParams is absent or empty', async () => {
+        const noParams = mockFetch(mockConfigResponse);
+        await loadAgentConfig('http://example.com', 'my-agent', undefined, noParams);
+        expect(noParams).toHaveBeenCalledWith(
+            'http://example.com/agent/my-agent',
+            expect.objectContaining({ method: 'GET' })
+        );
+
+        const emptyParams = mockFetch(mockConfigResponse);
+        await loadAgentConfig('http://example.com', 'my-agent', undefined, emptyParams, undefined, {});
+        expect(emptyParams).toHaveBeenCalledWith(
+            'http://example.com/agent/my-agent',
+            expect.objectContaining({ method: 'GET' })
+        );
+    });
+
     it('defaults empty config to empty object', async () => {
         const noConfig = { ...mockConfigResponse, config: undefined };
         const fetchFn = mockFetch(noConfig);
