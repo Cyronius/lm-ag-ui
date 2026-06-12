@@ -35,10 +35,16 @@ export interface FrontendToolExecution {
  * circuit breaker) instead of leaking out as a stray assistant message with no
  * result submitted for the call.
  *
+ * The handler's return is `await`ed, so a handler may be synchronous
+ * (`string | null`) or asynchronous (`Promise<string | null>`) — both flow
+ * through the same path (`await` on a non-Promise resolves to the value). A
+ * rejected Promise is caught exactly like a synchronous throw. Hence this
+ * function is async and returns a Promise.
+ *
  * Side effects (dispatching the message, invoking `onResult`) are left to the
  * caller so this stays unit-testable. `nowMs` is injected for a deterministic id.
  */
-export function executeFrontendToolCall(
+export async function executeFrontendToolCall(
     tool: ToolDefinition | undefined,
     toolName: string,
     argsJson: string | null,
@@ -49,7 +55,7 @@ export function executeFrontendToolCall(
         stopAfterToolCall: () => void;
     },
     nowMs: number
-): FrontendToolExecution {
+): Promise<FrontendToolExecution> {
     const mkMessage = (content: string): Message => ({
         id: `tool_${toolCallId}_${nowMs}`,
         role: 'tool',
@@ -77,7 +83,9 @@ export function executeFrontendToolCall(
             toolName,
             stopAfterToolCall: ctx.stopAfterToolCall,
         };
-        const result = tool?.handler?.(args, ctx.updateState, ctx.getState, tool.configJson, handlerCtx);
+        // Await normalizes sync and async handlers; a rejected Promise lands in
+        // the catch below, identical to a synchronous throw.
+        const result = await tool?.handler?.(args, ctx.updateState, ctx.getState, tool.configJson, handlerCtx);
         return { message: mkMessage(result || '{}'), args, result, executed: true };
     } catch (error) {
         console.error(`Tool execution error for ${toolName}:`, error);
@@ -114,14 +122,27 @@ export function useFrontendToolRunner(
     frontEndToolsRef.current = frontEndTools;
     buildFwdRef.current = buildForwardedProps;
 
+    // Reentrancy guard. Handlers are awaited, so there is now a window between a
+    // RUN_FINISHED and the submitToolResults that starts the next run. A second
+    // RUN_FINISHED arriving in that window must not re-process the not-yet-cleared
+    // tool buffers. The flag early-returns the overlapping invocation.
+    const isProcessingRef = useRef(false);
+
     useEffect(() => {
         const unsub = stream.onRunFinished((_payload: RunFinishedPayload) => {
-            handlePendingToolCalls();
+            // The subscriber callback is sync; drive the async runner and route any
+            // unexpected rejection to a visible assistant message.
+            void handlePendingToolCalls().catch((error: unknown) => {
+                stream.dispatch({ type: 'ADD_MESSAGE', message: { id: uuidv4(), role: 'assistant', content: `${error}` } });
+            });
         });
         return unsub;
 
         // Scoped per run — flag bookkeeping lives inside the runner.
-        function handlePendingToolCalls() {
+        async function handlePendingToolCalls() {
+            if (isProcessingRef.current) return;
+            isProcessingRef.current = true;
+
             let stopAfterToolCall = false;
             const toolMessages: Message[] = [];
             const dispatch = stream.dispatch;
@@ -136,12 +157,12 @@ export function useFrontendToolRunner(
             const getState = (toolName?: string) =>
                 toolName ? stateRef.current.globalState[toolName] : stateRef.current.globalState;
 
-            const executeFrontendTool = (toolName: string, argsJson: string | null, toolCallId: string): Message | null => {
+            const executeFrontendTool = async (toolName: string, argsJson: string | null, toolCallId: string): Promise<Message | null> => {
                 const tool = frontEndToolsRef.current[toolName];
                 // Always yields a result message — a parse failure or a handler
-                // throw becomes an { ok: false } tool result rather than a stray
-                // assistant message with no result submitted for the call.
-                const { message, args, result, executed } = executeFrontendToolCall(
+                // throw/rejection becomes an { ok: false } tool result rather than
+                // a stray assistant message with no result submitted for the call.
+                const { message, args, result, executed } = await executeFrontendToolCall(
                     tool,
                     toolName,
                     argsJson,
@@ -161,11 +182,14 @@ export function useFrontendToolRunner(
             };
 
             try {
+                // Sequential await preserves message ordering and the
+                // stopAfterToolCall / onResult semantics across multiple pending
+                // calls (Promise.all is intentionally avoided here).
                 for (const [toolCallId, toolCall] of stateRef.current.toolCallBuffers.entries()) {
                     if (toolCall.resultReceived) continue;
                     let result: Message | null = null;
                     if (frontEndToolsRef.current[toolCall.name]) {
-                        result = executeFrontendTool(toolCall.name, toolCall.argsBuffer, toolCallId);
+                        result = await executeFrontendTool(toolCall.name, toolCall.argsBuffer, toolCallId);
                     } else {
                         console.warn(`[AG-UI] Tool '${toolCall.name}' is not a frontend tool and has no backend result — skipping`);
                     }
@@ -198,6 +222,7 @@ export function useFrontendToolRunner(
                         addErrorMessage(`Failed to submit tool results: ${error}`);
                     });
                 }
+                isProcessingRef.current = false;
             }
         }
     }, [stream, session]);
