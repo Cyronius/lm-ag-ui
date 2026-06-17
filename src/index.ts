@@ -162,6 +162,12 @@ export interface UseAgentOptions {
      *  another tool call after itself is dropped. FE-local — does not cross
      *  the wire. Default: false. */
     suppressIntermediateAssistantMessages?: boolean;
+    /** Extra query params appended to BOTH the config-init GET and every run
+     *  POST (`/agent/{agentId}`). Array values are sent as repeated keys
+     *  (`?kbIds=a&kbIds=b`). Used for per-session backend tool selection such as
+     *  course knowledge bases (MOBI-KB-TOOL): the config GET reports the tool and
+     *  the run POST attaches it. Stable for the session. */
+    configParams?: Record<string, string | string[]>;
 }
 
 export interface Suggestion {

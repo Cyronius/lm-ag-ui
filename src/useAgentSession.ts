@@ -27,6 +27,7 @@ export function useAgentSession(options: UseAgentOptions): SessionHandle {
         systemContextBuilder,
         debug,
         pruneOutboundMessages,
+        configParams,
     } = options;
 
     const [client] = useState(
@@ -39,6 +40,7 @@ export function useAgentSession(options: UseAgentOptions): SessionHandle {
             systemContextBuilder,
             debug,
             pruneOutboundMessages,
+            configParams,
         })
     );
 

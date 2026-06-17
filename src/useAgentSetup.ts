@@ -147,6 +147,7 @@ export function useAgentSetup({
             sendFullHistory,
             pruneOutboundMessages,
             suppressIntermediateAssistantMessages,
+            configParams,
         };
 
         // This is a new component — useAgent's useState initializer runs fresh
@@ -157,7 +158,7 @@ export function useAgentSetup({
         };
         Layer.displayName = 'AgentLayer';
         return Layer;
-    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, tools, buildForwardedProps, systemContextBuilder, debug, sendFullHistory, pruneOutboundMessages, suppressIntermediateAssistantMessages]);
+    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, tools, buildForwardedProps, systemContextBuilder, debug, sendFullHistory, pruneOutboundMessages, suppressIntermediateAssistantMessages, configParams]);
 
     return { config, isLoading, error, AgentLayer };
 }

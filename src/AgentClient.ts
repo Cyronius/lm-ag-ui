@@ -41,6 +41,13 @@ export interface AgentClientOptions {
      * ordering and tool-call/tool-result pairing — only `content` may change.
      */
     pruneOutboundMessages?: (messages: Message[]) => Message[];
+    /**
+     * Extra query params appended to the agent URL (used for the run POST and,
+     * via configService, the config-init GET). Array values are sent as repeated
+     * keys (`?kbIds=a&kbIds=b`). Used for per-session backend tool selection such
+     * as course knowledge bases (MOBI-KB-TOOL). Fixed at construction.
+     */
+    configParams?: Record<string, string | string[]>;
 }
 
 export class AgentClient {
@@ -55,6 +62,7 @@ export class AgentClient {
     private _sendFullHistory: boolean;
     private _systemContextBuilder?: SystemContextBuilder;
     private _pruneOutboundMessages?: (messages: Message[]) => Message[];
+    private _configParams?: Record<string, string | string[]>;
     // Tracks the last rendered system-context content we injected for each thread,
     // so identical content isn't re-sent on subsequent runs in the same thread.
     // Cleared per-thread on endSession().
@@ -89,6 +97,7 @@ export class AgentClient {
         this._sendFullHistory = options?.sendFullHistory ?? false;
         this._systemContextBuilder = options?.systemContextBuilder;
         this._pruneOutboundMessages = options?.pruneOutboundMessages;
+        this._configParams = options?.configParams;
         this._debug = options?.debug ?? false;
         console.info('[AG-UI] AgentClient constructed:', {
             agentId,
@@ -106,10 +115,24 @@ export class AgentClient {
         };
     }
 
-    // Build agent URL with optional debug query param
+    // Build agent URL with optional debug + configParams query string.
+    // configParams array values become repeated keys (?kbIds=a&kbIds=b) so the
+    // backend reads them as a list (MOBI-KB-TOOL).
     private buildAgentUrl(): string {
         const base = `${this.baseUrl}/agent/${this.agentId}`;
-        return this._debug ? `${base}?debug=true` : base;
+        const search = new URLSearchParams();
+        if (this._debug) search.append('debug', 'true');
+        if (this._configParams) {
+            for (const [key, value] of Object.entries(this._configParams)) {
+                if (Array.isArray(value)) {
+                    for (const v of value) search.append(key, v);
+                } else {
+                    search.append(key, value);
+                }
+            }
+        }
+        const qs = search.toString();
+        return qs ? `${base}?${qs}` : base;
     }
 
     // Create the appropriate HttpAgent (custom or standard)
@@ -278,19 +301,11 @@ export class AgentClient {
                 : assembled;
             this.agent.setMessages(outgoing);
 
-            const outgoingBytes = JSON.stringify(outgoing).length;
-            const outgoingPerMessage = outgoing.map((m: any, i: number) => ({
-                i,
-                role: m.role,
-                bytes: JSON.stringify(m).length,
-            }));
             console.info('[AG-UI] RunAgent start:', {
                 threadId,
                 runId,
                 stopAfterToolCall: forwardedProps?.stopAfterToolCall === true,
                 outgoingCount: outgoing.length,
-                outgoingBytes,
-                outgoingPerMessage,
             });
 
             const result = await this.agent.runAgent({
@@ -356,20 +371,12 @@ export class AgentClient {
                 : assembled;
             this.agent.setMessages(outgoing);
 
-            const outgoingBytes = JSON.stringify(outgoing).length;
-            const outgoingPerMessage = outgoing.map((m: any, i: number) => ({
-                i,
-                role: m.role,
-                bytes: JSON.stringify(m).length,
-            }));
             console.info('[AG-UI] RunAgent start (tool results):', {
                 threadId: this._session.threadId,
                 runId,
                 toolMessageCount: toolMessages.length,
                 stopAfterToolCall: forwardedProps?.stopAfterToolCall === true,
                 outgoingCount: outgoing.length,
-                outgoingBytes,
-                outgoingPerMessage,
             });
 
             const result = await this.agent.runAgent({
