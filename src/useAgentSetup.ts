@@ -11,6 +11,12 @@ export interface UseAgentSetupOptions {
     tokenProvider?: UseAgentOptions['tokenProvider'];
     requestHandler?: UseAgentOptions['requestHandler'];
     timeout?: number;
+    /**
+     * Safety timeout in ms forwarded to the underlying agent run. After this
+     * elapses with an active run, the run is forcibly aborted and a timeout
+     * message is added. See `UseAgentOptions.safetyTimeoutMs`. Default: 300_000.
+     */
+    safetyTimeoutMs?: UseAgentOptions['safetyTimeoutMs'];
     tools?: UseAgentOptions['tools'];
     buildForwardedProps?: UseAgentOptions['buildForwardedProps'];
     systemContextBuilder?: UseAgentOptions['systemContextBuilder'];
@@ -79,6 +85,7 @@ export function useAgentSetup({
     tokenProvider,
     requestHandler,
     timeout,
+    safetyTimeoutMs,
     tools,
     buildForwardedProps,
     systemContextBuilder,
@@ -140,6 +147,7 @@ export function useAgentSetup({
             tokenProvider,
             requestHandler,
             timeout,
+            safetyTimeoutMs,
             tools: tools ?? config.tools ?? {},
             buildForwardedProps,
             systemContextBuilder,
@@ -158,7 +166,7 @@ export function useAgentSetup({
         };
         Layer.displayName = 'AgentLayer';
         return Layer;
-    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, tools, buildForwardedProps, systemContextBuilder, debug, sendFullHistory, pruneOutboundMessages, suppressIntermediateAssistantMessages, configParams]);
+    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, safetyTimeoutMs, tools, buildForwardedProps, systemContextBuilder, debug, sendFullHistory, pruneOutboundMessages, suppressIntermediateAssistantMessages, configParams]);
 
     return { config, isLoading, error, AgentLayer };
 }
