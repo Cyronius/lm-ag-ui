@@ -1,6 +1,6 @@
 {
     "name": "@itkennel/lm-ag-ui",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "description": "React hooks and utilities for building chat interfaces powered by the AG-UI streaming protocol.",
     "repository": {
         "type": "git",

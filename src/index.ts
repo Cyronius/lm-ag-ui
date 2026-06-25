@@ -217,3 +217,5 @@ export { getAllToolDefinitions, getFrontendToolDefinitions, getBackendToolDefini
 export { loadAgentConfig } from './configService';
 export { useAgentSetup } from './useAgentSetup';
 export type { UseAgentSetupOptions, UseAgentSetupResult } from './useAgentSetup';
+export { groupSuggestionsByCategory, SUGGESTION_CATEGORY_SEPARATOR } from './suggestionUtils';
+export type { SuggestionGroup, CategorizedSuggestion } from './suggestionUtils';
