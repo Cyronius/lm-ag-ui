@@ -245,17 +245,26 @@ export class AgentClient {
     }
 
     /**
-     * Build a SystemMessage for the given thread, but only if the rendered
-     * content differs from the last one we injected for that thread. This
-     * prevents re-sending the same snapshot on every tool-result round-trip.
-     * Returns null when the content is empty or unchanged since the last
-     * send for this thread.
+     * Build a SystemMessage for the given thread.
+     *
+     * The per-thread dedup (skip re-sending an unchanged snapshot) is only safe
+     * against a STATEFUL backend (`sendFullHistory: false`), which retains the
+     * once-injected system message and rehydrates it on later turns. Under
+     * `sendFullHistory: true` the backend is stateless and rehydrates nothing —
+     * the client re-ships the whole transcript each turn — so the system context
+     * must ride on EVERY send. Deduping it there strips the model's grounding on
+     * every turn after the first (MOBI-CONTEXT-EVERY-TURN).
+     *
+     * Returns null when the content is empty, or (stateful backend only) when it
+     * is unchanged since the last send for this thread.
      */
     private maybeBuildContextMessage(threadId: string): Message | null {
         const rendered = this.renderSystemContext();
         if (!rendered) return null;
 
-        if (this._injectedContextByThread.get(threadId) === rendered) return null;
+        if (!this._sendFullHistory && this._injectedContextByThread.get(threadId) === rendered) {
+            return null;
+        }
         this._injectedContextByThread.set(threadId, rendered);
 
         return {

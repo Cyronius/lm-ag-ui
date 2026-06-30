@@ -95,8 +95,13 @@ describe('AgentClient system-context injection — nothing to inject', () => {
     });
 });
 
-describe('AgentClient system-context injection — per-thread dedup', () => {
-    it('skips re-injection when the rendered content is unchanged in the same thread', async () => {
+// Traces: MOBI-CONTEXT-EVERY-TURN
+// Under a STATELESS backend (sendFullHistory:true) the client re-ships the whole
+// transcript each turn and the backend retains nothing — so the system context must
+// ride on EVERY send. Deduping it there left the model blind after turn 1, and it
+// fabricated module/element ids (the bug this suite previously asserted as correct).
+describe('AgentClient system-context injection — stateless backend re-sends every turn', () => {
+    it('re-injects unchanged content on the next runAgent in the same thread', async () => {
         moduleIds = ['A'];
         const client = new AgentClient('http://localhost:8000', 'test-agent', {
             initialThreadId: 't1',
@@ -112,10 +117,32 @@ describe('AgentClient system-context injection — per-thread dedup', () => {
         const first = setMessagesSpy.mock.calls[0][0] as Message[];
         const second = setMessagesSpy.mock.calls[1][0] as Message[];
         expect(first[0].role).toBe('system');
-        expect(second.some(m => m.role === 'system')).toBe(false);
+        expect((first[0] as any).content).toBe('A');
+        expect(second[0].role).toBe('system');
+        expect((second[0] as any).content).toBe('A');
     });
 
-    it('re-injects when the rendered content changes', async () => {
+    it('re-injects unchanged content on a follow-up submitToolResults', async () => {
+        moduleIds = ['A'];
+        const client = new AgentClient('http://localhost:8000', 'test-agent', {
+            initialThreadId: 't1',
+            sendFullHistory: true,
+            systemContextBuilder: moduleIdsBuilder,
+        });
+        const { setMessagesSpy } = instrumentAgent(client);
+        client.startNewRun();
+
+        await client.runAgent([userMsg('hi')], [], noopSubscriber(), {});
+        await client.submitToolResults([toolMsg('ok', 'x1')], noopSubscriber(), [], {});
+
+        const first = setMessagesSpy.mock.calls[0][0] as Message[];
+        const second = setMessagesSpy.mock.calls[1][0] as Message[];
+        expect(first.some(m => m.role === 'system')).toBe(true);
+        expect(second.some(m => m.role === 'system')).toBe(true);
+        expect((second.find(m => m.role === 'system') as any).content).toBe('A');
+    });
+
+    it('reflects changed content on each turn', async () => {
         const client = new AgentClient('http://localhost:8000', 'test-agent', {
             initialThreadId: 't1',
             sendFullHistory: true,
@@ -134,12 +161,35 @@ describe('AgentClient system-context injection — per-thread dedup', () => {
         expect((first[0] as any).content).toBe('A');
         expect((second[0] as any).content).toBe('A,B');
     });
+});
+
+// The dedup is still correct against a STATEFUL backend (sendFullHistory:false), which
+// keeps the once-injected system message and rehydrates it on later turns.
+describe('AgentClient system-context injection — stateful backend dedup (sendFullHistory:false)', () => {
+    it('skips re-injection when the rendered content is unchanged in the same thread', async () => {
+        moduleIds = ['A'];
+        const client = new AgentClient('http://localhost:8000', 'test-agent', {
+            initialThreadId: 't1',
+            sendFullHistory: false,
+            systemContextBuilder: moduleIdsBuilder,
+        });
+        const { setMessagesSpy } = instrumentAgent(client);
+        client.startNewRun();
+
+        await client.runAgent([userMsg('hi')], [], noopSubscriber(), {});
+        await client.runAgent([userMsg('again', 'u2')], [], noopSubscriber(), {});
+
+        const first = setMessagesSpy.mock.calls[0][0] as Message[];
+        const second = setMessagesSpy.mock.calls[1][0] as Message[];
+        expect(first[0].role).toBe('system');
+        expect(second.some(m => m.role === 'system')).toBe(false);
+    });
 
     it('submitToolResults also participates in the dedup — same content not re-sent', async () => {
         moduleIds = ['A'];
         const client = new AgentClient('http://localhost:8000', 'test-agent', {
             initialThreadId: 't1',
-            sendFullHistory: true,
+            sendFullHistory: false,
             systemContextBuilder: moduleIdsBuilder,
         });
         const { setMessagesSpy } = instrumentAgent(client);
@@ -196,9 +246,11 @@ describe('AgentClient forwardedProps passthrough to RunAgentInput', () => {
 
     it('passes forwardedProps on submitToolResults even when system message is deduped', async () => {
         moduleIds = ['A'];
+        // sendFullHistory:false so the follow-up submitToolResults actually dedups
+        // the system message (the scenario this test exercises).
         const client = new AgentClient('http://localhost:8000', 'test-agent', {
             initialThreadId: 't1',
-            sendFullHistory: true,
+            sendFullHistory: false,
             systemContextBuilder: moduleIdsBuilder,
         });
         const { runAgentSpy } = instrumentAgent(client);
