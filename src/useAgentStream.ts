@@ -20,6 +20,7 @@ import { AgentClient } from './AgentClient';
 import { ToolDefinition, UseAgentOptions } from './index';
 import { getFrontEndTools } from './toolUtils';
 import { IntermediateMessageSuppressor } from './intermediateMessageSuppressor';
+import { createRunWatchdog, RunWatchdog } from './runWatchdog';
 
 export interface PendingToolCall {
     toolCallId: string;
@@ -58,7 +59,7 @@ export interface StreamHandle {
     clearPendingChain: () => void;
 }
 
-type StreamOptions = Pick<UseAgentOptions, 'onLifecycleEvent' | 'onError' | 'safetyTimeoutMs' | 'suppressIntermediateAssistantMessages'> & {
+type StreamOptions = Pick<UseAgentOptions, 'onLifecycleEvent' | 'onError' | 'safetyTimeoutMs' | 'idleTimeoutMs' | 'suppressIntermediateAssistantMessages'> & {
     tools?: Record<string, ToolDefinition>;
 };
 
@@ -72,8 +73,12 @@ export function useAgentStream(
     sessionIsActive: boolean,
     options: StreamOptions
 ): StreamHandle {
-    const { onLifecycleEvent, onError, safetyTimeoutMs, suppressIntermediateAssistantMessages, tools = {} } = options;
-    const effectiveSafetyTimeoutMs = safetyTimeoutMs ?? 300_000;
+    const { onLifecycleEvent, onError, safetyTimeoutMs, idleTimeoutMs, suppressIntermediateAssistantMessages, tools = {} } = options;
+    // `safetyTimeoutMs` is the absolute hard cap for a whole run (never reset).
+    // `idleTimeoutMs` is the adaptive window: it resets on every AG-UI event, so
+    // a run that keeps making progress isn't killed — only a genuine stall trips it.
+    const effectiveMaxMs = safetyTimeoutMs ?? 900_000;
+    const effectiveIdleMs = idleTimeoutMs ?? 180_000;
 
     const [state, setState] = useState<AgentState>(initialAgentState);
     const stateRef = useRef<AgentState>(state);
@@ -102,27 +107,45 @@ export function useAgentStream(
         return () => { runFinishedListenersRef.current.delete(cb); };
     }, []);
 
-    // Safety timeout: force-end runs stuck for over the configured timeout
+    // Adaptive run timeout. An idle watchdog resets on every AG-UI event (see
+    // `onEvent` below) so a run stays alive as long as it's making progress; an
+    // absolute cap is the non-resetting backstop. Either expiry force-ends the run.
+    // Held in a ref so the (reassigned-each-render) subscriber can kick it.
+    const triggerTimeoutRef = useRef<(reason: 'idle' | 'max') => void>(() => {});
+    triggerTimeoutRef.current = (reason) => {
+        console.warn(`[AG-UI] ${reason === 'idle' ? 'Idle' : 'Max-run'} timeout: forcing run end`);
+        dispatch({ type: 'CLEAR_STREAMING' });
+        dispatch({ type: 'CLEAR_TOOL_BUFFERS' });
+        dispatch({ type: 'SET_ABORTED', value: true });
+        client.abortRun();
+        onError?.({
+            code: 'timeout',
+            message: reason === 'idle'
+                ? `Run idle for ${effectiveIdleMs}ms with no events`
+                : `Run exceeded max duration of ${effectiveMaxMs}ms`,
+        });
+        dispatch({
+            type: 'ADD_MESSAGE',
+            message: {
+                id: `timeout_${Date.now()}`,
+                role: 'assistant',
+                content: 'The request timed out. Please try again.',
+            },
+        });
+    };
+
+    const watchdogRef = useRef<RunWatchdog | null>(null);
     useEffect(() => {
         if (!sessionIsActive) return;
-        const timeoutId = setTimeout(() => {
-            console.warn(`[AG-UI] Safety timeout: forcing run end after ${effectiveSafetyTimeoutMs}ms`);
-            dispatch({ type: 'CLEAR_STREAMING' });
-            dispatch({ type: 'CLEAR_TOOL_BUFFERS' });
-            dispatch({ type: 'SET_ABORTED', value: true });
-            client.abortRun();
-            onError?.({ code: 'timeout', message: `Run exceeded safety timeout of ${effectiveSafetyTimeoutMs}ms` });
-            dispatch({
-                type: 'ADD_MESSAGE',
-                message: {
-                    id: `timeout_${Date.now()}`,
-                    role: 'assistant',
-                    content: 'The request timed out. Please try again.',
-                },
-            });
-        }, effectiveSafetyTimeoutMs);
-        return () => clearTimeout(timeoutId);
-    }, [sessionIsActive, effectiveSafetyTimeoutMs, client, dispatch, onError]);
+        const wd = createRunWatchdog({
+            idleMs: effectiveIdleMs,
+            maxMs: effectiveMaxMs,
+            onExpire: (reason) => triggerTimeoutRef.current(reason),
+        });
+        watchdogRef.current = wd;
+        wd.start();
+        return () => { wd.stop(); watchdogRef.current = null; };
+    }, [sessionIsActive, effectiveIdleMs, effectiveMaxMs]);
 
     // Resolve latest tools on every render via ref so subscriber handlers see fresh map.
     const toolsRef = useRef(tools);
@@ -152,7 +175,9 @@ export function useAgentStream(
         onToolCallResultEvent: () => {},
     });
 
-    subscriberRef.current.onEvent = () => {};
+    // Every AG-UI event resets the idle watchdog. `kick()` is a no-op when the
+    // watchdog isn't running, so startup/teardown races are harmless.
+    subscriberRef.current.onEvent = () => { watchdogRef.current?.kick(); };
 
     subscriberRef.current.onRunStartedEvent = ({ event }: { event: RunStartedEvent }) => {
         console.info('[AG-UI] RunStarted:', {

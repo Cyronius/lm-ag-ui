@@ -146,9 +146,15 @@ export interface UseAgentOptions {
     /** Called for run errors, timeouts, and aborts. Additive to the existing in-stream
      *  error-message behavior. */
     onError?: (err: { code: 'run_error' | 'timeout' | 'aborted'; message: string; raw?: unknown }) => void;
-    /** Safety timeout in ms. After this elapses with an active run, the run is forcibly
-     *  aborted and a timeout message is added. Default: 300_000 (5 min). */
+    /** Absolute hard cap in ms for a whole run. Never reset — a backstop against a run
+     *  that keeps trickling events forever. On expiry the run is forcibly aborted and a
+     *  timeout message is added. Default: 900_000 (15 min). */
     safetyTimeoutMs?: number;
+    /** Idle window in ms. Reset every time an AG-UI event arrives, so a run that keeps
+     *  making progress is never killed — only a genuine stall (no events for this long)
+     *  trips it, with the same abort + timeout-message behavior as `safetyTimeoutMs`.
+     *  Default: 180_000 (3 min). */
+    idleTimeoutMs?: number;
     /** Optional outbound-message transformer applied by AgentClient on every wire send
      *  (runAgent + submitToolResults), immediately before agent.setMessages. Use for
      *  context shrinking such as tombstoning stale tool results. Must preserve

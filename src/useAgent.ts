@@ -13,6 +13,7 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
         onLifecycleEvent: options.onLifecycleEvent,
         onError: options.onError,
         safetyTimeoutMs: options.safetyTimeoutMs,
+        idleTimeoutMs: options.idleTimeoutMs,
         suppressIntermediateAssistantMessages: options.suppressIntermediateAssistantMessages,
         tools,
     });

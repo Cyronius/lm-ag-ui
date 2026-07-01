@@ -12,11 +12,17 @@ export interface UseAgentSetupOptions {
     requestHandler?: UseAgentOptions['requestHandler'];
     timeout?: number;
     /**
-     * Safety timeout in ms forwarded to the underlying agent run. After this
-     * elapses with an active run, the run is forcibly aborted and a timeout
-     * message is added. See `UseAgentOptions.safetyTimeoutMs`. Default: 300_000.
+     * Absolute hard cap in ms for a whole run, forwarded to the underlying agent
+     * run. Never reset. On expiry the run is forcibly aborted and a timeout message
+     * is added. See `UseAgentOptions.safetyTimeoutMs`. Default: 900_000 (15 min).
      */
     safetyTimeoutMs?: UseAgentOptions['safetyTimeoutMs'];
+    /**
+     * Idle window in ms, forwarded to the underlying agent run. Reset on every
+     * AG-UI event, so only a genuine stall trips it. See
+     * `UseAgentOptions.idleTimeoutMs`. Default: 180_000 (3 min).
+     */
+    idleTimeoutMs?: UseAgentOptions['idleTimeoutMs'];
     tools?: UseAgentOptions['tools'];
     buildForwardedProps?: UseAgentOptions['buildForwardedProps'];
     systemContextBuilder?: UseAgentOptions['systemContextBuilder'];
@@ -86,6 +92,7 @@ export function useAgentSetup({
     requestHandler,
     timeout,
     safetyTimeoutMs,
+    idleTimeoutMs,
     tools,
     buildForwardedProps,
     systemContextBuilder,
@@ -148,6 +155,7 @@ export function useAgentSetup({
             requestHandler,
             timeout,
             safetyTimeoutMs,
+            idleTimeoutMs,
             tools: tools ?? config.tools ?? {},
             buildForwardedProps,
             systemContextBuilder,
@@ -166,7 +174,7 @@ export function useAgentSetup({
         };
         Layer.displayName = 'AgentLayer';
         return Layer;
-    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, safetyTimeoutMs, tools, buildForwardedProps, systemContextBuilder, debug, sendFullHistory, pruneOutboundMessages, suppressIntermediateAssistantMessages, configParams]);
+    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, safetyTimeoutMs, idleTimeoutMs, tools, buildForwardedProps, systemContextBuilder, debug, sendFullHistory, pruneOutboundMessages, suppressIntermediateAssistantMessages, configParams]);
 
     return { config, isLoading, error, AgentLayer };
 }
