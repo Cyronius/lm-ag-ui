@@ -472,6 +472,70 @@ describe('useAgent parity harness', () => {
         expect(h.fake.submitToolResultsCalls.length).toBe(0);
     });
 
+    it('tool-only turn (no narration text) still pairs the tool result with an owning assistant.toolCalls message', async () => {
+        // Regression: flushTurn used to skip FINALIZE_TURN whenever every
+        // pending tool call already had resultReceived:true and there was no
+        // streaming text — e.g. a plain lookup call with no preamble/apology.
+        // That left the `tool` result message in state with no assistant
+        // message ever declaring its tool_calls, which OpenAI-compatible
+        // providers reject on the next full-history send ("messages with role
+        // tool must be a response to a preceeding message with tool_calls").
+        const tools: Record<string, ToolDefinition> = {
+            backendThing: {
+                definition: { name: 'backendThing', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                isFrontend: false,
+            },
+        };
+        const h = await setup(tools);
+        const sub = h.sub;
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tcB', 'backendThing') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tcB', '{}') } as any);
+            sub.onToolCallResultEvent!({ event: ev.toolResult('tcB', '{"backend":"ok"}') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
+        });
+        await flush();
+        const messages = h.ctx.messages;
+        expect(messages).toHaveLength(2);
+        expect(messages[0].role).toBe('assistant');
+        expect((messages[0] as any).toolCalls?.map((tc: any) => tc.id)).toEqual(['tcB']);
+        expect(messages[1].role).toBe('tool');
+        expect((messages[1] as any).toolCallId).toBe('tcB');
+    });
+
+    it('RUN_ERROR after a backend tool result still pairs it with an owning assistant.toolCalls message', async () => {
+        // Regression: onRunErrorEvent never called flushTurn(), so a tool
+        // result that streamed in before the run errored out on a later step
+        // was abandoned mid-turn — an orphaned `tool` message with no
+        // assistant.tool_calls declaration, surviving indefinitely in state.
+        const tools: Record<string, ToolDefinition> = {
+            backendThing: {
+                definition: { name: 'backendThing', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                isFrontend: false,
+            },
+        };
+        const h = await setup(tools);
+        const sub = h.sub;
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tcB', 'backendThing') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tcB', '{}') } as any);
+            sub.onToolCallResultEvent!({ event: ev.toolResult('tcB', '{"backend":"ok"}') } as any);
+            sub.onRunErrorEvent!({ event: { message: 'boom' } } as any);
+        });
+        await flush();
+        const messages = h.ctx.messages;
+        const toolIdx = messages.findIndex((m) => m.role === 'tool');
+        expect(toolIdx).toBeGreaterThan(0);
+        const owner = messages[toolIdx - 1];
+        expect(owner.role).toBe('assistant');
+        expect((owner as any).toolCalls?.map((tc: any) => tc.id)).toEqual(['tcB']);
+        const last = messages[messages.length - 1];
+        expect(last.role).toBe('assistant');
+        expect((last.content as string)).toContain('Error: boom');
+    });
+
     it('suppressIntermediateAssistantMessages ON: backend tool result + trailing text in same run — trailing text commits', async () => {
         // Regression: a single run where a backend tool resolves mid-stream and
         // the agent emits a final TextMessage after the tool result. The

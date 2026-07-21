@@ -57,6 +57,16 @@ describe('agentReducer', () => {
             expect(s.toolCallBuffers.get('tc1')!.resultReceived).toBe(true);
         });
 
+        it('TOOL_CALL_RESULT for unknown toolCallId (no live buffer) is a no-op — does not append an orphaned tool message', () => {
+            const s = agentReducer(initialAgentState, {
+                type: 'TOOL_CALL_RESULT',
+                toolCallId: 'nope',
+                message: toolMsg('nope'),
+            });
+            expect(s).toBe(initialAgentState);
+            expect(s.messages).toHaveLength(0);
+        });
+
         it('CLEAR_TOOL_BUFFERS empties buffers but preserves the name map', () => {
             let s = initialAgentState;
             s = agentReducer(s, { type: 'TOOL_CALL_START', toolCallId: 'tc1', name: 'fn' });

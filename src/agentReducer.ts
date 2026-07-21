@@ -155,10 +155,19 @@ export function agentReducer(state: AgentState, action: AgentAction): AgentState
 
         case 'TOOL_CALL_RESULT': {
             const current = state.toolCallBuffers.get(action.toolCallId);
-            const toolCallBuffers = new Map(state.toolCallBuffers);
-            if (current) {
-                toolCallBuffers.set(action.toolCallId, { ...current, resultReceived: true });
+            if (!current) {
+                // No live buffer for this id — a duplicate delivery or a stale
+                // event from a prior errored/aborted run. Appending it anyway
+                // would leave an orphaned `tool` message with no owning
+                // assistant.tool_calls entry, which OpenAI-compatible providers
+                // reject at the next full-history send.
+                console.warn(
+                    `[AG-UI] Dropping TOOL_CALL_RESULT for unknown toolCallId=${action.toolCallId} (no live buffer)`
+                );
+                return state;
             }
+            const toolCallBuffers = new Map(state.toolCallBuffers);
+            toolCallBuffers.set(action.toolCallId, { ...current, resultReceived: true });
             return {
                 ...state,
                 messages: [...state.messages, action.message],

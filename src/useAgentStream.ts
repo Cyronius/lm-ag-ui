@@ -195,8 +195,14 @@ export function useAgentStream(
     // TextMessageStart with content already buffered) and at RunFinished.
     const flushTurn = () => {
         const before = stateRef.current;
+        // Any tool call not yet flushed needs FINALIZE_TURN — including ones
+        // whose result already streamed in (resultReceived: true). Excluding
+        // those here left tool-only turns with no narration text (the common
+        // case for a plain lookup call) with a `tool` result message and no
+        // owning assistant.tool_calls message ever created, since FINALIZE_TURN
+        // is the only place that pairing is assembled.
         const hasUnflushedToolCall = Array.from(before.toolCallBuffers.entries()).some(
-            ([id, buf]) => !before.flushedToolCallIds.has(id) && !buf.resultReceived
+            ([id]) => !before.flushedToolCallIds.has(id)
         );
         if (!before.streamingText.trim() && !hasUnflushedToolCall) return;
         dispatch({ type: 'FINALIZE_TURN' });
@@ -306,6 +312,17 @@ export function useAgentStream(
             console.info('[AG-UI] Run aborted by user');
             onError?.({ code: 'aborted', message: event.message, raw: event });
             return;
+        }
+        // Symmetric with onRunFinishedEvent: a tool result may already have
+        // streamed in (buffer resultReceived: true) before the run errored
+        // out on a later step. Without this flush, that tool result is
+        // abandoned mid-turn with no owning assistant.tool_calls message ever
+        // created — an orphaned `tool` message that a later full-history send
+        // gets rejected for.
+        try {
+            flushTurn();
+        } catch (error) {
+            console.error('Error creating assistant message:', error);
         }
         dispatch({ type: 'CLEAR_STREAMING' });
         suppressorRef.current.reset();
