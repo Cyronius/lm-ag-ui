@@ -98,6 +98,24 @@ export interface AgentClientContextValue {
     currentMessage: string;
     currentMessageId: string | null;
     isStreaming: boolean;
+    /**
+     * True while a RUN_FINISHED event reported pending frontend tool calls
+     * that have not yet been executed and chained back to the agent.
+     * `session.isActive` (and `isStreaming`) genuinely goes false for the
+     * whole duration of tool execution, not just a render tick — see `isBusy`.
+     */
+    hasPendingToolWork: boolean;
+    /**
+     * The reliable "is the assistant still working on this turn" signal:
+     * `isStreaming || hasPendingToolWork`. Prefer this over `isStreaming`
+     * alone for gating send-button/input-disabled state, "typing" indicators,
+     * or anything else that needs to know when a (possibly multi-hop,
+     * tool-calling) turn has truly settled — `isStreaming` alone reads false
+     * during frontend tool execution, which can let a consumer send a second
+     * message that races the pending tool chain's own continuation call
+     * against the same AgentClient/thread.
+     */
+    isBusy: boolean;
     getToolNameFromCallId: (toolCallId: string) => string | undefined;
     agentSubscriber: AgentSubscriber;
     invokeToolByName: (toolName: string, additionalForwardedProps?: Record<string, any>, stateUpdates?: Record<string, any>) => Promise<void>;

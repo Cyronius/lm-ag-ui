@@ -658,6 +658,57 @@ describe('useAgent parity harness', () => {
         expect(assistantTexts).toContain('Your bug report has been submitted successfully.');
     });
 
+    it('isBusy stays true across a pending frontend tool call, even though session.isActive goes false between legs (regression: settled-signal race)', async () => {
+        // Reproduces the production race: session.isActive/isStreaming flips
+        // false the instant a run's SSE stream ends (AgentClient.endRun()),
+        // before useFrontendToolRunner has even started awaiting the tool
+        // handler. A slow/async handler makes that gap observable.
+        let resolveHandler: (value: string) => void = () => {};
+        const handler = vi.fn(
+            () => new Promise<string>((resolve) => { resolveHandler = resolve; })
+        );
+        const tools: Record<string, ToolDefinition> = {
+            slowThing: {
+                definition: { name: 'slowThing', description: '', parameters: { type: 'object', properties: {}, required: [] } },
+                handler,
+                isFrontend: true,
+            },
+        };
+        const h = await setup(tools);
+        const sub = h.sub;
+
+        await act(async () => {
+            sub.onRunStartedEvent!({ event: ev.runStarted('t1', 'r1') } as any);
+            sub.onToolCallStartEvent!({ event: ev.toolStart('tc1', 'slowThing') } as any);
+            sub.onToolCallArgsEvent!({ event: ev.toolArgs('tc1', '{}') } as any);
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r1') } as any);
+        });
+        await flush();
+
+        // Leg 1 has ended and the tool handler hasn't resolved yet — exactly
+        // the window the production bug fires in.
+        expect(h.ctx.session.isActive).toBe(false);
+        expect(h.ctx.isStreaming).toBe(false);
+        expect(h.ctx.isBusy).toBe(true);
+
+        // Resolve the handler; the runner chains startNewRun() + submitToolResults().
+        await act(async () => {
+            resolveHandler('{"ok":true}');
+        });
+        await flush();
+
+        expect(h.fake.submitToolResultsCalls.length).toBe(1);
+        expect(h.ctx.session.isActive).toBe(true);
+        expect(h.ctx.isBusy).toBe(true);
+
+        // Chained run finishes with no more pending tool calls — now truly settled.
+        await act(async () => {
+            sub.onRunFinishedEvent!({ event: ev.runFinished('t1', 'r2') } as any);
+        });
+        await flush();
+        expect(h.ctx.isBusy).toBe(false);
+    });
+
     it('run error: adds error message and calls onError', async () => {
         const h = await setup();
         const sub = h.sub;

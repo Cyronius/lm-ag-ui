@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Message } from '@ag-ui/client';
 import { AgentClientContextValue, UseAgentOptions } from './index';
 import { useAgentSession } from './useAgentSession';
@@ -20,6 +20,25 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
     useFrontendToolRunner(stream, session, tools, { buildForwardedProps });
 
     const { state, stateRef, dispatch } = stream;
+
+    // `session.isActive` (and therefore `isStreaming`) genuinely goes false for
+    // the whole duration of frontend tool execution: AgentClient.endRun() fires
+    // synchronously at RUN_FINISHED, before useFrontendToolRunner's async
+    // tool-execution effect has even started awaiting the handler, and only
+    // flips back via startNewRun() once the tool result is ready to submit.
+    // A consumer watching isStreaming alone (e.g. to gate a send button or a
+    // "typing" indicator) sees a false "done" reading for however long the
+    // tool call takes — and, worse, can let the user send a second message
+    // that races the pending tool chain's own startNewRun()/submitToolResults()
+    // against the same AgentClient/thread. Track pending tool work directly
+    // from the same RunFinishedPayload useFrontendToolRunner consumes, so
+    // `isBusy` below stays true across the whole gap.
+    const [hasPendingToolWork, setHasPendingToolWork] = useState(false);
+    useEffect(() => {
+        return stream.onRunFinished((payload) => {
+            setHasPendingToolWork(payload.pendingToolCalls.length > 0);
+        });
+    }, [stream]);
 
     const updateState = useCallback((toolName: string, data: unknown) => {
         dispatch({ type: 'UPDATE_TOOL_STATE', toolName, data });
@@ -121,6 +140,8 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
         currentMessage: state.streamingText,
         currentMessageId: state.streamingMessageId,
         isStreaming: session.isStreaming,
+        hasPendingToolWork,
+        isBusy: session.isStreaming || hasPendingToolWork,
         getToolNameFromCallId: (toolCallId: string) => stateRef.current.toolCallIdToName.get(toolCallId),
         agentSubscriber: stream.subscriber,
         invokeToolByName,
@@ -132,6 +153,7 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
         session.client,
         session.session,
         session.isStreaming,
+        hasPendingToolWork,
         tools,
         state.globalState,
         state.messages,
