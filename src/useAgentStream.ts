@@ -20,6 +20,7 @@ import { AgentClient } from './AgentClient';
 import { ToolDefinition, UseAgentOptions } from './index';
 import { getFrontEndTools } from './toolUtils';
 import { IntermediateMessageSuppressor } from './intermediateMessageSuppressor';
+import { findMostRecentAssistantText } from './assembleFinalMessages';
 import { createRunWatchdog, RunWatchdog } from './runWatchdog';
 
 export interface PendingToolCall {
@@ -268,7 +269,11 @@ export function useAgentStream(
             console.info('[AG-UI] Dropped intermediate narration:', dropped.map(s => s.text));
         }
         for (const seg of commit) {
-            if (!seg.text.trim()) continue;
+            const text = seg.text.trim();
+            if (!text) continue;
+            // Same dedup contract as assembleFinalMessages: don't re-append text
+            // that already matches the most recent assistant turn.
+            if (findMostRecentAssistantText(stateRef.current.messages) === text) continue;
             dispatch({
                 type: 'ADD_MESSAGE',
                 message: { id: seg.messageId, role: 'assistant', content: seg.text },

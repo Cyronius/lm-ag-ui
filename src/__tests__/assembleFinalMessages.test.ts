@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assembleFinalMessages } from '../assembleFinalMessages';
+import { assembleFinalMessages, findMostRecentAssistantText } from '../assembleFinalMessages';
 import type { Message, ToolCall } from '@ag-ui/client';
 
 const userMsg = (content: string): Message => ({ id: 'u1', role: 'user', content } as Message);
@@ -248,5 +248,40 @@ describe('assembleFinalMessages', () => {
         expect(r.messages).toBe(existing);
         expect(r.suppressedDuplicate).toBe(false);
         expect(r.announcedAssistantText).toBeNull();
+    });
+});
+
+// `findMostRecentAssistantText` is exported so useAgentStream's onRunFinishedEvent
+// commit loop (suppressIntermediateAssistantMessages path) can dedupe buffered
+// segments against already-committed text the same way assembleFinalMessages does —
+// previously that loop dispatched ADD_MESSAGE unconditionally, so a buffered segment
+// whose text matched the turn's already-flushed final answer produced a visible
+// duplicate assistant bubble.
+describe('findMostRecentAssistantText', () => {
+    it('matches a buffered final-answer segment against the already-flushed turn text', () => {
+        // Mirrors onRunFinishedEvent: flushTurn() already committed the final answer,
+        // then a second buffered segment with identical text is about to be committed
+        // by the (now-guarded) commit loop.
+        const messages = [userMsg('hi'), assistantTextMsg('final answer')];
+        expect(findMostRecentAssistantText(messages)).toBe('final answer');
+    });
+
+    it('does not match when the buffered segment text differs', () => {
+        const messages = [userMsg('hi'), assistantTextMsg('final answer')];
+        expect(findMostRecentAssistantText(messages)).not.toBe('a different segment');
+    });
+
+    it('walks past tool-result and tool-call-only messages to find the prior text', () => {
+        const messages = [
+            userMsg('hi'),
+            assistantTextMsg('final answer'),
+            { id: 'a_tc', role: 'assistant', toolCalls: [tc('X')] } as Message,
+            toolResultMsg('X'),
+        ];
+        expect(findMostRecentAssistantText(messages)).toBe('final answer');
+    });
+
+    it('returns null with no prior assistant text in the turn', () => {
+        expect(findMostRecentAssistantText([userMsg('hi')])).toBeNull();
     });
 });
