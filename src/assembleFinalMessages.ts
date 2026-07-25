@@ -21,7 +21,7 @@ export interface AssembleResult {
 // that carry only `toolCalls` (no string content). Returns the trimmed text of the
 // most recent assistant message with non-empty string content, or null if a
 // user / system / developer turn boundary is reached first.
-export function findMostRecentAssistantText(messages: Message[]): string | null {
+function findMostRecentAssistantText(messages: Message[]): string | null {
     for (let i = messages.length - 1; i >= 0; i--) {
         const m = messages[i];
         if (m.role === 'tool') continue;
