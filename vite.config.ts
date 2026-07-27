@@ -1,11 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { visualizer } from "rollup-plugin-visualizer";
-import path from "path";
 import dts from "vite-plugin-dts";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
     root: __dirname,
     base: '',
     plugins: [
@@ -20,20 +19,15 @@ export default defineConfig(({ mode }) => ({
             ],
             insertTypesEntry: true,
         }),
+        // Bundle-size report. Written outside dist/ so it never ships to npm
+        // (package.json `files` publishes dist/** wholesale).
         visualizer({
-            filename: "dist/stats.html",
+            filename: "stats/index.html",
             template: "flamegraph",
             gzipSize: true,
             brotliSize: true,
         }),
-    ].filter(Boolean),
-    resolve: {
-        alias: {
-            // Deduplicate rxjs so @ag-ui/client and this project share one copy.
-            // Points at the workspace-root node_modules install.
-            "rxjs": path.resolve(__dirname, "../../node_modules/rxjs"),
-        },
-    },
+    ],
     build: {
         lib: {
             entry: {
@@ -43,6 +37,8 @@ export default defineConfig(({ mode }) => ({
             formats: ["es"],
         },
         rollupOptions: {
+            // react, @ag-ui/*, and rxjs stay external — they are peer deps
+            // resolved by the consumer's bundler.
             external: [/^react/, /^react-dom/, /^@ag-ui/, /^rxjs/],
             output: {
                 globals: { react: "React" },
@@ -53,4 +49,4 @@ export default defineConfig(({ mode }) => ({
         emptyOutDir: true,
         outDir: "dist",
     },
-}));
+});

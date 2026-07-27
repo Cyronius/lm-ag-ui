@@ -1,11 +1,11 @@
-# @itkennel/lm-ag-ui
+# @cyronius/lm-ag-ui
 
 React hooks and utilities for building chat interfaces powered by the [AG-UI](https://github.com/ag-ui-protocol/ag-ui) streaming protocol.
 
 ## Installation
 
 ```bash
-npm install @itkennel/lm-ag-ui
+npm install @cyronius/lm-ag-ui
 ```
 
 ### Peer Dependencies
@@ -13,6 +13,7 @@ npm install @itkennel/lm-ag-ui
 ```json
 {
   "react": ">=18",
+  "rxjs": "^7.8.0",
   "@ag-ui/client": "^0.0.47",
   "@ag-ui/core": "^0.0.47"
 }
@@ -23,7 +24,7 @@ npm install @itkennel/lm-ag-ui
 Use `useAgent` to initialize the agent client and wrap your UI with `AgentProvider`:
 
 ```tsx
-import { useAgent, AgentProvider, useAgentContext } from '@itkennel/lm-ag-ui';
+import { useAgent, AgentProvider, useAgentContext } from '@cyronius/lm-ag-ui';
 
 function App() {
   const agent = useAgent({
@@ -43,7 +44,7 @@ function App() {
 Inside `AgentProvider`, access agent state via `useAgentContext`:
 
 ```tsx
-import { useAgentContext } from '@itkennel/lm-ag-ui';
+import { useAgentContext } from '@cyronius/lm-ag-ui';
 
 function ChatUI() {
   const {
@@ -81,9 +82,9 @@ function ChatUI() {
 
 ### Layered structure
 
-- **Transport layer** — [CustomHttpAgent.ts](./CustomHttpAgent.ts): subclasses `@ag-ui/client`'s `HttpAgent` to route the request pipeline through a pluggable `RequestHandler`. Auth headers, retries, and custom fetch behavior hook in here.
-- **Session layer** — [AgentClient.ts](./AgentClient.ts): wraps the HttpAgent with session semantics (`threadId`, `runId`, `isActive`), system-context injection with per-thread content-based deduplication, token-provider-based auth refresh, and the two entry points `runAgent()` (new turn) and `submitToolResults()` (tool feedback round-trip).
-- **React layer** — [useAgent.ts](./useAgent.ts) + [AgentClientContext.tsx](./AgentClientContext.tsx): subscribes to AG-UI streaming events, accumulates text deltas, buffers incremental tool calls, executes frontend tools at `RunFinished`, and exposes the agent state to the tree via `AgentProvider` / `useAgentContext`.
+- **Transport layer** — [src/CustomHttpAgent.ts](./src/CustomHttpAgent.ts): subclasses `@ag-ui/client`'s `HttpAgent` to route the request pipeline through a pluggable `RequestHandler`. Auth headers, retries, and custom fetch behavior hook in here.
+- **Session layer** — [src/AgentClient.ts](./src/AgentClient.ts): wraps the HttpAgent with session semantics (`threadId`, `runId`, `isActive`), system-context injection with per-thread content-based deduplication, token-provider-based auth refresh, and the two entry points `runAgent()` (new turn) and `submitToolResults()` (tool feedback round-trip).
+- **React layer** — [src/useAgent.ts](./src/useAgent.ts) + [src/AgentClientContext.tsx](./src/AgentClientContext.tsx): subscribes to AG-UI streaming events, accumulates text deltas, buffers incremental tool calls, executes frontend tools at `RunFinished`, and exposes the agent state to the tree via `AgentProvider` / `useAgentContext`.
 
 ### Data flow (one user turn)
 
@@ -102,16 +103,17 @@ user input
    → agentClient.endRun()
 ```
 
-The `RunFinished` branching logic lives in the pure helper [assembleFinalMessages.ts](./assembleFinalMessages.ts), which handles the four branches (text-only / tools-only / text+tools-all-resolved / text+tools-pending) and duplicate-suppression.
+The `RunFinished` branching logic lives in the pure helper [src/assembleFinalMessages.ts](./src/assembleFinalMessages.ts), which handles the four branches (text-only / tools-only / text+tools-all-resolved / text+tools-pending) and duplicate-suppression.
 
 ### Tool system
 
-A `ToolDefinition` bundles: OpenAI-compatible `definition`, optional `handler` (frontend execution), optional `renderer` (UI), optional `onResult` (side-effect hook fired for both frontend and backend tools), and an `isFrontend` routing flag. Frontend tools execute synchronously on `RunFinished`; backend tools execute remotely and their results arrive as `ToolCallResult` events.
+A `ToolDefinition` bundles: OpenAI-compatible `definition`, optional `handler` (frontend execution), optional `renderer` (UI), optional `onResult` (side-effect hook fired for both frontend and backend tools), and an `isFrontend` routing flag. Frontend tools execute on `RunFinished`; backend tools execute remotely and their results arrive as `ToolCallResult` events.
 
 Frontend handlers receive a `ctx: ToolContext` with one escape hatch:
-- `ctx.stopAfterToolCall()` — terminates the run; no LLM follow-up turn (backend spec `AGENT-STOP-FRONTEND-CONTEXT`).
 
-To suppress *intermediate* assistant narration during an agentic chain — keeping the first and final messages of the user's turn but dropping middle narration — set `suppressIntermediateAssistantMessages: true` on `useAgentSetup` / `useAgent` options. The flag is sticky for the lifetime of the agent component and is FE-local (not sent to the backend). The runtime applies these rules on every run while the flag is on:
+- `ctx.stopAfterToolCall()` — ends the run with no LLM follow-up turn. It sets `forwardedProps.stopAfterToolCall = true` on the tool-result submission; a backend that honors the flag short-circuits the model entirely. Use it when the tool's output *is* the final answer (e.g. the tool rendered an artifact and there is nothing left to narrate). Idempotent and batch-scoped — if any tool in a batched submission sets it, it applies to the whole submission.
+
+To suppress *intermediate* assistant narration during an agentic chain — keeping the first and final messages of the user's turn but dropping middle narration — set `suppressIntermediateAssistantMessages: true` on `useAgentSetup` / `useAgent` options. The flag is sticky for the lifetime of the agent component and is frontend-local (never sent to the backend). The runtime applies these rules on every run while the flag is on:
 
 - The first text emitted in a user turn (the first `TEXT_MESSAGE_*` group seen since the user submitted) streams live as it arrives.
 - Text in any subsequent run is buffered until that run's `RUN_FINISHED`. If the run emitted any tool calls (chain continues), the buffered text is dropped — it was intermediate narration. If the run had no tool calls (chain ends), the buffered text is committed as the final-result message.
@@ -133,11 +135,11 @@ Pick based on where history lives. Mismatching the flag with the backend contrac
 
 ### Configuration bootstrap
 
-[configService.ts](./configService.ts) fetches `GET /agent/{agentId}` to retrieve backend tool configs, suggestions, and KV config. [useAgentSetup.ts](./useAgentSetup.ts) constructs the `AgentClient` lazily once config loads, so `baseUrl`/`agentId` are never captured stale. Backend tool configs can be hydrated into full `ToolDefinition`s either by the consumer (in `onConfigLoaded`) or automatically via the `frontendToolImpls` option, which joins backend-declared tools with caller-supplied handlers/renderers.
+[src/configService.ts](./src/configService.ts) fetches `GET /agent/{agentId}` to retrieve backend tool configs, suggestions, and KV config. [src/useAgentSetup.ts](./src/useAgentSetup.ts) constructs the `AgentClient` lazily once config loads, so `baseUrl`/`agentId` are never captured stale. Backend tool configs can be hydrated into full `ToolDefinition`s either by the consumer (in `onConfigLoaded`) or automatically via the `frontendToolImpls` option, which joins backend-declared tools with caller-supplied handlers/renderers.
 
 ### Build & packaging
 
-[vite.config.lib.ts](../../vite.config.lib.ts) builds ES-only output to `dist-lib/`, marks React, `@ag-ui/*`, and `rxjs` as external, and aliases `rxjs` to the project root to defeat `@ag-ui/client`'s bundled copy. The bundled-rxjs collision is also why [CustomHttpAgent.ts](./CustomHttpAgent.ts) has an `as any` cast at the observable boundary — documented inline.
+[vite.config.ts](./vite.config.ts) builds ES-only output to `dist/`, with declarations in `dist/types/`. `react`, `react-dom`, `@ag-ui/*`, and `rxjs` are external — they resolve from the consumer's install as peer dependencies. `@ag-ui/client` ships its own nested copy of rxjs, so consumers should dedupe rxjs in their bundler (`resolve.dedupe: ['rxjs']` in Vite) to keep one `Observable` identity across the boundary. That duplication is also why [src/CustomHttpAgent.ts](./src/CustomHttpAgent.ts) carries an `as any` cast at the observable boundary — documented inline.
 
 ## Core API
 
@@ -157,12 +159,18 @@ Core hook that creates an `AgentClient` and manages streaming state, messages, a
 | `sendFullHistory` | `boolean` | No | Send full message history vs. only the latest turn (default: false) |
 | `initialThreadId` | `string` | No | Resume an existing conversation thread |
 | `onLifecycleEvent` | `(event: AgentLifecycleEvent) => void` | No | Callback for observing agent lifecycle events (run started, tool used, message added) |
-| `systemContextBuilder` | `() => string \| null` | No | Zero-arg renderer for the system-message snapshot. When not provided, no system context is injected. Independent of `buildForwardedProps` |
+| `systemContextBuilder` | `() => string \| null` | No | Zero-arg renderer for the system-context snapshot. When not provided, no system context is injected. Independent of `buildForwardedProps` |
 | `debug` | `boolean` | No | Enable backend LLM-input capture (appends `?debug=true` to the agent URL). Set once at init; drive from env var or URL flag |
-| `onError` | `(err: { code; message; raw? }) => void` | No | Fires on run errors, safety-timeout aborts, and intentional aborts. Additive to in-stream error messages |
-| `safetyTimeoutMs` | `number` | No | Force-end a run stuck longer than this (default: 300000) |
+| `onError` | `(err: { code; message; raw? }) => void` | No | Fires on run errors, timeout aborts, and intentional aborts. Additive to in-stream error messages |
+| `safetyTimeoutMs` | `number` | No | Absolute hard cap for a whole run, never reset (default: 900000) |
+| `idleTimeoutMs` | `number` | No | Idle window, reset on every AG-UI event — only a genuine stall trips it (default: 180000) |
+| `pruneOutboundMessages` | `(messages: Message[]) => Message[]` | No | Outbound transformer applied immediately before every wire send. Must preserve ordering and tool-call/tool-result pairing — only `content` may change |
+| `suppressIntermediateAssistantMessages` | `boolean` | No | Drop middle narration in agentic chains; keep the first and final messages of the turn (default: false) |
+| `configParams` | `Record<string, string \| string[]>` | No | Extra query params appended to both the config-init GET and every run POST. Array values are sent as repeated keys (`?ids=a&ids=b`) |
 
 Returns: `AgentClientContextValue` with all agent state and methods.
+
+**Busy state:** `isStreaming` reads false while frontend tools are executing between runs. Use `isBusy` (`isStreaming || hasPendingToolWork`) to gate the send button and typing indicators — otherwise a second message can race the pending tool chain's continuation call on the same thread.
 
 ### `AgentClient`
 
@@ -187,8 +195,8 @@ Key methods:
 
 Tools define capabilities the agent can invoke. Each tool can run on the frontend (in React) or the backend (on the server).
 
-```ts
-import type { ToolDefinition } from '@itkennel/lm-ag-ui';
+```tsx
+import type { ToolDefinition } from '@cyronius/lm-ag-ui';
 
 const myTool: ToolDefinition = {
   definition: {
@@ -197,8 +205,9 @@ const myTool: ToolDefinition = {
     parameters: { type: 'object', properties: {}, required: [] }
   },
   isFrontend: true,
-  handler: (args, updateState, getState) => {
+  handler: (args, updateState, getState, configJson, ctx) => {
     // Execute tool logic, return result string
+    ctx?.stopAfterToolCall();   // optional: when the artifact IS the answer
     return JSON.stringify({ shown: true });
   },
   renderer: (args, result, updateState, getState) => {
@@ -210,6 +219,8 @@ const myTool: ToolDefinition = {
   },
 };
 ```
+
+Handlers may return `string | null` or a `Promise<string | null>` — the runner awaits the return either way, so an async tool opts in simply by being declared `async`.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -229,7 +240,7 @@ The library supports file attachments via AG-UI's native `BinaryInputContent` ty
 Use `filesToBinaryContent()` to read files client-side and embed them directly in message content:
 
 ```ts
-import { filesToBinaryContent } from '@itkennel/lm-ag-ui';
+import { filesToBinaryContent } from '@cyronius/lm-ag-ui';
 
 const binaryParts = await filesToBinaryContent(files);
 const message = {
@@ -247,7 +258,7 @@ const message = {
 Upload files to your own storage, then reference them via `BinaryInputContent.url`:
 
 ```ts
-import type { BinaryInputContent } from '@itkennel/lm-ag-ui';
+import type { BinaryInputContent } from '@cyronius/lm-ag-ui';
 
 // Upload to your own endpoint
 const uploaded = await myUploadService(files);
@@ -322,11 +333,11 @@ useAgent({
 
 ## Config Loading (optional)
 
-If your backend provides a `GET /agent/{agentId}` endpoint that returns tool definitions and suggestions, you can use the config loading subpath:
+If your backend provides a `GET /agent/{agentId}` endpoint that returns tool definitions and suggestions, `useAgentSetup` loads it and mounts the agent once config is ready:
 
 ```tsx
-import { useAgentSetup } from '@itkennel/lm-ag-ui/config';
-import type { AgentConfig } from '@itkennel/lm-ag-ui/config';
+import { useAgentSetup } from '@cyronius/lm-ag-ui';
+import type { AgentConfig } from '@cyronius/lm-ag-ui';
 
 function App() {
   const { config, isLoading, error, AgentLayer } = useAgentSetup({
@@ -349,14 +360,14 @@ function App() {
 }
 ```
 
-`useAgentSetup` loads config, then mounts `useAgent` + `AgentProvider` inside `AgentLayer` once config is ready. This is a convenience wrapper — you can always use `useAgent` directly if you manage config loading yourself.
+`useAgentSetup` loads config, then mounts `useAgent` + `AgentProvider` inside `AgentLayer`. This is a convenience wrapper — you can always use `useAgent` directly if you manage config loading yourself.
 
-#### Auto-hydrating tools from backend configs
+### Auto-hydrating tools from backend configs
 
 The backend owns each tool's schema and `configJson`; the frontend owns the code that runs handlers and renders results. For the common case, pass `frontendToolImpls` to `useAgentSetup` and let it join them for you:
 
 ```tsx
-import { useAgentSetup } from '@itkennel/lm-ag-ui/config';
+import { useAgentSetup } from '@cyronius/lm-ag-ui';
 
 const frontendToolImpls = {
   show_calendar: {
@@ -388,22 +399,28 @@ For full control (conditional tool registration, runtime filtering), use `onConf
 
 ## Exports
 
-### Main entry point (`@itkennel/lm-ag-ui`)
+Everything is exported from the package root (`@cyronius/lm-ag-ui`).
 
-**Classes**: `AgentClient`, `HttpAgent` (re-export from @ag-ui/client)
+**Classes**: `AgentClient`, `HttpAgent` (re-export from `@ag-ui/client`)
 
-**Hooks**: `useAgent`, `useAgentContext`
+**Hooks**: `useAgent`, `useAgentContext`, `useAgentSetup`
 
 **Components**: `AgentProvider`
 
-**Functions**: `filesToBinaryContent`
+**Functions**: `filesToBinaryContent`, `loadAgentConfig`, `hydrateToolConfigs`, `getAllToolDefinitions`, `getFrontendToolDefinitions`, `getBackendToolDefinitions`, `getFrontEndTools`, `getToolRenderers`, `groupSuggestionsByCategory`
 
-**Types**: `ToolDefinition`, `ToolHandler`, `ToolRenderer`, `ToolOnResult`, `AgentClientContextValue`, `UseAgentOptions`, `AgentLifecycleEvent`, `Session`, `TokenProvider`, `RequestHandler`, `BinaryInputContent`, `InputContent`, AG-UI re-exports (`Message`, `Tool`, `BaseEvent`, `EventType`, and all event types)
+**Types**: `ToolDefinition`, `ToolHandler`, `ToolRenderer`, `ToolOnResult`, `ToolContext`, `AgentClientContextValue`, `UseAgentOptions`, `UseAgentSetupOptions`, `UseAgentSetupResult`, `AgentConfig`, `Suggestion`, `ToolConfigResponse`, `AgentLifecycleEvent`, `Session`, `TokenProvider`, `RequestHandler`, `SystemContextBuilder`, `BinaryInputContent`, `InputContent`, AG-UI re-exports (`Message`, `Tool`, `BaseEvent`, `EventType`, and all event types)
 
-### Config subpath (`@itkennel/lm-ag-ui/config`)
+**Advanced** — lower-level building blocks; most consumers want `useAgent`: `useAgentSession`, `useAgentStream`, `useFrontendToolRunner`
 
-**Hooks**: `useAgentSetup`
+## Development
 
-**Functions**: `loadAgentConfig`
+```bash
+npm install     # also runs the build via `prepare`
+npm test        # vitest
+npm run build   # ES bundle + declarations into dist/
+```
 
-**Types**: `AgentConfig`, `Suggestion`, `ToolConfigResponse`, `UseAgentSetupOptions`, `UseAgentSetupResult`
+## License
+
+MIT © Cyrus Attoun
