@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ToolDefinition } from '../index';
 import { executeFrontendToolCall } from '../frontendToolExecution';
 
-// Unit coverage for the per-call execution that backs useFrontendToolRunner.
+// Unit coverage for the per-call execution that backs AgentStore's tool runner.
 // The behavior under test: a frontend tool call ALWAYS produces a `role: 'tool'`
 // result message — including when the args fail to parse or the handler throws —
 // so the agent protocol stays whole and the model receives a structured failure

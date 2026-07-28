@@ -53,7 +53,7 @@ export interface ToolContext {
 // asynchronously (`Promise<string | null>`). The runner awaits the return, so
 // both forms are handled by the same code path — a sync tool needs no change,
 // and an async tool (e.g. one that fetches) opts in simply by being declared
-// `async`. See useFrontendToolRunner.executeFrontendToolCall.
+// `async`. See frontendToolExecution.executeFrontendToolCall.
 export type ToolHandler = (
     args: any,
     updateState: (toolName: string, data: unknown) => void,
@@ -225,17 +225,16 @@ export type { TokenProvider, SystemContextBuilder };
 export type { RequestHandler };
 export { AgentClient, AgentProvider, useAgentContext, useAgent };
 
-/** @advanced Lower-level building block. Most consumers should use `useAgent`. */
-export { useAgentSession } from './useAgentSession';
-export type { SessionHandle } from './useAgentSession';
+/** @advanced React-free building block: the full event pipeline (subscriber →
+ *  reducer → tool runner) behind `useAgent`. Construct directly for non-React
+ *  consumers or custom bindings; subscribe/getSnapshot follow the
+ *  useSyncExternalStore contract. */
+export { AgentStore } from './AgentStore';
+export type { AgentStoreOptions, AgentSnapshot, RunFinishedPayload, PendingToolCall } from './AgentStore';
 
-/** @advanced Lower-level building block. Most consumers should use `useAgent`. */
-export { useAgentStream } from './useAgentStream';
-export type { StreamHandle, RunFinishedPayload, PendingToolCall } from './useAgentStream';
-
-/** @advanced Lower-level building block. Most consumers should use `useAgent`. */
-export { useFrontendToolRunner } from './useFrontendToolRunner';
-export type { FrontendToolRunnerOptions } from './useFrontendToolRunner';
+/** @advanced Pure per-call frontend tool executor used by AgentStore's runner. */
+export { executeFrontendToolCall } from './frontendToolExecution';
+export type { FrontendToolExecution } from './frontendToolExecution';
 export { filesToBinaryContent } from './fileUtils';
 export { getAllToolDefinitions, getFrontendToolDefinitions, getBackendToolDefinitions, getFrontEndTools, getToolRenderers, hydrateToolConfigs } from './toolUtils';
 export { loadAgentConfig } from './configService';

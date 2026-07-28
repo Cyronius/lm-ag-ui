@@ -199,7 +199,7 @@ export class AgentClient {
 
         if (startedAt == null) return;
 
-        // Defer the elapsed log: useFrontendToolRunner calls startNewRun
+        // Defer the elapsed log: the frontend tool runner calls startNewRun
         // synchronously after endRun when continuing a tool chain. Wait one
         // microtask to see whether the run actually ended or just hopped turns.
         queueMicrotask(() => {
