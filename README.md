@@ -1,6 +1,6 @@
 # @cyronius/lm-ag-ui
 
-React hooks and utilities for building chat interfaces powered by the [AG-UI](https://github.com/ag-ui-protocol/ag-ui) streaming protocol.
+React hooks and utilities for building chat interfaces powered by the [AG-UI](https://github.com/ag-ui-protocol/ag-ui) streaming protocol. The engine is framework-free — a React-free entry (`@cyronius/lm-ag-ui/core`) exposes it for Vue, Svelte, workers, or plain TypeScript.
 
 ## Installation
 
@@ -18,6 +18,15 @@ npm install @cyronius/lm-ag-ui
   "@ag-ui/core": "^0.0.47"
 }
 ```
+
+`react` is an **optional** peer: it is required by the package root (hooks,
+provider) but not by `@cyronius/lm-ag-ui/core`, whose runtime graph imports
+only `@ag-ui/client` and `rxjs`.
+
+## Examples
+
+- [examples/react](./examples/react) — minimal Vite chat UI over `useAgent` / `AgentProvider` (streaming render, frontend tool, `isBusy` gating)
+- [examples/plain-typescript](./examples/plain-typescript) — Node console chat driving `AgentStore` directly through `/core`; no React installed
 
 ## Quick Start
 
@@ -400,7 +409,10 @@ For full control (conditional tool registration, runtime filtering), use `onConf
 
 ## Exports
 
-Everything is exported from the package root (`@cyronius/lm-ag-ui`).
+Two entry points:
+
+- **`@cyronius/lm-ag-ui`** (root) — everything below, including the React bindings.
+- **`@cyronius/lm-ag-ui/core`** — everything except `useAgent`, `useAgentSetup`, `AgentProvider`, `useAgentContext`. Zero React in its runtime graph; use it from non-React apps (see [examples/plain-typescript](./examples/plain-typescript)). The only React trace is type-level (`ToolDefinition.renderer` returns a `ReactElement`) — erased at build, and non-React consumers simply leave `renderer` unset.
 
 **Classes**: `AgentClient`, `HttpAgent` (re-export from `@ag-ui/client`)
 

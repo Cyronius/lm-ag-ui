@@ -1,0 +1,25 @@
+{
+    "name": "lm-ag-ui-example-react",
+    "private": true,
+    "type": "module",
+    "description": "Minimal React chat UI over useAgent / AgentProvider.",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build"
+    },
+    "dependencies": {
+        "@ag-ui/client": "^0.0.47",
+        "@ag-ui/core": "^0.0.47",
+        "@cyronius/lm-ag-ui": "file:../..",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "rxjs": "^7.8.2"
+    },
+    "devDependencies": {
+        "@types/react": "^18.2.0",
+        "@types/react-dom": "^18.2.0",
+        "@vitejs/plugin-react-swc": "^3.10.2",
+        "typescript": "^5.0.0",
+        "vite": "^6.4.1"
+    }
+}

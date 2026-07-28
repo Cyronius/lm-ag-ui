@@ -6,3 +6,4 @@ stats/
 .env.*
 .DS_Store
 .claude/plans/
+examples/*/package-lock.json
