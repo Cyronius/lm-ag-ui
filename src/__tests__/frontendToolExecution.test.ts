@@ -1,9 +1,9 @@
 // Traces: MOBI-HANDLER-THROW-SURFACED (canonical spec: c:/code/lm-admin/specs/mobi/spec.md)
-// This package owns the frontend tool runner; lm-admin consumes it. The spec
+// This package owns the frontend tool execution; lm-admin consumes it. The spec
 // requirement lists this file under `External tests:`.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ToolDefinition } from '../index';
-import { executeFrontendToolCall } from '../useFrontendToolRunner';
+import { executeFrontendToolCall } from '../frontendToolExecution';
 
 // Unit coverage for the per-call execution that backs useFrontendToolRunner.
 // The behavior under test: a frontend tool call ALWAYS produces a `role: 'tool'`
