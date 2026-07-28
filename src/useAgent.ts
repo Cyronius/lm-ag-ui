@@ -41,7 +41,12 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
 
     // Latest-wins options sync — the React-legal replacement for the old
     // render-phase `toolsRef.current = tools` pattern. Runs after every render.
-    useEffect(() => { store.setOptions(pickStoreOptions(options)); });
+    // tokenProvider is consulted per wire call, so it stays updatable too;
+    // the other transport options are frozen at client construction.
+    useEffect(() => {
+        store.setOptions(pickStoreOptions(options));
+        store.client.setTokenProvider?.(options.tokenProvider);
+    });
 
     // Quiesce on unmount. Non-terminal: under StrictMode's dev double-mount the
     // same store instance is disposed and then reused — see AgentStore.dispose.

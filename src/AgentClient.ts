@@ -170,6 +170,16 @@ export class AgentClient {
         this.onSessionChange = callback;
     }
 
+    /**
+     * Replace the token provider. The provider is invoked per request
+     * (applyAuthHeaders), so an updated provider takes effect on the next
+     * wire call — no client reconstruction needed. `useAgent` forwards the
+     * latest provider on every render.
+     */
+    setTokenProvider(tokenProvider?: TokenProvider) {
+        this.tokenProvider = tokenProvider;
+    }
+
     // Session management methods
     startNewRun(): Session {
         const newRunId = this.generateRunId();
