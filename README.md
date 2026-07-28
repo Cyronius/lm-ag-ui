@@ -78,13 +78,14 @@ function ChatUI() {
 
 ## Architecture
 
-> **In doubt? Use `useAgent`.** It composes `useAgentSession` + `useAgentStream` + `useFrontendToolRunner` into a single hook with the right wiring. The lower-level hooks are exposed only for consumers building a custom runner (e.g. running tools in a worker, or skipping the frontend tool layer entirely).
+> **In doubt? Use `useAgent`.** It is a thin React binding over `AgentStore`, the React-free engine that owns the whole event pipeline. Construct `AgentStore` directly only when building a custom binding (another framework, a worker, a non-React app).
 
 ### Layered structure
 
 - **Transport layer** — [src/CustomHttpAgent.ts](./src/CustomHttpAgent.ts): subclasses `@ag-ui/client`'s `HttpAgent` to route the request pipeline through a pluggable `RequestHandler`. Auth headers, retries, and custom fetch behavior hook in here.
 - **Session layer** — [src/AgentClient.ts](./src/AgentClient.ts): wraps the HttpAgent with session semantics (`threadId`, `runId`, `isActive`), system-context injection with per-thread content-based deduplication, token-provider-based auth refresh, and the two entry points `runAgent()` (new turn) and `submitToolResults()` (tool feedback round-trip).
-- **React layer** — [src/useAgent.ts](./src/useAgent.ts) + [src/AgentClientContext.tsx](./src/AgentClientContext.tsx): subscribes to AG-UI streaming events, accumulates text deltas, buffers incremental tool calls, executes frontend tools at `RunFinished`, and exposes the agent state to the tree via `AgentProvider` / `useAgentContext`.
+- **Engine (React-free)** — [src/AgentStore.ts](./src/AgentStore.ts): implements the AG-UI `AgentSubscriber` directly. Accumulates text deltas through the pure reducer ([src/agentReducer.ts](./src/agentReducer.ts)), buffers incremental tool calls, executes frontend tools at `RunFinished` and chains the tool-result submission, owns the run watchdog and the intermediate-message suppressor, and exposes `subscribe`/`getSnapshot` (the `useSyncExternalStore` contract, usable from any framework).
+- **React binding** — [src/useAgent.ts](./src/useAgent.ts) + [src/AgentClientContext.tsx](./src/AgentClientContext.tsx): creates the store once per mount, syncs options latest-wins on each render, reads one folded snapshot via `useSyncExternalStore`, and exposes the agent state to the tree via `AgentProvider` / `useAgentContext`.
 
 ### Data flow (one user turn)
 
@@ -117,12 +118,12 @@ To suppress *intermediate* assistant narration during an agentic chain — keepi
 
 - The first text emitted in a user turn (the first `TEXT_MESSAGE_*` group seen since the user submitted) streams live as it arrives.
 - Text in any subsequent run is buffered until that run's `RUN_FINISHED`. If the run emitted any tool calls (chain continues), the buffered text is dropped — it was intermediate narration. If the run had no tool calls (chain ends), the buffered text is committed as the final-result message.
-- A new turn (a fresh `runAgent` call rather than a tool-result chain continuation) resets the first-text tracking. `useFrontendToolRunner` signals continuation by calling `stream.markChainedRun()` immediately before submitting tool results. Consumers calling `agentClient.runAgent` directly to start a fresh user-initiated run while this flag is enabled should call `agent.clearPendingChain()` first as a defensive guard; `useAgent.invokeToolByName` does this automatically.
+- A new turn (a fresh `runAgent` call rather than a tool-result chain continuation) resets the first-text tracking. The store's tool runner signals continuation by calling `markChainedRun()` immediately before submitting tool results. Consumers calling `agentClient.runAgent` directly to start a fresh user-initiated run while this flag is enabled should call `agent.clearPendingChain()` first as a defensive guard; `invokeToolByName` does this automatically.
 
 ### State ownership
 
 - **Session** (`AgentClient`): `threadId`, `runId`, `isActive`.
-- **Chat state** (`useAgent`): messages, streaming buffer, tool-call buffers, per-tool global state.
+- **Chat state** (`AgentStore`): messages, streaming buffer, tool-call buffers, per-tool global state — held as one immutable `AgentSnapshot` (`state`, `session`, `isStreaming`, `hasPendingToolWork`, `isBusy`). `useAgent` renders from that snapshot; there is no React-side copy.
 
 ### `sendFullHistory` modes
 
@@ -411,7 +412,21 @@ Everything is exported from the package root (`@cyronius/lm-ag-ui`).
 
 **Types**: `ToolDefinition`, `ToolHandler`, `ToolRenderer`, `ToolOnResult`, `ToolContext`, `AgentClientContextValue`, `UseAgentOptions`, `UseAgentSetupOptions`, `UseAgentSetupResult`, `AgentConfig`, `Suggestion`, `ToolConfigResponse`, `AgentLifecycleEvent`, `Session`, `TokenProvider`, `RequestHandler`, `SystemContextBuilder`, `BinaryInputContent`, `InputContent`, AG-UI re-exports (`Message`, `Tool`, `BaseEvent`, `EventType`, and all event types)
 
-**Advanced** — lower-level building blocks; most consumers want `useAgent`: `useAgentSession`, `useAgentStream`, `useFrontendToolRunner`
+**Advanced** — lower-level building blocks; most consumers want `useAgent`: `AgentStore` (with `AgentStoreOptions`, `AgentSnapshot`, `RunFinishedPayload`, `PendingToolCall`), `executeFrontendToolCall` (with `FrontendToolExecution`)
+
+## Migrating from 1.x
+
+2.0 replaces the internal hook composition with the React-free `AgentStore`. The `useAgent` / `useAgentSetup` facades and `AgentClientContextValue` are signature-compatible — most consumers upgrade with no code changes.
+
+Breaking changes:
+
+- **Removed**: `useAgentSession`, `useAgentStream`, `useFrontendToolRunner` and their types (`SessionHandle`, `StreamHandle`, `FrontendToolRunnerOptions`). If you composed these for a custom runner, construct an `AgentStore` instead: it implements `AgentSubscriber`, exposes `onRunFinished(cb)`, `markChainedRun()`, `clearPendingChain()`, `dispatch(action)`, and the `subscribe`/`getSnapshot` pair for state.
+- **`agentSubscriber`** on the context value is now the store itself (still a valid `AgentSubscriber`).
+
+Behavior fixes (deliberate):
+
+- `isBusy` / `hasPendingToolWork` now reset when a chained run errors, times out, is terminated, or has nothing submittable. Previously they could stick `true` forever after a mid-chain failure.
+- `useAgentSetup`'s `AgentLayer` no longer remounts (destroying the conversation) when option identities change (an unmemoized `tools`, an inline `buildForwardedProps`, a config refetch). Only `baseUrl`/`agentId` changes remount. A rotated `tokenProvider` now takes effect without a remount via `AgentClient.setTokenProvider`.
 
 ## Development
 

@@ -1,6 +1,6 @@
 {
     "name": "@cyronius/lm-ag-ui",
-    "version": "1.1.0",
+    "version": "2.0.0",
     "description": "React hooks and utilities for building chat interfaces powered by the AG-UI streaming protocol.",
     "license": "MIT",
     "author": "Cyrus Attoun",
