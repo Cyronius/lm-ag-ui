@@ -91,8 +91,8 @@ function waitUntilIdle(): Promise<void> {
 
 async function sendMessage(text: string): Promise<void> {
     store.addMessage({ id: randomUUID(), role: 'user', content: text });
-    store.clearPendingChain();
-    client.startNewRun();
+    // Fresh user turn: clears any stale chained-run marker and mints a run.
+    store.beginTurn();
     try {
         // The store is the subscriber. runAgent resolves when this leg's SSE
         // stream ends; chained frontend-tool legs continue in the background,

@@ -9,8 +9,8 @@ A minimal Vite + React chat UI over `useAgent` / `AgentProvider` /
 - Streaming rendering via `currentMessage` (the live text buffer)
 - Gating the send button on `isBusy` — the settled-turn signal that stays true
   across frontend tool chains, unlike `isStreaming`
-- Starting a turn by hand: `addMessage` → `clearPendingChain` →
-  `startNewRun` → `runAgent(history, toolDefs, agentSubscriber)`
+- Starting a turn by hand: `addMessage` → `beginTurn` →
+  `runAgent(history, toolDefs, agentSubscriber)`
 
 For config-driven bootstrapping (backend-declared tools, suggestions), see
 `useAgentSetup` in the root README — this example wires `useAgent` directly to

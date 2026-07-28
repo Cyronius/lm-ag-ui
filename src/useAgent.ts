@@ -77,6 +77,7 @@ export function useAgent(options: UseAgentOptions): AgentClientContextValue {
         terminateRun: store.terminateRun,
         debug: store.client.debug,
         getForwardedProps: store.getForwardedProps,
+        beginTurn: store.beginTurn,
         clearPendingChain: store.clearPendingChain,
     }), [store, snap, tools]);
 }

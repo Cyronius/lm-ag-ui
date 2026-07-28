@@ -125,10 +125,15 @@ export interface AgentClientContextValue {
     debug: boolean;
     getForwardedProps: (extraProps?: Record<string, any>) => Record<string, any>;
     /**
-     * Defensive: clears any pending chained-run marker. Consumers calling
-     * `agentClient.runAgent` directly to start a fresh user-initiated run
-     * while `suppressIntermediateAssistantMessages` is enabled should call
-     * this first. `useAgent.invokeToolByName` calls it automatically.
+     * Start a fresh user-initiated turn: clears any pending chained-run
+     * marker and mints a new run. Call this (instead of
+     * `agentClient.startNewRun()`) before invoking `agentClient.runAgent`
+     * directly. `invokeToolByName` calls it automatically.
+     */
+    beginTurn: () => Session;
+    /**
+     * Defensive: clears any pending chained-run marker without starting a
+     * run. Prefer `beginTurn`; this remains as an escape hatch.
      * No-op when `suppressIntermediateAssistantMessages` is off.
      */
     clearPendingChain: () => void;

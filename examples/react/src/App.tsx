@@ -63,7 +63,7 @@ function Chat() {
         isBusy,           // true until the whole turn settles, incl. tool chains
         tools,
         addMessage,
-        clearPendingChain,
+        beginTurn,
     } = useAgentContext();
     const [input, setInput] = useState('');
 
@@ -73,8 +73,7 @@ function Chat() {
         setInput('');
         const userMessage = { id: crypto.randomUUID(), role: 'user' as const, content: text };
         addMessage(userMessage);
-        clearPendingChain();
-        agentClient.startNewRun();
+        beginTurn();
         try {
             // The store handles everything from here: streaming, frontend tool
             // execution, chained tool-result submission.

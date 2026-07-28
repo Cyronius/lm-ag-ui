@@ -455,4 +455,46 @@ describe('AgentStore options and lifecycle', () => {
         expect(fake.startNewRunCount).toBe(0);
         expect(store.getState().messages[0].content).toContain("Tool 'nope' not found");
     });
+
+    it('beginTurn mints a run and clears a stale chained-run marker so the next turn streams fresh', async () => {
+        const { fake, store } = makeStore({}, { suppressIntermediateAssistantMessages: true });
+        // Turn 1: fresh run emits its first text (turn-scoped first-text flag now set).
+        fake.startNewRun();
+        store.onRunStartedEvent(ev.runStarted('t1', 'r1'));
+        store.onTextMessageStartEvent(ev.textStart('m1'));
+        store.onTextMessageContentEvent(ev.textDelta('m1', 'first'));
+        store.onTextMessageEndEvent(ev.textEnd('m1'));
+        store.onRunFinishedEvent(ev.runFinished('t1', 'r1'));
+        await flush();
+        // A chained-run marker is left dangling from an aborted chain.
+        store.markChainedRun();
+
+        store.beginTurn();
+        expect(fake.startNewRunCount).toBe(2);
+        store.onRunStartedEvent(ev.runStarted('t1', 'r2'));
+        store.onTextMessageStartEvent(ev.textStart('m2'));
+        store.onTextMessageContentEvent(ev.textDelta('m2', 'second turn'));
+        // Fresh turn → first text streams live instead of being buffered.
+        expect(store.getSnapshot().state.streamingText).toBe('second turn');
+    });
+
+    it('without beginTurn, a stale chained-run marker suppresses the next turn’s first text (contrast)', async () => {
+        const { fake, store } = makeStore({}, { suppressIntermediateAssistantMessages: true });
+        fake.startNewRun();
+        store.onRunStartedEvent(ev.runStarted('t1', 'r1'));
+        store.onTextMessageStartEvent(ev.textStart('m1'));
+        store.onTextMessageContentEvent(ev.textDelta('m1', 'first'));
+        store.onTextMessageEndEvent(ev.textEnd('m1'));
+        store.onRunFinishedEvent(ev.runFinished('t1', 'r1'));
+        await flush();
+        store.markChainedRun();
+
+        // Consumer starts the next turn with startNewRun alone: the marker bleeds
+        // in and the turn's first text is wrongly buffered as intermediate.
+        fake.startNewRun();
+        store.onRunStartedEvent(ev.runStarted('t1', 'r2'));
+        store.onTextMessageStartEvent(ev.textStart('m2'));
+        store.onTextMessageContentEvent(ev.textDelta('m2', 'second turn'));
+        expect(store.getSnapshot().state.streamingText).toBe('');
+    });
 });

@@ -276,6 +276,18 @@ export class AgentStore implements AgentSubscriber {
      */
     clearPendingChain = (): void => { this.suppressor.clearPendingChain(); };
 
+    /**
+     * Start a fresh user-initiated turn: clears any stale chained-run marker
+     * and mints a new run on the client. This is the entry point consumers
+     * should use before calling `client.runAgent` directly — `startNewRun`
+     * alone is not "new turn" (the tool runner also calls it mid-chain), and
+     * a leftover chain marker would bleed suppression state into the new turn.
+     */
+    beginTurn = (): Session => {
+        this.clearPendingChain();
+        return this.client.startNewRun();
+    };
+
     // ---- facade helpers ----------------------------------------------------
 
     updateToolState = (toolName: string, data: unknown): void => {
@@ -335,10 +347,7 @@ export class AgentStore implements AgentSubscriber {
             content: `invoke the ${toolName} tool. Parameters=${JSON.stringify(additionalForwardedProps || {})}`,
         };
 
-        // Defensive: this is a fresh user-initiated run, so clear any chained-run
-        // marker left over from a prior turn before starting.
-        this.clearPendingChain();
-        this.client.startNewRun();
+        this.beginTurn();
 
         try {
             if (stateUpdates) {

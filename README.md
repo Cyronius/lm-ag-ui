@@ -63,12 +63,13 @@ function ChatUI() {
     isStreaming,
     agentClient,
     agentSubscriber,
+    beginTurn,
   } = useAgentContext();
 
   const sendMessage = async (text: string) => {
     const userMsg = { id: `msg_${Date.now()}`, role: 'user', content: text };
     addMessage(userMsg);
-    agentClient.startNewRun();
+    beginTurn();
     await agentClient.runAgent(
       [...messages, userMsg],
       [],
@@ -101,7 +102,7 @@ function ChatUI() {
 ```
 user input
    → addMessage(user)
-   → agentClient.startNewRun()
+   → beginTurn()   (clears stale chain marker, then agentClient.startNewRun())
    → agentClient.runAgent(history, tools, subscriber)
      → HttpAgent streams events ──→ subscriber callbacks
         ├─ TextMessageContent  → text buffer += delta
@@ -127,7 +128,7 @@ To suppress *intermediate* assistant narration during an agentic chain — keepi
 
 - The first text emitted in a user turn (the first `TEXT_MESSAGE_*` group seen since the user submitted) streams live as it arrives.
 - Text in any subsequent run is buffered until that run's `RUN_FINISHED`. If the run emitted any tool calls (chain continues), the buffered text is dropped — it was intermediate narration. If the run had no tool calls (chain ends), the buffered text is committed as the final-result message.
-- A new turn (a fresh `runAgent` call rather than a tool-result chain continuation) resets the first-text tracking. The store's tool runner signals continuation by calling `markChainedRun()` immediately before submitting tool results. Consumers calling `agentClient.runAgent` directly to start a fresh user-initiated run while this flag is enabled should call `agent.clearPendingChain()` first as a defensive guard; `invokeToolByName` does this automatically.
+- A new turn (a fresh `runAgent` call rather than a tool-result chain continuation) resets the first-text tracking. The store's tool runner signals continuation by calling `markChainedRun()` immediately before submitting tool results. Consumers calling `agentClient.runAgent` directly should start the turn with `beginTurn()` (which clears any stale chained-run marker before minting the run) rather than `agentClient.startNewRun()`; `invokeToolByName` does this automatically. `clearPendingChain()` remains as a standalone escape hatch.
 
 ### State ownership
 
@@ -195,7 +196,7 @@ const client = new AgentClient('http://localhost:8000', 'my-agent', {
 ```
 
 Key methods:
-- `startNewRun()` / `endRun()` / `endSession()` - Session lifecycle
+- `startNewRun()` / `endRun()` / `endSession()` - Session lifecycle. To start a fresh user turn, prefer `beginTurn()` on the context value / `AgentStore` — it clears the store's chained-run marker before calling `startNewRun()`
 - `runAgent(messages, tools, subscriber, forwardedProps)` - Send messages to backend
 - `submitToolResults(messages, subscriber, tools, forwardedProps)` - Submit tool execution results
 - `abortRun()` - Abort the current streaming run
@@ -432,7 +433,7 @@ Two entry points:
 
 Breaking changes:
 
-- **Removed**: `useAgentSession`, `useAgentStream`, `useFrontendToolRunner` and their types (`SessionHandle`, `StreamHandle`, `FrontendToolRunnerOptions`). If you composed these for a custom runner, construct an `AgentStore` instead: it implements `AgentSubscriber`, exposes `onRunFinished(cb)`, `markChainedRun()`, `clearPendingChain()`, `dispatch(action)`, and the `subscribe`/`getSnapshot` pair for state.
+- **Removed**: `useAgentSession`, `useAgentStream`, `useFrontendToolRunner` and their types (`SessionHandle`, `StreamHandle`, `FrontendToolRunnerOptions`). If you composed these for a custom runner, construct an `AgentStore` instead: it implements `AgentSubscriber`, exposes `onRunFinished(cb)`, `beginTurn()`, `markChainedRun()`, `clearPendingChain()`, `dispatch(action)`, and the `subscribe`/`getSnapshot` pair for state.
 - **`agentSubscriber`** on the context value is now the store itself (still a valid `AgentSubscriber`).
 
 Behavior fixes (deliberate):
