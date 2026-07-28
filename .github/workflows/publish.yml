@@ -32,6 +32,16 @@ jobs:
 
       - run: npm test
 
-      - run: npm publish --provenance
+      # Prereleases (2.0.0-alpha.1) publish under their preid dist-tag so
+      # `npm install` keeps resolving to the last stable release.
+      - name: Publish
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-* ]]; then
+            PREID="${VERSION#*-}"
+            npm publish --provenance --tag "${PREID%%.*}"
+          else
+            npm publish --provenance
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

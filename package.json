@@ -47,6 +47,7 @@
     "scripts": {
         "build": "vite build",
         "test": "vitest run",
+        "release:alpha": "node scripts/release-alpha.mjs",
         "prepare": "vite build"
     },
     "dependencies": {
