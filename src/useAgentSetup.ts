@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { AgentConfig, UseAgentOptions, AgentClientContextValue, ToolDefinition } from './index';
+import { AgentConfig, UseAgentOptions, AgentClientContextValue, ToolDefinition } from './types';
 import { loadAgentConfig } from './configService';
 import { useAgent } from './useAgent';
 import { AgentProvider } from './AgentClientContext';

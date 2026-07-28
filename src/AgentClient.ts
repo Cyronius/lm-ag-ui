@@ -2,7 +2,7 @@ import { HttpAgent, AgentSubscriber, Message, State, Tool } from '@ag-ui/client'
 import type { RunAgentResult } from '@ag-ui/client';
 import { CustomHttpAgent } from './CustomHttpAgent';
 import type { RequestHandler } from './CustomHttpAgent';
-import { Session } from './index';
+import { Session } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 const DEFAULT_TIMEOUT_MS = 300000;

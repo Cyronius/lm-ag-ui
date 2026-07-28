@@ -1,5 +1,5 @@
 import type { Message } from '@ag-ui/client';
-import { ToolDefinition } from './index';
+import { ToolDefinition } from './types';
 
 export interface FrontendToolExecution {
     /**

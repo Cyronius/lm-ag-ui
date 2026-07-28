@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { AgentClientContextValue, UseAgentOptions } from './index';
+import { AgentClientContextValue, UseAgentOptions } from './types';
 import { AgentClient } from './AgentClient';
 import { AgentStore, AgentStoreOptions } from './AgentStore';
 

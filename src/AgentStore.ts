@@ -16,7 +16,7 @@ import type {
 import { v4 as uuidv4 } from 'uuid';
 import { agentReducer, initialAgentState, AgentState, AgentAction } from './agentReducer';
 import { AgentClient } from './AgentClient';
-import { Session, ToolDefinition, ForwardedPropsBuilder, AgentLifecycleEvent } from './index';
+import { Session, ToolDefinition, ForwardedPropsBuilder, AgentLifecycleEvent } from './types';
 import { getFrontEndTools } from './toolUtils';
 import { IntermediateMessageSuppressor } from './intermediateMessageSuppressor';
 import { createRunWatchdog, RunWatchdog } from './runWatchdog';

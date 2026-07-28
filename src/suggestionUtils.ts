@@ -13,7 +13,7 @@
  * groups identically. It is presentation-neutral: it returns plain
  * category/text groups, not any app's chip/menu types.
  */
-import type { Suggestion } from './index';
+import type { Suggestion } from './types';
 
 /** Separator between the category and the suggestion text within a stored suggestion. */
 export const SUGGESTION_CATEGORY_SEPARATOR = '|';
