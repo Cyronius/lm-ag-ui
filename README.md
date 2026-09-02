@@ -462,4 +462,4 @@ npm run build   # ES bundle + declarations into dist/
 
 ## License
 
-MIT © Cyrus Attoun
+MIT © SVI, LLC

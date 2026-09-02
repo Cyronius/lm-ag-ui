@@ -3,7 +3,7 @@
     "version": "2.0.0-alpha.0",
     "description": "React hooks and utilities for building chat interfaces powered by the AG-UI streaming protocol.",
     "license": "MIT",
-    "author": "Cyrus Attoun",
+    "author": "SVI, LLC",
     "homepage": "https://github.com/TechSavvies/lm-ag-ui#readme",
     "bugs": {
         "url": "https://github.com/TechSavvies/lm-ag-ui/issues"
