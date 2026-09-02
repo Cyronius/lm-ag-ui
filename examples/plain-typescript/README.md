@@ -1,7 +1,7 @@
 # Plain TypeScript example (no React)
 
 A Node console chat that drives `AgentStore` directly through the React-free
-`@cyronius/lm-ag-ui/core` entry — proof the engine (streaming, reducer,
+`@techsavvies/lm-ag-ui/core` entry — proof the engine (streaming, reducer,
 frontend tool execution, chained tool-result submission, watchdog) needs no
 framework.
 

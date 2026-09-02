@@ -1,4 +1,4 @@
-// React-free entry point (`@cyronius/lm-ag-ui/core`).
+// React-free entry point (`@techsavvies/lm-ag-ui/core`).
 //
 // Everything exported here runs without React installed: AgentStore is the
 // full event pipeline (AG-UI subscriber → reducer → frontend tool runner) and

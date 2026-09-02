@@ -9,7 +9,6 @@ import React from 'react';
 import { act } from 'react';
 import { render } from '@testing-library/react';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 import type { AgentClientContextValue, ToolDefinition } from '../index';
 

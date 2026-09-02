@@ -15,7 +15,7 @@ import {
     useAgentContext,
     getAllToolDefinitions,
     type ToolDefinition,
-} from '@cyronius/lm-ag-ui';
+} from '@techsavvies/lm-ag-ui';
 
 const BASE_URL = import.meta.env.VITE_AGENT_BASE_URL ?? 'http://localhost:8000';
 const AGENT_ID = import.meta.env.VITE_AGENT_ID ?? 'demo';

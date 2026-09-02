@@ -12,11 +12,12 @@ import type {
     ToolCallEndEvent,
     ToolCallResultEvent,
     StateSnapshotEvent,
+    CustomEvent,
 } from '@ag-ui/client';
 import { v4 as uuidv4 } from 'uuid';
 import { agentReducer, initialAgentState, AgentState, AgentAction } from './agentReducer';
 import { AgentClient } from './AgentClient';
-import { Session, ToolDefinition, ForwardedPropsBuilder, AgentLifecycleEvent } from './types';
+import { Session, ToolDefinition, ForwardedPropsBuilder, AgentLifecycleEvent, AgentError } from './types';
 import { getFrontEndTools } from './toolUtils';
 import { IntermediateMessageSuppressor } from './intermediateMessageSuppressor';
 import { createRunWatchdog, RunWatchdog } from './runWatchdog';
@@ -39,10 +40,12 @@ export interface AgentStoreOptions {
     tools?: Record<string, ToolDefinition>;
     buildForwardedProps?: ForwardedPropsBuilder;
     onLifecycleEvent?: (event: AgentLifecycleEvent) => void;
-    onError?: (err: { code: 'run_error' | 'timeout' | 'aborted'; message: string; raw?: unknown }) => void;
+    onError?: (err: AgentError) => void;
+    onCustomEvent?: (event: CustomEvent) => void;
     safetyTimeoutMs?: number;
     idleTimeoutMs?: number;
     suppressIntermediateAssistantMessages?: boolean;
+    maxToolTurns?: number;
 }
 
 /** One immutable snapshot of everything React (or any subscriber) renders from. */
@@ -59,6 +62,7 @@ export interface AgentSnapshot {
 // a run that keeps making progress isn't killed — only a genuine stall trips it.
 const DEFAULT_MAX_MS = 900_000;
 const DEFAULT_IDLE_MS = 180_000;
+const DEFAULT_MAX_TOOL_TURNS = 8;
 
 /**
  * The React-free core of the library: subscribes to AG-UI events, runs the
@@ -92,6 +96,14 @@ export class AgentStore implements AgentSubscriber {
     // RUN_FINISHED arriving in that window must not re-process the not-yet-cleared
     // tool buffers.
     private isProcessingToolCalls = false;
+
+    // Chained-continuation counter for the current user turn (see
+    // `maxToolTurns`). `chainContinuationPending` is set right before a
+    // tool-result submission so the next RunStarted is recognised as a
+    // continuation rather than a fresh turn (which resets the counter).
+    // Independent of the suppressor's marker: this one is always on.
+    private chainedTurns = 0;
+    private chainContinuationPending = false;
 
     // Cache for getFrontEndTools keyed on the tools reference.
     private frontEndTools: Record<string, ToolDefinition> = {};
@@ -285,6 +297,8 @@ export class AgentStore implements AgentSubscriber {
      */
     beginTurn = (): Session => {
         this.clearPendingChain();
+        this.chainedTurns = 0;
+        this.chainContinuationPending = false;
         return this.client.startNewRun();
     };
 
@@ -415,8 +429,18 @@ export class AgentStore implements AgentSubscriber {
             message: this.state.messages.slice(-1)[0]?.content,
         });
         this.suppressor.onRunStarted();
+        if (this.chainContinuationPending) {
+            this.chainContinuationPending = false;
+        } else {
+            this.chainedTurns = 0;
+        }
         this.options.onLifecycleEvent?.({ type: 'run_started' });
         this.dispatch({ type: 'SNAPSHOT_PRE_RUN' });
+    };
+
+    onCustomEvent = ({ event }: { event: CustomEvent }): void => {
+        console.info('[AG-UI] CustomEvent:', { name: event.name });
+        this.options.onCustomEvent?.(event);
     };
 
     onTextMessageStartEvent = ({ event }: { event: TextMessageStartEvent }): void => {
@@ -459,12 +483,12 @@ export class AgentStore implements AgentSubscriber {
 
     onRunFinishedEvent = ({ event }: { event: RunFinishedEvent }): void => {
         console.info('[AG-UI] RunFinished:', { event });
-        // Resolve buffered text BEFORE flushTurn so the decision uses the
-        // run's tool-call presence (cleared by FINALIZE_TURN inside flushTurn).
-        // Tool calls whose result has already arrived in this run (backend
-        // tools) don't gate a chained continuation — they're terminal, so the
-        // trailing assistant text in the same run is the final text and must
-        // commit, not drop.
+        // Decide the buffered text's fate BEFORE flushTurn so the decision uses
+        // the run's tool-call presence (cleared by FINALIZE_TURN inside
+        // flushTurn). Tool calls whose result has already arrived in this run
+        // (backend tools) don't gate a chained continuation — they're terminal,
+        // so the trailing assistant text in the same run is the final text and
+        // must commit, not drop.
         const before = this.state;
         const hasUnflushedToolCall = Array.from(before.toolCallBuffers.entries()).some(
             ([id, buf]) => !before.flushedToolCallIds.has(id) && !buf.resultReceived
@@ -472,6 +496,22 @@ export class AgentStore implements AgentSubscriber {
         const { commit, dropped } = this.suppressor.onRunFinished(hasUnflushedToolCall);
         if (dropped.length > 0) {
             console.info('[AG-UI] Dropped intermediate narration:', dropped.map(s => s.text));
+        }
+        // Flush the live turn (first-segment text + tool calls) BEFORE
+        // committing buffered segments. The buffered text was emitted after
+        // the tool calls, and FINALIZE_TURN only splices the owning
+        // assistant.toolCalls message ahead of *trailing* tool results — an
+        // assistant(text) appended first would sit between them, leaving the
+        // history as tool → text → assistant(toolCalls) and the tool result
+        // orphaned on the next full-history send (AGUI-TOOL-RESULT-ADJACENCY).
+        try {
+            this.flushTurn();
+        } catch (error) {
+            console.error('Error creating assistant message:', error);
+            const errorDetail = error instanceof Error ? error.message : String(error);
+            this.addErrorMessage(`Error processing assistant response: ${errorDetail}`);
+        } finally {
+            this.dispatch({ type: 'CLEAR_STREAMING' });
         }
         for (const seg of commit) {
             if (!seg.text.trim()) continue;
@@ -481,16 +521,7 @@ export class AgentStore implements AgentSubscriber {
             });
             this.options.onLifecycleEvent?.({ type: 'message_added', role: 'assistant', content: seg.text });
         }
-        try {
-            this.flushTurn();
-        } catch (error) {
-            console.error('Error creating assistant message:', error);
-            const errorDetail = error instanceof Error ? error.message : String(error);
-            this.addErrorMessage(`Error processing assistant response: ${errorDetail}`);
-        } finally {
-            this.dispatch({ type: 'CLEAR_STREAMING' });
-            this.client.endRun();
-        }
+        this.client.endRun();
 
         // Snapshot must be taken AFTER the flush/CLEAR_STREAMING dispatches,
         // so listeners see finalMessages with the assembled assistant message.
@@ -546,6 +577,8 @@ export class AgentStore implements AgentSubscriber {
         }
         this.dispatch({ type: 'CLEAR_STREAMING' });
         this.suppressor.reset();
+        this.chainedTurns = 0;
+        this.chainContinuationPending = false;
         this.dispatch({
             type: 'ADD_MESSAGE',
             message: { id: `error_${Date.now()}`, role: 'assistant', content: `Error: ${event.message}` },
@@ -663,7 +696,20 @@ export class AgentStore implements AgentSubscriber {
             this.addErrorMessage(error);
         } finally {
             this.dispatch({ type: 'CLEAR_TOOL_BUFFERS' });
-            if (toolMessages.length > 0) {
+            const maxToolTurns = this.options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
+            if (toolMessages.length > 0 && this.chainedTurns >= maxToolTurns) {
+                // Runaway agent: it keeps asking for frontend tools without ever
+                // answering. Cut the chain here rather than loop until the
+                // watchdog's absolute cap (AGUI-MAX-TOOL-TURNS).
+                console.warn(`[AG-UI] Tool-continuation cap (${maxToolTurns}) reached — ending turn`);
+                this.chainedTurns = 0;
+                this.setPendingToolWork(false);
+                const message = `Stopped after ${maxToolTurns} chained tool turns — the agent kept requesting tools without answering.`;
+                this.options.onError?.({ code: 'max_tool_turns', message });
+                this.addErrorMessage(message);
+            } else if (toolMessages.length > 0) {
+                this.chainedTurns += 1;
+                this.chainContinuationPending = true;
                 const toolDefs = Object.values(this.options.tools ?? {}).map((t) => t.definition);
                 this.client.startNewRun();
                 const baseProps = this.options.buildForwardedProps?.() ?? {};

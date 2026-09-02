@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { AgentConfig, UseAgentOptions, AgentClientContextValue, ToolDefinition } from './types';
+import { AgentConfig, UseAgentOptions, ToolDefinition } from './types';
 import { loadAgentConfig } from './configService';
 import { useAgent } from './useAgent';
 import { AgentProvider } from './AgentClientContext';
@@ -45,6 +45,14 @@ export interface UseAgentSetupOptions {
      * semantics. Sticky for the lifetime of the AgentLayer.
      */
     suppressIntermediateAssistantMessages?: UseAgentOptions['suppressIntermediateAssistantMessages'];
+    /** Called for run errors, timeouts, aborts, and the chained-tool-turn cap.
+     *  See `UseAgentOptions.onError`. */
+    onError?: UseAgentOptions['onError'];
+    /** Called for every AG-UI CUSTOM event. See `UseAgentOptions.onCustomEvent`. */
+    onCustomEvent?: UseAgentOptions['onCustomEvent'];
+    /** Cap on chained frontend-tool continuations per user turn. See
+     *  `UseAgentOptions.maxToolTurns`. Default: 8. */
+    maxToolTurns?: UseAgentOptions['maxToolTurns'];
     /**
      * Optional frontend tool implementations keyed by tool name. When provided,
      * backend tool configs are automatically joined with these implementations via
@@ -100,6 +108,9 @@ export function useAgentSetup({
     sendFullHistory,
     pruneOutboundMessages,
     suppressIntermediateAssistantMessages,
+    onError,
+    onCustomEvent,
+    maxToolTurns,
     frontendToolImpls,
     onConfigLoaded,
     configParams
@@ -137,6 +148,9 @@ export function useAgentSetup({
             });
 
         return () => { cancelled = true; };
+        // frontendToolImpls / onConfigLoaded are read only when config lands;
+        // listing them would re-fetch config on every inline-callback render.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isReady, baseUrl, agentId, tokenProvider, requestHandler, configParams]);
 
     // Latest agent options, rebuilt every render and read by AgentLayer at its
@@ -167,6 +181,9 @@ export function useAgentSetup({
         sendFullHistory,
         pruneOutboundMessages,
         suppressIntermediateAssistantMessages,
+        onError,
+        onCustomEvent,
+        maxToolTurns,
         configParams,
     } : null;
 

@@ -3,7 +3,7 @@
 // build), so `core.ts` can re-export everything here without dragging React
 // into a non-React consumer's module graph.
 import type { ReactElement } from 'react';
-import type { AgentSubscriber, Message } from '@ag-ui/client';
+import type { AgentSubscriber, CustomEvent, Message } from '@ag-ui/client';
 import type { AgentClient, TokenProvider, SystemContextBuilder } from './AgentClient';
 import type { RequestHandler } from './CustomHttpAgent';
 
@@ -149,6 +149,14 @@ export type AgentLifecycleEvent =
     | { type: 'tool_used'; toolName: string }
     | { type: 'message_added'; role: string; content: string };
 
+export type AgentErrorCode = 'run_error' | 'timeout' | 'aborted' | 'max_tool_turns';
+
+export interface AgentError {
+    code: AgentErrorCode;
+    message: string;
+    raw?: unknown;
+}
+
 export interface UseAgentOptions {
     baseUrl?: string;
     agentId: string;
@@ -167,9 +175,18 @@ export interface UseAgentOptions {
     /** Enable backend LLM-input capture by appending `?debug=true` to the agent URL.
      *  Set once at init (drive from env var or URL flag); not runtime-toggleable. */
     debug?: boolean;
-    /** Called for run errors, timeouts, and aborts. Additive to the existing in-stream
-     *  error-message behavior. */
-    onError?: (err: { code: 'run_error' | 'timeout' | 'aborted'; message: string; raw?: unknown }) => void;
+    /** Called for run errors, timeouts, aborts, and the chained-tool-turn cap.
+     *  Additive to the existing in-stream error-message behavior. */
+    onError?: (err: AgentError) => void;
+    /** Called for every AG-UI CUSTOM event the backend emits (`event.name` /
+     *  `event.value`). The library does not interpret these; use this to fold
+     *  app-specific signals into your own state. */
+    onCustomEvent?: (event: CustomEvent) => void;
+    /** Maximum chained run→frontend-tool→run continuations per user turn. When
+     *  the agent keeps requesting frontend tools past this cap, the chain is cut:
+     *  no further tool results are submitted, an error message is added, and
+     *  `onError` fires with `code: 'max_tool_turns'`. Default: 8. */
+    maxToolTurns?: number;
     /** Absolute hard cap in ms for a whole run. Never reset — a backstop against a run
      *  that keeps trickling events forever. On expiry the run is forcibly aborted and a
      *  timeout message is added. Default: 900_000 (15 min). */

@@ -1,16 +1,16 @@
 {
-    "name": "@cyronius/lm-ag-ui",
+    "name": "@techsavvies/lm-ag-ui",
     "version": "2.0.0-alpha.0",
     "description": "React hooks and utilities for building chat interfaces powered by the AG-UI streaming protocol.",
     "license": "MIT",
     "author": "Cyrus Attoun",
-    "homepage": "https://github.com/Cyronius/lm-ag-ui#readme",
+    "homepage": "https://github.com/TechSavvies/lm-ag-ui#readme",
     "bugs": {
-        "url": "https://github.com/Cyronius/lm-ag-ui/issues"
+        "url": "https://github.com/TechSavvies/lm-ag-ui/issues"
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/Cyronius/lm-ag-ui.git"
+        "url": "git+https://github.com/TechSavvies/lm-ag-ui.git"
     },
     "keywords": [
         "ag-ui",
@@ -47,6 +47,8 @@
     "scripts": {
         "build": "vite build",
         "test": "vitest run",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "lint": "eslint .",
         "release:alpha": "node scripts/release-alpha.mjs",
         "prepare": "vite build"
     },
@@ -71,12 +73,15 @@
         "@types/react-dom": "^18.2.0",
         "@types/uuid": "^10.0.0",
         "@vitejs/plugin-react-swc": "^3.10.2",
+        "eslint": "^9.39.5",
+        "eslint-plugin-react-hooks": "^7.1.1",
         "happy-dom": "^20.9.0",
         "react": ">=18",
         "react-dom": "^18.0.0",
         "rollup-plugin-visualizer": "^6.0.5",
-        "rxjs": "^7.8.2",
+        "rxjs": "7.8.1",
         "typescript": "^5.0.0",
+        "typescript-eslint": "^8.69.0",
         "vite": "^6.4.1",
         "vite-plugin-dts": "^4.5.4",
         "vitest": "^4.1.5"

@@ -11,9 +11,11 @@ function pickStoreOptions(options: UseAgentOptions): AgentStoreOptions {
         buildForwardedProps: options.buildForwardedProps,
         onLifecycleEvent: options.onLifecycleEvent,
         onError: options.onError,
+        onCustomEvent: options.onCustomEvent,
         safetyTimeoutMs: options.safetyTimeoutMs,
         idleTimeoutMs: options.idleTimeoutMs,
         suppressIntermediateAssistantMessages: options.suppressIntermediateAssistantMessages,
+        maxToolTurns: options.maxToolTurns,
     };
 }
 

@@ -18,7 +18,7 @@ import {
     getAllToolDefinitions,
     type AgentSnapshot,
     type ToolDefinition,
-} from '@cyronius/lm-ag-ui/core';
+} from '@techsavvies/lm-ag-ui/core';
 
 const baseUrl = process.env.AGENT_BASE_URL ?? 'http://localhost:8000';
 const agentId = process.env.AGENT_ID ?? 'demo';

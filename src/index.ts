@@ -1,7 +1,7 @@
-// Package root (`@cyronius/lm-ag-ui`): the React entry point.
+// Package root (`@techsavvies/lm-ag-ui`): the React entry point.
 //
 // Re-exports everything from `./core` (the React-free engine — also available
-// standalone as `@cyronius/lm-ag-ui/core` for non-React consumers) and adds
+// standalone as `@techsavvies/lm-ag-ui/core` for non-React consumers) and adds
 // the React bindings: useAgent, useAgentSetup, AgentProvider, useAgentContext.
 
 export * from './core';
