@@ -2,7 +2,7 @@ import { HttpAgent, AgentSubscriber, Message, State, Tool } from '@ag-ui/client'
 import type { RunAgentResult } from '@ag-ui/client';
 import { CustomHttpAgent } from './CustomHttpAgent';
 import type { RequestHandler } from './CustomHttpAgent';
-import { Session } from './index';
+import { Session } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 const DEFAULT_TIMEOUT_MS = 300000;
@@ -170,6 +170,16 @@ export class AgentClient {
         this.onSessionChange = callback;
     }
 
+    /**
+     * Replace the token provider. The provider is invoked per request
+     * (applyAuthHeaders), so an updated provider takes effect on the next
+     * wire call — no client reconstruction needed. `useAgent` forwards the
+     * latest provider on every render.
+     */
+    setTokenProvider(tokenProvider?: TokenProvider) {
+        this.tokenProvider = tokenProvider;
+    }
+
     // Session management methods
     startNewRun(): Session {
         const newRunId = this.generateRunId();
@@ -199,7 +209,7 @@ export class AgentClient {
 
         if (startedAt == null) return;
 
-        // Defer the elapsed log: useFrontendToolRunner calls startNewRun
+        // Defer the elapsed log: the frontend tool runner calls startNewRun
         // synchronously after endRun when continuing a tool chain. Wait one
         // microtask to see whether the run actually ended or just hopped turns.
         queueMicrotask(() => {

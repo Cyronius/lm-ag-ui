@@ -1,11 +1,11 @@
-# @cyronius/lm-ag-ui
+# @techsavvies/lm-ag-ui
 
-React hooks and utilities for building chat interfaces powered by the [AG-UI](https://github.com/ag-ui-protocol/ag-ui) streaming protocol.
+React hooks and utilities for building chat interfaces powered by the [AG-UI](https://github.com/ag-ui-protocol/ag-ui) streaming protocol. The engine is framework-free — a React-free entry (`@techsavvies/lm-ag-ui/core`) exposes it for Vue, Svelte, workers, or plain TypeScript.
 
 ## Installation
 
 ```bash
-npm install @cyronius/lm-ag-ui
+npm install @techsavvies/lm-ag-ui
 ```
 
 ### Peer Dependencies
@@ -19,12 +19,21 @@ npm install @cyronius/lm-ag-ui
 }
 ```
 
+`react` is an **optional** peer: it is required by the package root (hooks,
+provider) but not by `@techsavvies/lm-ag-ui/core`, whose runtime graph imports
+only `@ag-ui/client` and `rxjs`.
+
+## Examples
+
+- [examples/react](./examples/react) — minimal Vite chat UI over `useAgent` / `AgentProvider` (streaming render, frontend tool, `isBusy` gating)
+- [examples/plain-typescript](./examples/plain-typescript) — Node console chat driving `AgentStore` directly through `/core`; no React installed
+
 ## Quick Start
 
 Use `useAgent` to initialize the agent client and wrap your UI with `AgentProvider`:
 
 ```tsx
-import { useAgent, AgentProvider, useAgentContext } from '@cyronius/lm-ag-ui';
+import { useAgent, AgentProvider, useAgentContext } from '@techsavvies/lm-ag-ui';
 
 function App() {
   const agent = useAgent({
@@ -44,7 +53,7 @@ function App() {
 Inside `AgentProvider`, access agent state via `useAgentContext`:
 
 ```tsx
-import { useAgentContext } from '@cyronius/lm-ag-ui';
+import { useAgentContext } from '@techsavvies/lm-ag-ui';
 
 function ChatUI() {
   const {
@@ -54,12 +63,13 @@ function ChatUI() {
     isStreaming,
     agentClient,
     agentSubscriber,
+    beginTurn,
   } = useAgentContext();
 
   const sendMessage = async (text: string) => {
     const userMsg = { id: `msg_${Date.now()}`, role: 'user', content: text };
     addMessage(userMsg);
-    agentClient.startNewRun();
+    beginTurn();
     await agentClient.runAgent(
       [...messages, userMsg],
       [],
@@ -78,20 +88,21 @@ function ChatUI() {
 
 ## Architecture
 
-> **In doubt? Use `useAgent`.** It composes `useAgentSession` + `useAgentStream` + `useFrontendToolRunner` into a single hook with the right wiring. The lower-level hooks are exposed only for consumers building a custom runner (e.g. running tools in a worker, or skipping the frontend tool layer entirely).
+> **In doubt? Use `useAgent`.** It is a thin React binding over `AgentStore`, the React-free engine that owns the whole event pipeline. Construct `AgentStore` directly only when building a custom binding (another framework, a worker, a non-React app).
 
 ### Layered structure
 
 - **Transport layer** — [src/CustomHttpAgent.ts](./src/CustomHttpAgent.ts): subclasses `@ag-ui/client`'s `HttpAgent` to route the request pipeline through a pluggable `RequestHandler`. Auth headers, retries, and custom fetch behavior hook in here.
 - **Session layer** — [src/AgentClient.ts](./src/AgentClient.ts): wraps the HttpAgent with session semantics (`threadId`, `runId`, `isActive`), system-context injection with per-thread content-based deduplication, token-provider-based auth refresh, and the two entry points `runAgent()` (new turn) and `submitToolResults()` (tool feedback round-trip).
-- **React layer** — [src/useAgent.ts](./src/useAgent.ts) + [src/AgentClientContext.tsx](./src/AgentClientContext.tsx): subscribes to AG-UI streaming events, accumulates text deltas, buffers incremental tool calls, executes frontend tools at `RunFinished`, and exposes the agent state to the tree via `AgentProvider` / `useAgentContext`.
+- **Engine (React-free)** — [src/AgentStore.ts](./src/AgentStore.ts): implements the AG-UI `AgentSubscriber` directly. Accumulates text deltas through the pure reducer ([src/agentReducer.ts](./src/agentReducer.ts)), buffers incremental tool calls, executes frontend tools at `RunFinished` and chains the tool-result submission, owns the run watchdog and the intermediate-message suppressor, and exposes `subscribe`/`getSnapshot` (the `useSyncExternalStore` contract, usable from any framework).
+- **React binding** — [src/useAgent.ts](./src/useAgent.ts) + [src/AgentClientContext.tsx](./src/AgentClientContext.tsx): creates the store once per mount, syncs options latest-wins on each render, reads one folded snapshot via `useSyncExternalStore`, and exposes the agent state to the tree via `AgentProvider` / `useAgentContext`.
 
 ### Data flow (one user turn)
 
 ```
 user input
    → addMessage(user)
-   → agentClient.startNewRun()
+   → beginTurn()   (clears stale chain marker, then agentClient.startNewRun())
    → agentClient.runAgent(history, tools, subscriber)
      → HttpAgent streams events ──→ subscriber callbacks
         ├─ TextMessageContent  → text buffer += delta
@@ -117,12 +128,12 @@ To suppress *intermediate* assistant narration during an agentic chain — keepi
 
 - The first text emitted in a user turn (the first `TEXT_MESSAGE_*` group seen since the user submitted) streams live as it arrives.
 - Text in any subsequent run is buffered until that run's `RUN_FINISHED`. If the run emitted any tool calls (chain continues), the buffered text is dropped — it was intermediate narration. If the run had no tool calls (chain ends), the buffered text is committed as the final-result message.
-- A new turn (a fresh `runAgent` call rather than a tool-result chain continuation) resets the first-text tracking. `useFrontendToolRunner` signals continuation by calling `stream.markChainedRun()` immediately before submitting tool results. Consumers calling `agentClient.runAgent` directly to start a fresh user-initiated run while this flag is enabled should call `agent.clearPendingChain()` first as a defensive guard; `useAgent.invokeToolByName` does this automatically.
+- A new turn (a fresh `runAgent` call rather than a tool-result chain continuation) resets the first-text tracking. The store's tool runner signals continuation by calling `markChainedRun()` immediately before submitting tool results. Consumers calling `agentClient.runAgent` directly should start the turn with `beginTurn()` (which clears any stale chained-run marker before minting the run) rather than `agentClient.startNewRun()`; `invokeToolByName` does this automatically. `clearPendingChain()` remains as a standalone escape hatch.
 
 ### State ownership
 
 - **Session** (`AgentClient`): `threadId`, `runId`, `isActive`.
-- **Chat state** (`useAgent`): messages, streaming buffer, tool-call buffers, per-tool global state.
+- **Chat state** (`AgentStore`): messages, streaming buffer, tool-call buffers, per-tool global state — held as one immutable `AgentSnapshot` (`state`, `session`, `isStreaming`, `hasPendingToolWork`, `isBusy`). `useAgent` renders from that snapshot; there is no React-side copy.
 
 ### `sendFullHistory` modes
 
@@ -161,7 +172,9 @@ Core hook that creates an `AgentClient` and manages streaming state, messages, a
 | `onLifecycleEvent` | `(event: AgentLifecycleEvent) => void` | No | Callback for observing agent lifecycle events (run started, tool used, message added) |
 | `systemContextBuilder` | `() => string \| null` | No | Zero-arg renderer for the system-context snapshot. When not provided, no system context is injected. Independent of `buildForwardedProps` |
 | `debug` | `boolean` | No | Enable backend LLM-input capture (appends `?debug=true` to the agent URL). Set once at init; drive from env var or URL flag |
-| `onError` | `(err: { code; message; raw? }) => void` | No | Fires on run errors, timeout aborts, and intentional aborts. Additive to in-stream error messages |
+| `onError` | `(err: AgentError) => void` | No | Fires on run errors, timeout aborts, intentional aborts, and the chained-tool-turn cap (`code`: `'run_error' \| 'timeout' \| 'aborted' \| 'max_tool_turns'`). Additive to in-stream error messages |
+| `onCustomEvent` | `(event: CustomEvent) => void` | No | Fires for every AG-UI `CUSTOM` event (`event.name`, `event.value`). The library does not interpret these — fold them into your own state here rather than patching the subscriber |
+| `maxToolTurns` | `number` | No | Cap on chained run→frontend-tool→run continuations per user turn. On breach the chain is cut, an error message is added, and `onError` fires with `code: 'max_tool_turns'` (default: 8) |
 | `safetyTimeoutMs` | `number` | No | Absolute hard cap for a whole run, never reset (default: 900000) |
 | `idleTimeoutMs` | `number` | No | Idle window, reset on every AG-UI event — only a genuine stall trips it (default: 180000) |
 | `pruneOutboundMessages` | `(messages: Message[]) => Message[]` | No | Outbound transformer applied immediately before every wire send. Must preserve ordering and tool-call/tool-result pairing — only `content` may change |
@@ -185,7 +198,7 @@ const client = new AgentClient('http://localhost:8000', 'my-agent', {
 ```
 
 Key methods:
-- `startNewRun()` / `endRun()` / `endSession()` - Session lifecycle
+- `startNewRun()` / `endRun()` / `endSession()` - Session lifecycle. To start a fresh user turn, prefer `beginTurn()` on the context value / `AgentStore` — it clears the store's chained-run marker before calling `startNewRun()`
 - `runAgent(messages, tools, subscriber, forwardedProps)` - Send messages to backend
 - `submitToolResults(messages, subscriber, tools, forwardedProps)` - Submit tool execution results
 - `abortRun()` - Abort the current streaming run
@@ -196,7 +209,7 @@ Key methods:
 Tools define capabilities the agent can invoke. Each tool can run on the frontend (in React) or the backend (on the server).
 
 ```tsx
-import type { ToolDefinition } from '@cyronius/lm-ag-ui';
+import type { ToolDefinition } from '@techsavvies/lm-ag-ui';
 
 const myTool: ToolDefinition = {
   definition: {
@@ -240,7 +253,7 @@ The library supports file attachments via AG-UI's native `BinaryInputContent` ty
 Use `filesToBinaryContent()` to read files client-side and embed them directly in message content:
 
 ```ts
-import { filesToBinaryContent } from '@cyronius/lm-ag-ui';
+import { filesToBinaryContent } from '@techsavvies/lm-ag-ui';
 
 const binaryParts = await filesToBinaryContent(files);
 const message = {
@@ -258,7 +271,7 @@ const message = {
 Upload files to your own storage, then reference them via `BinaryInputContent.url`:
 
 ```ts
-import type { BinaryInputContent } from '@cyronius/lm-ag-ui';
+import type { BinaryInputContent } from '@techsavvies/lm-ag-ui';
 
 // Upload to your own endpoint
 const uploaded = await myUploadService(files);
@@ -336,8 +349,8 @@ useAgent({
 If your backend provides a `GET /agent/{agentId}` endpoint that returns tool definitions and suggestions, `useAgentSetup` loads it and mounts the agent once config is ready:
 
 ```tsx
-import { useAgentSetup } from '@cyronius/lm-ag-ui';
-import type { AgentConfig } from '@cyronius/lm-ag-ui';
+import { useAgentSetup } from '@techsavvies/lm-ag-ui';
+import type { AgentConfig } from '@techsavvies/lm-ag-ui';
 
 function App() {
   const { config, isLoading, error, AgentLayer } = useAgentSetup({
@@ -367,7 +380,7 @@ function App() {
 The backend owns each tool's schema and `configJson`; the frontend owns the code that runs handlers and renders results. For the common case, pass `frontendToolImpls` to `useAgentSetup` and let it join them for you:
 
 ```tsx
-import { useAgentSetup } from '@cyronius/lm-ag-ui';
+import { useAgentSetup } from '@techsavvies/lm-ag-ui';
 
 const frontendToolImpls = {
   show_calendar: {
@@ -399,7 +412,10 @@ For full control (conditional tool registration, runtime filtering), use `onConf
 
 ## Exports
 
-Everything is exported from the package root (`@cyronius/lm-ag-ui`).
+Two entry points:
+
+- **`@techsavvies/lm-ag-ui`** (root) — everything below, including the React bindings.
+- **`@techsavvies/lm-ag-ui/core`** — everything except `useAgent`, `useAgentSetup`, `AgentProvider`, `useAgentContext`. Zero React in its runtime graph; use it from non-React apps (see [examples/plain-typescript](./examples/plain-typescript)). The only React trace is type-level (`ToolDefinition.renderer` returns a `ReactElement`) — erased at build, and non-React consumers simply leave `renderer` unset.
 
 **Classes**: `AgentClient`, `HttpAgent` (re-export from `@ag-ui/client`)
 
@@ -409,9 +425,32 @@ Everything is exported from the package root (`@cyronius/lm-ag-ui`).
 
 **Functions**: `filesToBinaryContent`, `loadAgentConfig`, `hydrateToolConfigs`, `getAllToolDefinitions`, `getFrontendToolDefinitions`, `getBackendToolDefinitions`, `getFrontEndTools`, `getToolRenderers`, `groupSuggestionsByCategory`
 
-**Types**: `ToolDefinition`, `ToolHandler`, `ToolRenderer`, `ToolOnResult`, `ToolContext`, `AgentClientContextValue`, `UseAgentOptions`, `UseAgentSetupOptions`, `UseAgentSetupResult`, `AgentConfig`, `Suggestion`, `ToolConfigResponse`, `AgentLifecycleEvent`, `Session`, `TokenProvider`, `RequestHandler`, `SystemContextBuilder`, `BinaryInputContent`, `InputContent`, AG-UI re-exports (`Message`, `Tool`, `BaseEvent`, `EventType`, and all event types)
+**Types**: `ToolDefinition`, `ToolHandler`, `ToolRenderer`, `ToolOnResult`, `ToolContext`, `AgentClientContextValue`, `UseAgentOptions`, `UseAgentSetupOptions`, `UseAgentSetupResult`, `AgentConfig`, `Suggestion`, `ToolConfigResponse`, `AgentLifecycleEvent`, `AgentError`, `AgentErrorCode`, `Session`, `TokenProvider`, `RequestHandler`, `SystemContextBuilder`, `BinaryInputContent`, `InputContent`, AG-UI re-exports (`Message`, `Tool`, `BaseEvent`, `EventType`, and all event types)
 
-**Advanced** — lower-level building blocks; most consumers want `useAgent`: `useAgentSession`, `useAgentStream`, `useFrontendToolRunner`
+**Advanced** — lower-level building blocks; most consumers want `useAgent`: `AgentStore` (with `AgentStoreOptions`, `AgentSnapshot`, `RunFinishedPayload`, `PendingToolCall`), `executeFrontendToolCall` (with `FrontendToolExecution`)
+
+## Migrating from 1.x
+
+2.0 replaces the internal hook composition with the React-free `AgentStore`. The `useAgent` / `useAgentSetup` facades and `AgentClientContextValue` are signature-compatible — most consumers upgrade with no code changes.
+
+Breaking changes:
+
+- **Removed**: `useAgentSession`, `useAgentStream`, `useFrontendToolRunner` and their types (`SessionHandle`, `StreamHandle`, `FrontendToolRunnerOptions`). If you composed these for a custom runner, construct an `AgentStore` instead: it implements `AgentSubscriber`, exposes `onRunFinished(cb)`, `beginTurn()`, `markChainedRun()`, `clearPendingChain()`, `dispatch(action)`, and the `subscribe`/`getSnapshot` pair for state.
+- **`agentSubscriber`** on the context value is now the store itself (still a valid `AgentSubscriber`). Its handlers are class properties — assigning your own handler keys onto it (e.g. `agentSubscriber.onCustomEvent = …`) overwrites the store's. Use the `onCustomEvent` option instead.
+- **Package renamed** from `@cyronius/lm-ag-ui` / `@itkennel/lm-ag-ui` to `@techsavvies/lm-ag-ui`. Update imports; the API is otherwise the same as 1.1.0 / 1.0.276.
+
+New in 2.0:
+
+- `onCustomEvent` option on `useAgent` / `useAgentSetup` / `AgentStore`.
+- `maxToolTurns` option (default 8) — cuts a runaway frontend-tool chain; `onError` gains `code: 'max_tool_turns'`.
+- `useAgentSetup` now accepts `onError`.
+
+Behavior fixes (deliberate):
+
+- A backend tool result followed by trailing assistant text (with `suppressIntermediateAssistantMessages` on) is now recorded as `assistant(toolCalls) → tool → assistant(text)`. Previously the trailing text landed between the tool result and its owner, and the orphaned result was dropped on the next full-history send.
+
+- `isBusy` / `hasPendingToolWork` now reset when a chained run errors, times out, is terminated, or has nothing submittable. Previously they could stick `true` forever after a mid-chain failure.
+- `useAgentSetup`'s `AgentLayer` no longer remounts (destroying the conversation) when option identities change (an unmemoized `tools`, an inline `buildForwardedProps`, a config refetch). Only `baseUrl`/`agentId` changes remount. A rotated `tokenProvider` now takes effect without a remount via `AgentClient.setTokenProvider`.
 
 ## Development
 
@@ -423,4 +462,4 @@ npm run build   # ES bundle + declarations into dist/
 
 ## License
 
-MIT © Cyrus Attoun
+MIT © SVI, LLC

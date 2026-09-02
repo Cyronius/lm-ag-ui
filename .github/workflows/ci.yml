@@ -19,6 +19,10 @@ jobs:
       # `prepare` runs `vite build`, so this also proves the package builds.
       - run: npm ci
 
+      - run: npm run typecheck
+
+      - run: npm run lint
+
       - run: npm test
 
       - run: npm run build

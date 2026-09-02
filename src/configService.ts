@@ -1,4 +1,4 @@
-import { AgentConfig, Suggestion, ToolConfigResponse } from './index';
+import { AgentConfig, Suggestion, ToolConfigResponse } from './types';
 import type { TokenProvider } from './AgentClient';
 import type { RequestHandler } from './CustomHttpAgent';
 

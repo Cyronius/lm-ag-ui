@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { AgentConfig, UseAgentOptions, AgentClientContextValue, ToolDefinition } from './index';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { AgentConfig, UseAgentOptions, ToolDefinition } from './types';
 import { loadAgentConfig } from './configService';
 import { useAgent } from './useAgent';
 import { AgentProvider } from './AgentClientContext';
@@ -45,6 +45,14 @@ export interface UseAgentSetupOptions {
      * semantics. Sticky for the lifetime of the AgentLayer.
      */
     suppressIntermediateAssistantMessages?: UseAgentOptions['suppressIntermediateAssistantMessages'];
+    /** Called for run errors, timeouts, aborts, and the chained-tool-turn cap.
+     *  See `UseAgentOptions.onError`. */
+    onError?: UseAgentOptions['onError'];
+    /** Called for every AG-UI CUSTOM event. See `UseAgentOptions.onCustomEvent`. */
+    onCustomEvent?: UseAgentOptions['onCustomEvent'];
+    /** Cap on chained frontend-tool continuations per user turn. See
+     *  `UseAgentOptions.maxToolTurns`. Default: 8. */
+    maxToolTurns?: UseAgentOptions['maxToolTurns'];
     /**
      * Optional frontend tool implementations keyed by tool name. When provided,
      * backend tool configs are automatically joined with these implementations via
@@ -100,6 +108,9 @@ export function useAgentSetup({
     sendFullHistory,
     pruneOutboundMessages,
     suppressIntermediateAssistantMessages,
+    onError,
+    onCustomEvent,
+    maxToolTurns,
     frontendToolImpls,
     onConfigLoaded,
     configParams
@@ -137,44 +148,66 @@ export function useAgentSetup({
             });
 
         return () => { cancelled = true; };
+        // frontendToolImpls / onConfigLoaded are read only when config lands;
+        // listing them would re-fetch config on every inline-callback render.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isReady, baseUrl, agentId, tokenProvider, requestHandler, configParams]);
+
+    // Latest agent options, rebuilt every render and read by AgentLayer at its
+    // OWN render time. This keeps option identity churn (an unmemoized `tools`
+    // object, an inline `buildForwardedProps`, a config refetch replacing the
+    // config object) from changing the Layer's component identity — a new
+    // component type unmounts the whole agent subtree and silently discards
+    // the conversation. useAgent pushes all mutable options into the store on
+    // every render, so per-render churn here is harmless. Construction-frozen
+    // transport options (requestHandler, sendFullHistory, initialThreadId,
+    // systemContextBuilder, pruneOutboundMessages, configParams, debug) are
+    // read once at mount; changing them requires a remount by design.
+    // `tokenProvider` is the exception: useAgent forwards the latest one to
+    // the client on every render (AgentClient.setTokenProvider).
+    const agentOptionsRef = useRef<UseAgentOptions | null>(null);
+    agentOptionsRef.current = config && baseUrl ? {
+        baseUrl,
+        agentId,
+        tokenProvider,
+        requestHandler,
+        timeout,
+        safetyTimeoutMs,
+        idleTimeoutMs,
+        tools: tools ?? config.tools ?? {},
+        buildForwardedProps,
+        systemContextBuilder,
+        debug,
+        sendFullHistory,
+        pruneOutboundMessages,
+        suppressIntermediateAssistantMessages,
+        onError,
+        onCustomEvent,
+        maxToolTurns,
+        configParams,
+    } : null;
 
     // Build the AgentLayer component.
     // When config is null, it's a passthrough (children render without AgentProvider).
-    // When config loads, a new component identity is created that mounts useAgent fresh.
+    // Once config loads, the Layer identity is stable: only a baseUrl/agentId
+    // change creates a new component (an intentional remount — fresh client).
+    const hasConfig = !!config && !!baseUrl;
     const AgentLayer = useMemo(() => {
-        if (!config || !baseUrl) {
+        if (!hasConfig) {
             return ({ children }: { children: React.ReactNode }) =>
                 React.createElement(React.Fragment, null, children);
         }
 
-        const agentOptions: UseAgentOptions = {
-            baseUrl,
-            agentId,
-            tokenProvider,
-            requestHandler,
-            timeout,
-            safetyTimeoutMs,
-            idleTimeoutMs,
-            tools: tools ?? config.tools ?? {},
-            buildForwardedProps,
-            systemContextBuilder,
-            debug,
-            sendFullHistory,
-            pruneOutboundMessages,
-            suppressIntermediateAssistantMessages,
-            configParams,
-        };
-
-        // This is a new component — useAgent's useState initializer runs fresh
-        // with the correct baseUrl/agentId when this mounts.
         const Layer = ({ children }: { children: React.ReactNode }) => {
-            const agent = useAgent(agentOptions);
+            const agent = useAgent(agentOptionsRef.current!);
             return React.createElement(AgentProvider, { value: agent, children });
         };
         Layer.displayName = 'AgentLayer';
         return Layer;
-    }, [config, baseUrl, agentId, tokenProvider, requestHandler, timeout, safetyTimeoutMs, idleTimeoutMs, tools, buildForwardedProps, systemContextBuilder, debug, sendFullHistory, pruneOutboundMessages, suppressIntermediateAssistantMessages, configParams]);
+        // agentOptionsRef is stable; baseUrl/agentId feed useAgent's useState
+        // initializer, so their change must mint a new component identity.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasConfig, baseUrl, agentId]);
 
     return { config, isLoading, error, AgentLayer };
 }

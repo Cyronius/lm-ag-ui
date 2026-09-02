@@ -1,4 +1,4 @@
-import { StandardTool, ToolDefinition, ToolRenderer, ToolConfigResponse } from './index';
+import { StandardTool, ToolDefinition, ToolRenderer, ToolConfigResponse } from './types';
 
 
 // Helper functions

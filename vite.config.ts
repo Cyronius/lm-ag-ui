@@ -32,6 +32,7 @@ export default defineConfig({
         lib: {
             entry: {
                 index: "src/index.ts",
+                core: "src/core.ts",
             },
             name: "lm-ag-ui",
             formats: ["es"],

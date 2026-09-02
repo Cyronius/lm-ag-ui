@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import { AgentClientContextValue } from './index';
+import { AgentClientContextValue } from './types';
 
 interface AgentProviderProps {
     value: AgentClientContextValue;
